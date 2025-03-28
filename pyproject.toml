@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "sera-2"
+version = "1.2.1"
+description = ""
+authors = ["Binh Vu <bvu687@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "sera" }]
+repository = "https://github.com/binh-vu/sera"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+codegen-2 = "^2.1.4"
+black = "^25.0.1"
+msgspec = "^0.19.0"
+litestar = "^2.15.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,81 @@
+Product:
+  label:
+    en: Product
+    vi: Sản phẩm
+  desc: >
+    A product is a good or service (physical or digital) that is offered for sale.
+  db:
+    table_name: products
+  props:
+    id:
+      label:
+        en: id
+        vi: định danh
+      datatype: integer
+      db:
+        is_primary_key: true
+        is_auto_increment: true
+    name:
+      label:
+        en: name
+        vi: tên
+      datatype: string
+      db: {}
+    expired_at:
+      label:
+        en: expired at
+        vi: ngày hết hạn
+      datatype: datetime
+      db: {}
+    images:
+      label:
+        en: image
+        vi: hình ảnh
+      datatype: bytes[]
+      db: {}
+    categories:
+      label:
+        en: category
+        vi: danh mục
+      target: Category
+      db: {}
+
+Category:
+  label:
+    en: Category
+    vi: Danh mục
+  db:
+    table_name: categories
+  desc: >
+    A category is a classification of products.
+    It helps to organize products into groups based on their characteristics or purpose.
+    Categories can be hierarchical, with subcategories under main categories.
+  props:
+    id:
+      label:
+        en: id
+        vi: định danh
+      datatype: integer
+      db:
+        is_primary_key: true
+        is_auto_increment: true
+    name:
+      label:
+        en: name
+        vi: tên
+      datatype: string
+      db: {}
+    description:
+      label:
+        en: description
+        vi: mô tả
+      datatype: string
+      db: {}
+    parent:
+      label:
+        en: parent
+        vi: danh mục cha
+      target: Category
+      cardinality: 1:1
+      is_optional: true
+      db: {}
