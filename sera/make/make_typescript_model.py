@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 from codegen.models import AST, PredefinedFn, Program, expr, stmt
 from codegen.models.var import DeferredVar
-from sera.misc import assert_not_null, to_camel_case, to_pascal_case
+from sera.misc import assert_isinstance, assert_not_null, to_camel_case, to_pascal_case
 from sera.models import (
     Class,
     DataProperty,
@@ -19,6 +19,11 @@ from sera.models import (
 def make_typescript_data_model(schema: Schema, target_pkg: Package):
     """Generate TypeScript data model from the schema. The data model aligns with the public data model in Python, not the database model."""
     app = target_pkg.app
+
+    def clone_prop(prop: DataProperty | ObjectProperty, value: expr.Expr):
+        # detect all complex types is hard, we can assume that any update to this does not mutate
+        # the original object, then it's okay.
+        return value
 
     def make_normal(cls: Class, pkg: Package):
         """Make a data model for the normal Python data model"""
@@ -59,7 +64,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     tstype = assert_not_null(
                         prop.target.get_id_property()
                     ).datatype.get_typescript_type()
-
+                    if prop.cardinality.is_star_to_many():
+                        tstype = tstype.as_list_type()
                     deser_args.append(
                         (
                             expr.ExprIdent(propname),
@@ -74,27 +80,46 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         prop.target.name,
                         f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}",
                     )
-
-                    deser_args.append(
-                        (
-                            expr.ExprIdent(propname),
-                            expr.ExprFuncCall(
-                                PredefinedFn.attr_getter(
-                                    expr.ExprIdent(prop.target.name),
-                                    expr.ExprIdent("deser"),
-                                ),
-                                [
+                    if prop.cardinality.is_star_to_many():
+                        tstype = tstype.as_list_type()
+                        deser_args.append(
+                            (
+                                expr.ExprIdent(propname),
+                                PredefinedFn.map_list(
                                     PredefinedFn.attr_getter(
                                         expr.ExprIdent("data"),
                                         expr.ExprIdent(prop.name),
-                                    )
-                                ],
-                            ),
+                                    ),
+                                    lambda item: expr.ExprMethodCall(
+                                        expr.ExprIdent(
+                                            assert_isinstance(
+                                                prop, ObjectProperty
+                                            ).target.name
+                                        ),
+                                        "deser",
+                                        [item],
+                                    ),
+                                ),
+                            )
                         )
-                    )
-
-                if prop.cardinality.is_star_to_many():
-                    tstype = tstype.as_list_type()
+                    else:
+                        deser_args.append(
+                            (
+                                expr.ExprIdent(propname),
+                                expr.ExprFuncCall(
+                                    PredefinedFn.attr_getter(
+                                        expr.ExprIdent(prop.target.name),
+                                        expr.ExprIdent("deser"),
+                                    ),
+                                    [
+                                        PredefinedFn.attr_getter(
+                                            expr.ExprIdent("data"),
+                                            expr.ExprIdent(prop.name),
+                                        )
+                                    ],
+                                ),
+                            )
+                        )
 
                 if tstype.dep is not None:
                     program.import_(
@@ -185,12 +210,48 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 # skip private fields as this is for APIs exchange
                 continue
 
+            propname = to_camel_case(prop.name)
+
+            def _update_field_func(
+                prop: DataProperty | ObjectProperty,
+                propname: str,
+                tstype: TsTypeWithDep,
+                draft_clsname: str,
+            ):
+                return lambda ast: ast(
+                    stmt.LineBreak(),
+                    lambda ast01: ast01.func(
+                        f"update{to_pascal_case(prop.name)}",
+                        [
+                            DeferredVar.simple(
+                                "value",
+                                expr.ExprIdent(tstype.type),
+                            ),
+                        ],
+                        expr.ExprIdent(draft_clsname),
+                        comment=f"Update the `{prop.name}` field",
+                    )(
+                        stmt.AssignStatement(
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("this"), expr.ExprIdent(propname)
+                            ),
+                            expr.ExprIdent("value"),
+                        ),
+                        stmt.AssignStatement(
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("this"), expr.ExprIdent("stale")
+                            ),
+                            expr.ExprConstant(True),
+                        ),
+                        stmt.ReturnStatement(expr.ExprIdent("this")),
+                    ),
+                )
+
             if isinstance(prop, DataProperty):
                 tstype = prop.datatype.get_typescript_type()
                 if tstype.dep is not None:
                     program.import_(tstype.dep, True)
 
-                propname = to_camel_case(prop.name)
                 # however, if this is a primary key and auto-increment, we set a different default value
                 # to be -1 to avoid start from 0
                 if (
@@ -205,25 +266,6 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 if prop.db is not None and prop.db.is_primary_key:
                     cls_pk = (expr.ExprIdent(propname), propvalue)
 
-                create_args.append((expr.ExprIdent(propname), propvalue))
-                prop_defs.append(stmt.DefClassVarStatement(propname, tstype.type))
-                prop_constructor_assigns.append(
-                    stmt.AssignStatement(
-                        PredefinedFn.attr_getter(
-                            expr.ExprIdent("this"),
-                            expr.ExprIdent(propname),
-                        ),
-                        expr.ExprIdent("args." + propname),
-                    )
-                )
-                update_args.append(
-                    (
-                        expr.ExprIdent(propname),
-                        PredefinedFn.attr_getter(
-                            expr.ExprIdent("record"), expr.ExprIdent(propname)
-                        ),
-                    )
-                )
                 ser_args.append(
                     (
                         expr.ExprIdent(prop.name),
@@ -246,40 +288,105 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                             expr.ExprIdent("action"),
                         )
                     )
-
-                def _update_field_func(prop, propname, tstype, draft_clsname):
-                    return lambda ast: ast(
-                        stmt.LineBreak(),
-                        lambda ast01: ast01.func(
-                            f"update{to_pascal_case(prop.name)}",
-                            [
-                                DeferredVar.simple(
-                                    "value",
-                                    expr.ExprIdent(tstype.type),
-                                ),
-                            ],
-                            expr.ExprIdent(draft_clsname),
-                            comment=f"Update the `{prop.name}` field",
-                        )(
-                            stmt.AssignStatement(
+            else:
+                assert isinstance(prop, ObjectProperty)
+                if prop.target.db is not None:
+                    # this class is stored in the database, we store the id instead
+                    tstype = assert_not_null(
+                        prop.target.get_id_property()
+                    ).datatype.get_typescript_type()
+                    if prop.cardinality.is_star_to_many():
+                        tstype = tstype.as_list_type()
+                    propvalue = tstype.get_default()
+                    ser_args.append(
+                        (
+                            expr.ExprIdent(prop.name),
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("this"), expr.ExprIdent(propname)
+                            ),
+                        )
+                    )
+                else:
+                    # we are going to store the whole object
+                    tstype = TsTypeWithDep(
+                        prop.target.name,
+                        f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}",
+                    )
+                    if prop.cardinality.is_star_to_many():
+                        tstype = tstype.as_list_type()
+                        propvalue = expr.ExprConstant([])
+                        ser_args.append(
+                            expr.ExprMethodCall(
                                 PredefinedFn.attr_getter(
                                     expr.ExprIdent("this"), expr.ExprIdent(propname)
                                 ),
-                                expr.ExprIdent("value"),
-                            ),
-                            stmt.AssignStatement(
-                                PredefinedFn.attr_getter(
-                                    expr.ExprIdent("this"), expr.ExprIdent("stale")
+                                "ser",
+                                [],
+                            )
+                        )
+                    else:
+                        propvalue = expr.ExprMethodCall(
+                            expr.ExprIdent(prop.target.name),
+                            "create",
+                            [],
+                        )
+                        ser_args.append(
+                            (
+                                expr.ExprIdent(prop.name),
+                                PredefinedFn.map_list(
+                                    PredefinedFn.attr_getter(
+                                        expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                    ),
+                                    lambda item: expr.ExprMethodCall(item, "ser", []),
                                 ),
-                                expr.ExprConstant(True),
-                            ),
-                            stmt.ReturnStatement(expr.ExprIdent("this")),
-                        ),
+                            )
+                        )
+
+                if tstype.dep is not None:
+                    program.import_(
+                        tstype.dep,
+                        True,
                     )
 
-                update_field_funcs.append(
-                    _update_field_func(prop, propname, tstype, draft_clsname)
+                observable_args.append(
+                    (
+                        expr.ExprIdent(propname),
+                        expr.ExprIdent("observable"),
+                    )
                 )
+                observable_args.append(
+                    (
+                        expr.ExprIdent(f"update{to_pascal_case(prop.name)}"),
+                        expr.ExprIdent("action"),
+                    )
+                )
+
+            prop_defs.append(stmt.DefClassVarStatement(propname, tstype.type))
+            prop_constructor_assigns.append(
+                stmt.AssignStatement(
+                    PredefinedFn.attr_getter(
+                        expr.ExprIdent("this"),
+                        expr.ExprIdent(propname),
+                    ),
+                    expr.ExprIdent("args." + propname),
+                )
+            )
+            create_args.append((expr.ExprIdent(propname), propvalue))
+            update_args.append(
+                (
+                    expr.ExprIdent(propname),
+                    # if this is mutable property, we need to copy to make it immutable.
+                    clone_prop(
+                        prop,
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("record"), expr.ExprIdent(propname)
+                        ),
+                    ),
+                )
+            )
+            update_field_funcs.append(
+                _update_field_func(prop, propname, tstype, draft_clsname)
+            )
 
         prop_defs.append(stmt.DefClassVarStatement("stale", "boolean"))
         prop_constructor_assigns.append(
@@ -309,6 +416,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             ),
         )
         observable_args.sort(key=lambda x: {"observable": 0, "action": 1}[x[1].ident])
+
         program.root(
             lambda ast00: ast00.interface(
                 draft_clsname + "ConstructorArgs",
