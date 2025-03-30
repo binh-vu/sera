@@ -336,14 +336,14 @@ def make_python_relational_model(
                 continue
 
             if isinstance(prop, DataProperty):
-                pytype = prop.datatype.get_sqlalchemy_type()
-                if pytype.dep is not None:
-                    program.import_(pytype.dep, True)
+                sqltype = prop.datatype.get_sqlalchemy_type()
+                for dep in sqltype.deps:
+                    program.import_(dep, True)
 
                 propname = prop.name
-                proptype = f"Mapped[{pytype.type}]"
+                proptype = f"Mapped[{sqltype.mapped_pytype}]"
 
-                propvalargs = []
+                propvalargs: list[expr.Expr] = [expr.ExprIdent(sqltype.type)]
                 if prop.db.is_primary_key:
                     propvalargs.append(
                         PredefinedFn.keyword_assignment(
