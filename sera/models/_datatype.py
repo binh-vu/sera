@@ -84,7 +84,7 @@ class SQLTypeWithDep:
         return SQLTypeWithDep(
             type=f"ARRAY({self.type})",
             deps=self.deps + ["sqlalchemy.ARRAY"],
-            mapped_pytype=self.mapped_pytype,
+            mapped_pytype=f"list[{self.mapped_pytype}]",
         )
 
 
