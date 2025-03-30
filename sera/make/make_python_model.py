@@ -16,6 +16,7 @@ from sera.models import (
     DataProperty,
     ObjectProperty,
     Package,
+    PyTypeWithDep,
     Schema,
 )
 
@@ -32,19 +33,13 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
             if prop.cardinality.is_star_to_many():
                 return PredefinedFn.map_list(
                     value,
-                    lambda item: expr.ExprFuncCall(
-                        PredefinedFn.attr_getter(
-                            expr.ExprIdent(prop.target.name), expr.ExprIdent("from_db")
-                        ),
-                        [PredefinedFn.attr_getter(item, expr.ExprIdent(prop.name))],
+                    lambda item: PredefinedFn.attr_getter(
+                        item, expr.ExprIdent(prop.name + "_id")
                     ),
                 )
             else:
-                return expr.ExprFuncCall(
-                    PredefinedFn.attr_getter(
-                        expr.ExprIdent(prop.target.name), expr.ExprIdent("from_db")
-                    ),
-                    [value],
+                return PredefinedFn.attr_getter(
+                    record, expr.ExprIdent(prop.name + "_id")
                 )
 
         return value
@@ -102,21 +97,21 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
                     # if the target class is in the database, we expect the user to pass the foreign key for it.
-                    pytype = (
-                        assert_not_null(prop.target.get_id_property())
-                        .datatype.get_python_type()
-                        .type
-                    )
+                    pytype = assert_not_null(
+                        prop.target.get_id_property()
+                    ).datatype.get_python_type()
                 else:
-                    program.import_(
+                    pytype = PyTypeWithDep(
+                        prop.target.name,
                         f"{target_pkg.module(prop.target.get_pymodule_name()).path}.{prop.target.name}",
-                        is_import_attr=True,
                     )
-                    pytype = prop.target.name
+
+                if pytype.dep is not None:
+                    program.import_(pytype.dep, True)
 
                 if prop.cardinality.is_star_to_many():
-                    pytype = f"list[{pytype}]"
-                cls_ast(stmt.DefClassVarStatement(prop.name, pytype))
+                    pytype = pytype.as_list_type()
+                cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
 
         # has_to_db = True
         # if any(prop for prop in cls.properties.values() if isinstance(prop, ObjectProperty) and prop.cardinality == Cardinality.MANY_TO_MANY):
@@ -169,15 +164,22 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
                     program.import_(pytype.dep, True)
                 cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
             elif isinstance(prop, ObjectProperty):
-                program.import_(
-                    f"{target_pkg.module(prop.target.get_pymodule_name()).path}.{prop.target.name}",
-                    is_import_attr=True,
-                )
-                if prop.cardinality.is_star_to_many():
-                    pytype = f"list[{prop.target.name}]"
+                if prop.target.db is not None:
+                    pytype = assert_not_null(
+                        prop.target.get_id_property()
+                    ).datatype.get_python_type()
                 else:
-                    pytype = prop.target.name
-                cls_ast(stmt.DefClassVarStatement(prop.name, pytype))
+                    pytype = PyTypeWithDep(
+                        prop.target.name,
+                        f"{target_pkg.module(prop.target.get_pymodule_name()).path}.{prop.target.name}",
+                    )
+
+                if pytype.dep is not None:
+                    program.import_(pytype.dep, True)
+
+                if prop.cardinality.is_star_to_many():
+                    pytype = pytype.as_list_type()
+                cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
 
         cls_ast(
             stmt.LineBreak(),

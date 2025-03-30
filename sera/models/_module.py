@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import subprocess
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -104,6 +105,17 @@ class Module:
                 return
 
         outfile.write_text(copyright_statement + code)
+
+        if self.language == Language.Typescript:
+            # invoke prettier to format the code
+            try:
+                subprocess.check_output(
+                    ["npx", "prettier", "--write", str(outfile.absolute())],
+                    cwd=self.package.app.root.dir,
+                )
+            except Exception as e:
+                logger.error("Error formatting Typescript file: {}", e)
+                raise
 
     def exists(self) -> bool:
         """Check if the module exists"""

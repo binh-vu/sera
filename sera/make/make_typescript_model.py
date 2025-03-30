@@ -5,8 +5,15 @@ from typing import Any, Callable
 
 from codegen.models import AST, PredefinedFn, Program, expr, stmt
 from codegen.models.var import DeferredVar
-from sera.misc import to_camel_case, to_pascal_case
-from sera.models import Class, DataProperty, Package, Schema
+from sera.misc import assert_not_null, to_camel_case, to_pascal_case
+from sera.models import (
+    Class,
+    DataProperty,
+    ObjectProperty,
+    Package,
+    Schema,
+    TsTypeWithDep,
+)
 
 
 def make_typescript_data_model(schema: Schema, target_pkg: Package):
@@ -30,22 +37,13 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 # skip private fields as this is for APIs exchange
                 continue
 
+            propname = to_camel_case(prop.name)
+
             if isinstance(prop, DataProperty):
                 tstype = prop.datatype.get_typescript_type()
                 if tstype.dep is not None:
                     program.import_(tstype.dep, True)
 
-                propname = to_camel_case(prop.name)
-                prop_defs.append(stmt.DefClassVarStatement(propname, tstype.type))
-                prop_constructor_assigns.append(
-                    stmt.AssignStatement(
-                        PredefinedFn.attr_getter(
-                            expr.ExprIdent("this"),
-                            expr.ExprIdent(propname),
-                        ),
-                        expr.ExprIdent("args." + propname),
-                    )
-                )
                 deser_args.append(
                     (
                         expr.ExprIdent(propname),
@@ -54,6 +52,66 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         ),
                     )
                 )
+            else:
+                assert isinstance(prop, ObjectProperty)
+                if prop.target.db is not None:
+                    # this class is stored in the database, we store the id instead
+                    tstype = assert_not_null(
+                        prop.target.get_id_property()
+                    ).datatype.get_typescript_type()
+
+                    deser_args.append(
+                        (
+                            expr.ExprIdent(propname),
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("data"), expr.ExprIdent(prop.name)
+                            ),
+                        )
+                    )
+                else:
+                    # we are going to store the whole object
+                    tstype = TsTypeWithDep(
+                        prop.target.name,
+                        f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}",
+                    )
+
+                    deser_args.append(
+                        (
+                            expr.ExprIdent(propname),
+                            expr.ExprFuncCall(
+                                PredefinedFn.attr_getter(
+                                    expr.ExprIdent(prop.target.name),
+                                    expr.ExprIdent("deser"),
+                                ),
+                                [
+                                    PredefinedFn.attr_getter(
+                                        expr.ExprIdent("data"),
+                                        expr.ExprIdent(prop.name),
+                                    )
+                                ],
+                            ),
+                        )
+                    )
+
+                if prop.cardinality.is_star_to_many():
+                    tstype = tstype.as_list_type()
+
+                if tstype.dep is not None:
+                    program.import_(
+                        tstype.dep,
+                        True,
+                    )
+
+            prop_defs.append(stmt.DefClassVarStatement(propname, tstype.type))
+            prop_constructor_assigns.append(
+                stmt.AssignStatement(
+                    PredefinedFn.attr_getter(
+                        expr.ExprIdent("this"),
+                        expr.ExprIdent(propname),
+                    ),
+                    expr.ExprIdent("args." + propname),
+                )
+            )
 
         program.root(
             lambda ast00: ast00.interface(
@@ -348,6 +406,6 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         pkg.module("Draft" + cls.name).write(program)
 
     for cls in schema.topological_sort():
-        pkg = target_pkg.pkg(cls.name[0].lower() + cls.name[1:])
+        pkg = target_pkg.pkg(cls.get_tsmodule_name())
         make_normal(cls, pkg)
         make_draft(cls, pkg)

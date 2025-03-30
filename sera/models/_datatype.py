@@ -40,17 +40,21 @@ class PyTypeWithDep(TypeWithDep):
             "bytes": bytes,
             "dict": dict,
             "datetime": datetime.datetime,
-            "str[]": list[str],
-            "int[]": list[int],
-            "float[]": list[float],
-            "bool[]": list[bool],
-            "bytes[]": list[bytes],
-            "dict[]": list[dict],
-            "datetime[]": list[datetime.datetime],
+            "list[str]": list[str],
+            "list[int]": list[int],
+            "list[float]": list[float],
+            "list[bool]": list[bool],
+            "list[bytes]": list[bytes],
+            "list[dict]": list[dict],
+            "list[datetime]": list[datetime.datetime],
         }.get(self.type, None)
         if type is None:
             raise ValueError(f"Unknown type: {self.type}")
         return type
+
+    def as_list_type(self) -> PyTypeWithDep:
+        """Convert the type to a list type."""
+        return PyTypeWithDep(type=f"list[{self.type}]", dep=self.dep)
 
 
 @dataclass
@@ -67,6 +71,9 @@ class TsTypeWithDep(TypeWithDep):
             return expr.ExprConstant(False)
         raise ValueError(f"Unknown type: {self.type}")
 
+    def as_list_type(self) -> TsTypeWithDep:
+        return TsTypeWithDep(type=f"{self.type}[]", dep=self.dep)
+
 
 @dataclass
 class DataType:
@@ -76,18 +83,17 @@ class DataType:
 
     is_list: bool = False
 
-    def get_python_type(self) -> TypeWithDep:
+    def get_python_type(self) -> PyTypeWithDep:
         if self.pytype in ["str", "int", "float", "bool", "bytes", "dict"]:
-            pytype = self.pytype
-            if self.is_list:
-                pytype = f"list[{pytype}]"
-            return TypeWithDep(type=pytype)
-        if self.pytype == "datetime":
-            pytype = self.pytype
-            if self.is_list:
-                pytype = f"list[{pytype}]"
-            return TypeWithDep(type=pytype, dep="datetime.datetime")
-        raise NotImplementedError(self.pytype)
+            pytype = PyTypeWithDep(type=self.pytype)
+        elif self.pytype == "datetime":
+            pytype = PyTypeWithDep(type=self.pytype, dep="datetime.datetime")
+        else:
+            raise NotImplementedError(self.pytype)
+
+        if self.is_list:
+            return pytype.as_list_type()
+        return pytype
 
     def get_sqlalchemy_type(self) -> TypeWithDep:
         if self.pytype in ["str", "int", "float", "bool", "bytes"]:
@@ -100,11 +106,12 @@ class DataType:
 
     def get_typescript_type(self) -> TsTypeWithDep:
         if self.tstype in ["string", "number", "boolean"]:
-            tstype = self.tstype
-            if self.is_list:
-                tstype = f"{tstype}[]"
-            return TsTypeWithDep(type=tstype)
-        raise NotImplementedError(self.tstype)
+            tstype = TsTypeWithDep(type=self.tstype)
+        else:
+            raise NotImplementedError(self.tstype)
+        if self.is_list:
+            return tstype.as_list_type()
+        return tstype
 
 
 predefined_datatypes = {

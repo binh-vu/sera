@@ -56,3 +56,7 @@ class Class:
     def get_pymodule_name(self) -> str:
         """Get the python module name of this class as if there is a python module created to store this class only."""
         return to_snake_case(self.name)
+
+    def get_tsmodule_name(self) -> str:
+        """Get the typescript module name of this class as if there is a typescript module created to store this class only."""
+        return self.name[0].lower() + self.name[1:]
