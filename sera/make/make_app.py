@@ -13,6 +13,7 @@ from sera.make.make_python_model import (
     make_python_relational_model,
 )
 from sera.make.make_python_services import make_python_service_structure
+from sera.make.make_typescript_model import make_typescript_data_model
 from sera.models import App, DataCollection, Language, parse_schema
 
 
@@ -118,20 +119,27 @@ def make_app(
 
     app = App(app_dir.name, app_dir, schema_files, language)
 
-    # generate application configuration
-    make_config(app)
+    if language == Language.Python:
+        # generate application configuration
+        make_config(app)
 
-    # generate models from schema
-    make_python_data_model(schema, app.models.pkg("data"))
-    make_python_relational_model(schema, app.models.pkg("db"), app.models.pkg("data"))
+        # generate models from schema
+        make_python_data_model(schema, app.models.pkg("data"))
+        make_python_relational_model(
+            schema, app.models.pkg("db"), app.models.pkg("data")
+        )
 
-    collections = [DataCollection(schema.classes[cname]) for cname in api_collections]
+        collections = [
+            DataCollection(schema.classes[cname]) for cname in api_collections
+        ]
 
-    # generate API
-    make_python_api(app, collections)
+        # generate API
+        make_python_api(app, collections)
 
-    # generate services
-    make_python_service_structure(app, collections)
+        # generate services
+        make_python_service_structure(app, collections)
+    elif language == Language.Typescript:
+        make_typescript_data_model(schema, app.models)
 
     return app
 

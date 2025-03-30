@@ -5,6 +5,7 @@ from typing import Annotated
 
 import typer
 from sera.make.make_app import make_app
+from sera.models import Language
 
 app = typer.Typer(pretty_exceptions_short=True, pretty_exceptions_enable=False)
 
@@ -29,10 +30,14 @@ def cli(
             help="API collections to generate.",
         ),
     ],
+    language: Annotated[
+        Language,
+        typer.Option("-l", "--language", help="Language of the generated application"),
+    ] = Language.Python,
 ):
     """Generate Python model classes from a schema file."""
     typer.echo(f"Generating application in {app_dir}")
-    make_app(app_dir, schema_files, api_collections)
+    make_app(app_dir, schema_files, api_collections, language)
 
 
 app()

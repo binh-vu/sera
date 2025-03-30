@@ -13,6 +13,18 @@ def to_snake_case(camelcase: str) -> str:
     return snake.lower()
 
 
+def to_camel_case(snake: str) -> str:
+    """Convert snake_case to camelCase."""
+    components = snake.split("_")
+    return components[0] + "".join(x.title() for x in components[1:])
+
+
+def to_pascal_case(snake: str) -> str:
+    """Convert snake_case to PascalCase."""
+    components = snake.split("_")
+    return "".join(x.title() for x in components)
+
+
 def assert_isinstance(x: Any, cls: type[T]) -> T:
     if not isinstance(x, cls):
         raise Exception(f"{type(x)} doesn't match with {type(cls)}")

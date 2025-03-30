@@ -77,7 +77,7 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
             )
         return value
 
-    def make_create(program: Program, cls: Class):
+    def make_upsert(program: Program, cls: Class):
         program.import_("__future__.annotations", True)
         program.import_("msgspec", False)
         program.import_(
@@ -144,7 +144,7 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
             ),
         )
 
-    def make_update(program: Program, cls: Class):
+    def make_normal(program: Program, cls: Class):
         if not cls.is_public:
             # skip classes that are not public
             return
@@ -206,9 +206,9 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
 
     for cls in schema.topological_sort():
         program = Program()
-        make_create(program, cls)
+        make_upsert(program, cls)
         program.root.linebreak()
-        make_update(program, cls)
+        make_normal(program, cls)
         target_pkg.module(cls.get_pymodule_name()).write(program)
 
 

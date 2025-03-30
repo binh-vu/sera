@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Literal
 
+from codegen.models import expr
+
 PyDataType = Literal["str", "int", "datetime", "float", "bool", "bytes", "dict"]
 TypescriptDataType = Literal["string", "number", "boolean"]
 SQLAlchemyDataType = Literal[
@@ -30,22 +32,40 @@ class PyTypeWithDep(TypeWithDep):
 
     def get_python_type(self) -> type:
         """Get the Python type from the type string for typing annotation in Python."""
-        if self.type == "str":
-            return str
-        elif self.type == "int":
-            return int
-        elif self.type == "float":
-            return float
-        elif self.type == "bool":
-            return bool
-        elif self.type == "bytes":
-            return bytes
-        elif self.type == "dict":
-            return dict
-        elif self.type == "datetime":
-            return datetime.datetime
-        else:
+        type = {
+            "str": str,
+            "int": int,
+            "float": float,
+            "bool": bool,
+            "bytes": bytes,
+            "dict": dict,
+            "datetime": datetime.datetime,
+            "str[]": list[str],
+            "int[]": list[int],
+            "float[]": list[float],
+            "bool[]": list[bool],
+            "bytes[]": list[bytes],
+            "dict[]": list[dict],
+            "datetime[]": list[datetime.datetime],
+        }.get(self.type, None)
+        if type is None:
             raise ValueError(f"Unknown type: {self.type}")
+        return type
+
+
+@dataclass
+class TsTypeWithDep(TypeWithDep):
+
+    def get_default(self) -> expr.ExprConstant:
+        if self.type.endswith("[]"):
+            return expr.ExprConstant([])
+        if self.type == "string":
+            return expr.ExprConstant("")
+        if self.type == "number":
+            return expr.ExprConstant(0)
+        if self.type == "boolean":
+            return expr.ExprConstant(False)
+        raise ValueError(f"Unknown type: {self.type}")
 
 
 @dataclass
@@ -58,9 +78,15 @@ class DataType:
 
     def get_python_type(self) -> TypeWithDep:
         if self.pytype in ["str", "int", "float", "bool", "bytes", "dict"]:
-            return TypeWithDep(type=self.pytype)
+            pytype = self.pytype
+            if self.is_list:
+                pytype = f"list[{pytype}]"
+            return TypeWithDep(type=pytype)
         if self.pytype == "datetime":
-            return TypeWithDep(type="datetime", dep="datetime.datetime")
+            pytype = self.pytype
+            if self.is_list:
+                pytype = f"list[{pytype}]"
+            return TypeWithDep(type=pytype, dep="datetime.datetime")
         raise NotImplementedError(self.pytype)
 
     def get_sqlalchemy_type(self) -> TypeWithDep:
@@ -71,6 +97,14 @@ class DataType:
         if self.pytype == "datetime":
             return TypeWithDep(type="datetime", dep="datetime.datetime")
         raise NotImplementedError(self.pytype)
+
+    def get_typescript_type(self) -> TsTypeWithDep:
+        if self.tstype in ["string", "number", "boolean"]:
+            tstype = self.tstype
+            if self.is_list:
+                tstype = f"{tstype}[]"
+            return TsTypeWithDep(type=tstype)
+        raise NotImplementedError(self.tstype)
 
 
 predefined_datatypes = {
