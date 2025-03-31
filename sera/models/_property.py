@@ -83,6 +83,8 @@ class DataPropDBInfo:
     is_auto_increment: bool = False
     # whether this property contains unique values
     is_unique: bool = False
+    # whether this property is indexed or not
+    is_indexed: bool = False
 
 
 @dataclass(kw_only=True)

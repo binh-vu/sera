@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import subprocess
 from dataclasses import dataclass
 from enum import Enum
@@ -119,7 +118,10 @@ class Module:
 
     def exists(self) -> bool:
         """Check if the module exists"""
-        return (self.package.dir / f"{self.name}.py").exists()
+        if self.language == Language.Python:
+            return (self.package.dir / f"{self.name}.py").exists()
+        else:
+            return (self.package.dir / f"{self.name}.ts").exists()
 
 
 @dataclass

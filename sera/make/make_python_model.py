@@ -356,12 +356,18 @@ def make_python_relational_model(
                                 "autoincrement", expr.ExprConstant("auto")
                             )
                         )
-                    if prop.db.is_unique:
-                        propvalargs.append(
-                            PredefinedFn.keyword_assignment(
-                                "unique", expr.ExprConstant(True)
-                            )
+                if prop.db.is_unique:
+                    propvalargs.append(
+                        PredefinedFn.keyword_assignment(
+                            "unique", expr.ExprConstant(True)
                         )
+                    )
+                if prop.db.is_indexed:
+                    propvalargs.append(
+                        PredefinedFn.keyword_assignment(
+                            "index", expr.ExprConstant(True)
+                        )
+                    )
                 propval = expr.ExprFuncCall(
                     expr.ExprIdent("mapped_column"), propvalargs
                 )
