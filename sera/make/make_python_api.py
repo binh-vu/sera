@@ -27,41 +27,43 @@ def make_python_api(app: App, collections: Sequence[DataCollection]):
         controllers.append(make_python_create_api(collection, route))
         controllers.append(make_python_update_api(collection, route))
 
-        program = Program()
-        program.import_("__future__.annotations", True)
-        program.import_("litestar.Router", True)
-        for get_route, get_route_fn in controllers:
-            program.import_(get_route.path + "." + get_route_fn, True)
+        routemod = route.module("route")
+        if not routemod.exists():
+            program = Program()
+            program.import_("__future__.annotations", True)
+            program.import_("litestar.Router", True)
+            for get_route, get_route_fn in controllers:
+                program.import_(get_route.path + "." + get_route_fn, True)
 
-        program.root(
-            stmt.LineBreak(),
-            lambda ast: ast.assign(
-                DeferredVar.simple("router"),
-                expr.ExprFuncCall(
-                    expr.ExprIdent("Router"),
-                    [
-                        PredefinedFn.keyword_assignment(
-                            "path",
-                            expr.ExprConstant(
-                                f"/{to_snake_case(collection.name).replace('_', '-')}"
+            program.root(
+                stmt.LineBreak(),
+                lambda ast: ast.assign(
+                    DeferredVar.simple("router"),
+                    expr.ExprFuncCall(
+                        expr.ExprIdent("Router"),
+                        [
+                            PredefinedFn.keyword_assignment(
+                                "path",
+                                expr.ExprConstant(
+                                    f"/api/{to_snake_case(collection.name).replace('_', '-')}"
+                                ),
                             ),
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "route_handlers",
-                            PredefinedFn.list(
-                                [
-                                    expr.ExprIdent(get_route_fn)
-                                    for get_route, get_route_fn in controllers
-                                ]
+                            PredefinedFn.keyword_assignment(
+                                "route_handlers",
+                                PredefinedFn.list(
+                                    [
+                                        expr.ExprIdent(get_route_fn)
+                                        for get_route, get_route_fn in controllers
+                                    ]
+                                ),
                             ),
-                        ),
-                    ],
+                        ],
+                    ),
                 ),
-            ),
-        )
+            )
 
-        route.module("route").write(program)
-        routes.append(route.module("route"))
+            routemod.write(program)
+        routes.append(routemod)
 
     # make the main entry point
     make_main(app.api, routes)

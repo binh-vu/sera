@@ -159,7 +159,7 @@ predefined_datatypes = {
     "bytes": DataType(
         pytype=PyTypeWithDep(type="bytes"),
         sqltype=SQLTypeWithDep(
-            type="LargeBinary", mapped_pytype="bytes", deps=["sqlalchemy.LargeBinary"]
+            type="BINARY", mapped_pytype="bytes", deps=["sqlalchemy.BINARY"]
         ),
         tstype=TsTypeWithDep(type="string"),
         is_list=False,
