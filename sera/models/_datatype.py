@@ -124,6 +124,16 @@ predefined_datatypes = {
         tstype=TsTypeWithDep(type="string"),
         is_list=False,
     ),
+    "optional[string]": DataType(
+        pytype=PyTypeWithDep(type="Optional[str]", dep="typing.Optional"),
+        sqltype=SQLTypeWithDep(
+            type="String",
+            mapped_pytype="Optional[str]",
+            deps=["sqlalchemy.String", "typing.Optional"],
+        ),
+        tstype=TsTypeWithDep(type="string | undefined"),
+        is_list=False,
+    ),
     "integer": DataType(
         pytype=PyTypeWithDep(type="int"),
         sqltype=SQLTypeWithDep(

@@ -108,6 +108,7 @@ def _parse_property(
                     is_indexed=db.get("is_indexed", False)
                     or db.get("is_unique", False)
                     or db.get("is_primary_key", False),
+                    is_nullable=db.get("is_nullable", False),
                 )
                 if "db" in prop
                 else None

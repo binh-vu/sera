@@ -97,6 +97,8 @@ class DataPropDBInfo:
     is_unique: bool = False
     # whether this property is indexed or not
     is_indexed: bool = False
+    # whether this property is nullable or not
+    is_nullable: bool = False
 
 
 @dataclass(kw_only=True)

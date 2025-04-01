@@ -404,6 +404,12 @@ def make_python_relational_model(
                                 "index", expr.ExprConstant(True)
                             )
                         )
+                if prop.db.is_nullable:
+                    propvalargs.append(
+                        PredefinedFn.keyword_assignment(
+                            "nullable", expr.ExprConstant(True)
+                        )
+                    )
                 propval = expr.ExprFuncCall(
                     expr.ExprIdent("mapped_column"), propvalargs
                 )
