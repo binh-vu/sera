@@ -47,14 +47,14 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         deser_args = []
 
         for prop in cls.properties.values():
-            if prop.is_private:
+            if prop.data.is_private:
                 # skip private fields as this is for APIs exchange
                 continue
 
             propname = to_camel_case(prop.name)
 
             if isinstance(prop, DataProperty):
-                tstype = prop.datatype.get_typescript_type()
+                tstype = prop.get_data_model_datatype().get_typescript_type()
                 if tstype.dep is not None:
                     program.import_(tstype.dep, True)
 
@@ -155,7 +155,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         program.root(
             stmt.LineBreak(),
             stmt.TypescriptStatement(
-                f"export type {cls.name}Id = {idprop.datatype.get_typescript_type().type};"
+                f"export type {cls.name}Id = {idprop.get_data_model_datatype().get_typescript_type().type};"
             ),
             stmt.LineBreak(),
             lambda ast00: ast00.interface(
@@ -228,7 +228,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         update_field_funcs: list[Callable[[AST], Any]] = []
 
         for prop in cls.properties.values():
-            if prop.is_private:
+            if prop.data.is_private:
                 # skip private fields as this is for APIs exchange
                 continue
 
@@ -270,7 +270,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 )
 
             if isinstance(prop, DataProperty):
-                tstype = prop.datatype.get_typescript_type()
+                tstype = prop.get_data_model_datatype().get_typescript_type()
                 if tstype.dep is not None:
                     program.import_(tstype.dep, True)
 
@@ -318,9 +318,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 assert isinstance(prop, ObjectProperty)
                 if prop.target.db is not None:
                     # this class is stored in the database, we store the id instead
-                    tstype = assert_not_null(
-                        prop.target.get_id_property()
-                    ).datatype.get_typescript_type()
+                    tstype = TsTypeWithDep(
+                        f"{prop.target.name}Id",
+                        f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}Id",
+                    )
                     if prop.cardinality.is_star_to_many():
                         tstype = tstype.as_list_type()
                     propvalue = tstype.get_default()

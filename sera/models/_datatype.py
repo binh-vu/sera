@@ -159,7 +159,7 @@ predefined_datatypes = {
     "bytes": DataType(
         pytype=PyTypeWithDep(type="bytes"),
         sqltype=SQLTypeWithDep(
-            type="BINARY", mapped_pytype="bytes", deps=["sqlalchemy.BINARY"]
+            type="LargeBinary", mapped_pytype="bytes", deps=["sqlalchemy.LargeBinary"]
         ),
         tstype=TsTypeWithDep(type="string"),
         is_list=False,
@@ -172,4 +172,14 @@ predefined_datatypes = {
         tstype=TsTypeWithDep(type="string"),
         is_list=False,
     ),
+}
+
+predefined_py_datatypes = {"bytes": PyTypeWithDep(type="bytes")}
+predefined_sql_datatypes = {
+    "bit": SQLTypeWithDep(
+        type="BIT", mapped_pytype="bytes", deps=["sqlalchemy.dialects.postgresql.BIT"]
+    ),
+}
+predefined_ts_datatypes = {
+    "string": TsTypeWithDep(type="string"),
 }
