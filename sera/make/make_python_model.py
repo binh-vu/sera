@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from operator import is_
-from typing import Sequence
+from re import T
+from typing import Callable, Sequence
 
 from codegen.models import AST, DeferredVar, PredefinedFn, Program, expr, stmt
 from sera.misc import (
@@ -31,16 +32,28 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
         value = PredefinedFn.attr_getter(record, expr.ExprIdent(prop.name))
         if isinstance(prop, ObjectProperty) and prop.target.db is not None:
             if prop.cardinality.is_star_to_many():
-                return PredefinedFn.map_list(
+                value = PredefinedFn.map_list(
                     value,
                     lambda item: PredefinedFn.attr_getter(
                         item, expr.ExprIdent(prop.name + "_id")
                     ),
                 )
             else:
-                return PredefinedFn.attr_getter(
+                value = PredefinedFn.attr_getter(
                     record, expr.ExprIdent(prop.name + "_id")
                 )
+
+            target_idprop = assert_not_null(prop.target.get_id_property())
+            conversion_fn = get_data_conversion(
+                target_idprop.datatype.get_python_type().type,
+                target_idprop.get_data_model_datatype().get_python_type().type,
+            )
+            value = conversion_fn(value)
+        elif isinstance(prop, DataProperty) and prop.is_diff_data_model_datatype():
+            value = get_data_conversion(
+                prop.datatype.get_python_type().type,
+                prop.get_data_model_datatype().get_python_type().type,
+            )(value)
 
         return value
 
@@ -57,19 +70,37 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
             and prop.cardinality == Cardinality.MANY_TO_MANY
         ):
             # we have to use the associated object
+            # if this isn't a many-to-many relationship, we only keep the id, so no need to convert to the type.
             AssociationTable = f"{cls.name}{prop.target.name}"
             program.import_(
                 app.models.db.path
                 + f".{to_snake_case(AssociationTable)}.{AssociationTable}",
                 True,
             )
+
+            target_idprop = assert_not_null(prop.target.get_id_property())
+            conversion_fn = get_data_conversion(
+                target_idprop.get_data_model_datatype().get_python_type().type,
+                target_idprop.datatype.get_python_type().type,
+            )
+
             return PredefinedFn.map_list(
                 value,
                 lambda item: expr.ExprFuncCall(
                     expr.ExprIdent(AssociationTable),
-                    [PredefinedFn.keyword_assignment(f"{prop.name}_id", item)],
+                    [
+                        PredefinedFn.keyword_assignment(
+                            f"{prop.name}_id", conversion_fn(item)
+                        )
+                    ],
                 ),
             )
+        elif isinstance(prop, DataProperty) and prop.is_diff_data_model_datatype():
+            # convert the value to the python type used in db.
+            value = get_data_conversion(
+                prop.get_data_model_datatype().get_python_type().type,
+                prop.datatype.get_python_type().type,
+            )(value)
         return value
 
     def make_upsert(program: Program, cls: Class):
@@ -86,20 +117,22 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
         for prop in cls.properties.values():
             # this is a create object, so users can create private field
             # hence, we do not check for prop.is_private
-            # if prop.is_private:
+            # if prop.data.is_private:
             #     continue
 
             if isinstance(prop, DataProperty):
-                pytype = prop.datatype.get_python_type()
+                pytype = prop.get_data_model_datatype().get_python_type()
                 if pytype.dep is not None:
                     program.import_(pytype.dep, True)
                 cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
                     # if the target class is in the database, we expect the user to pass the foreign key for it.
-                    pytype = assert_not_null(
-                        prop.target.get_id_property()
-                    ).datatype.get_python_type()
+                    pytype = (
+                        assert_not_null(prop.target.get_id_property())
+                        .get_data_model_datatype()
+                        .get_python_type()
+                    )
                 else:
                     pytype = PyTypeWithDep(
                         prop.target.name,
@@ -154,20 +187,22 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
 
         cls_ast = program.root.class_(cls.name, [expr.ExprIdent("msgspec.Struct")])
         for prop in cls.properties.values():
-            if prop.is_private:
+            if prop.data.is_private:
                 # skip private fields as this is for APIs exchange
                 continue
 
             if isinstance(prop, DataProperty):
-                pytype = prop.datatype.get_python_type()
+                pytype = prop.get_data_model_datatype().get_python_type()
                 if pytype.dep is not None:
                     program.import_(pytype.dep, True)
                 cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
-                    pytype = assert_not_null(
-                        prop.target.get_id_property()
-                    ).datatype.get_python_type()
+                    pytype = (
+                        assert_not_null(prop.target.get_id_property())
+                        .get_data_model_datatype()
+                        .get_python_type()
+                    )
                 else:
                     pytype = PyTypeWithDep(
                         prop.target.name,
@@ -199,7 +234,7 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
                         [
                             from_db_type_conversion(expr.ExprIdent("record"), prop)
                             for prop in cls.properties.values()
-                            if not prop.is_private
+                            if not prop.data.is_private
                         ],
                     )
                 )
@@ -675,3 +710,13 @@ def make_python_relational_object_property_many_to_many(
             ),
         ),
     )
+
+
+def get_data_conversion(
+    source_pytype: str, target_pytype: str
+) -> Callable[[expr.Expr], expr.Expr]:
+    if source_pytype == target_pytype:
+        return lambda x: x
+    if source_pytype == "str" and target_pytype == "bytes":
+        return lambda x: expr.ExprMethodCall(x, "encode", [])
+    raise NotImplementedError(f"Cannot convert {source_pytype} to {target_pytype}")

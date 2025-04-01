@@ -16,6 +16,7 @@ from sera.models._property import (
     ForeignKeyOnUpdate,
     ObjectPropDBInfo,
     ObjectProperty,
+    PropDataAttrs,
 )
 from sera.models._schema import Schema
 
@@ -68,7 +69,6 @@ def _parse_property(
                 description=_parse_multi_lingual_string(""),
                 target=schema.classes[datatype],
                 cardinality=Cardinality.ONE_TO_ONE,
-                is_private=False,
             )
         else:
             return DataProperty(
@@ -76,10 +76,14 @@ def _parse_property(
                 label=_parse_multi_lingual_string(prop_name),
                 description=_parse_multi_lingual_string(""),
                 datatype=_parse_datatype(datatype),
-                is_private=False,
             )
 
     db = prop.get("db", {})
+    _data = prop.get("data", {})
+    data_attrs = PropDataAttrs(
+        is_private=_data.get("is_private", False),
+        datatype=_parse_datatype(_data["datatype"]) if "datatype" in _data else None,
+    )
 
     assert isinstance(prop, dict), prop
     if "datatype" in prop:
@@ -88,7 +92,7 @@ def _parse_property(
             label=_parse_multi_lingual_string(prop.get("label", prop_name)),
             description=_parse_multi_lingual_string(prop.get("desc", "")),
             datatype=_parse_datatype(prop["datatype"]),
-            is_private=prop.get("is_private", False),
+            data=data_attrs,
             db=(
                 DataPropDBInfo(
                     is_primary_key=db.get("is_primary_key", False),
@@ -108,7 +112,7 @@ def _parse_property(
         target=schema.classes[prop["target"]],
         cardinality=Cardinality(prop.get("cardinality", "1:1")),
         is_optional=prop.get("is_optional", False),
-        is_private=prop.get("is_private", False),
+        data=data_attrs,
         db=(
             ObjectPropDBInfo(
                 is_embedded=db.get("is_embedded", None),

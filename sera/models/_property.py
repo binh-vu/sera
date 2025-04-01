@@ -55,6 +55,19 @@ class Cardinality(str, Enum):
 
 
 @dataclass(kw_only=True)
+class PropDataAttrs:
+    """Storing other attributes for generating data model (upsert & public) -- this is different from a db model"""
+
+    # whether this property is private and cannot be accessed by the end users
+    # meaning the public data model will not include this property
+    # default it is false
+    is_private: bool = False
+
+    # whether this data model has a different data type than the one from the database
+    datatype: Optional[DataType] = None
+
+
+@dataclass(kw_only=True)
 class Property:
     """Represent a property of a class."""
 
@@ -68,9 +81,8 @@ class Property:
     label: MultiLingualString
     # human-readable description of the property
     description: MultiLingualString
-    # whether this property is private and cannot be accessed by the end users
-    # default it is false
-    is_private: bool = field(default=False)
+    # other attributes for generating data model such as upsert and return.
+    data: PropDataAttrs = field(default_factory=PropDataAttrs)
 
 
 @dataclass(kw_only=True)
@@ -93,6 +105,14 @@ class DataProperty(Property):
     datatype: DataType
     # other database properties of this property
     db: Optional[DataPropDBInfo] = None
+
+    def get_data_model_datatype(self) -> DataType:
+        if self.data.datatype is not None:
+            return self.data.datatype
+        return self.datatype
+
+    def is_diff_data_model_datatype(self):
+        return self.data.datatype is not None
 
 
 @dataclass(kw_only=True)
