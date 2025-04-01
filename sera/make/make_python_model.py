@@ -438,7 +438,7 @@ def make_python_relational_object_property(
     assert prop.db is not None
     if prop.target.db is not None:
         # if the target class is in the database, we generate a foreign key for it.
-        program.import_("sqlalchemy.orm.relationship", True)
+        program.import_("sqlalchemy.ForeignKey", True)
 
         if prop.cardinality == Cardinality.MANY_TO_MANY:
             make_python_relational_object_property_many_to_many(
@@ -683,6 +683,8 @@ def make_python_relational_object_property_many_to_many(
     # now we add the relationship to the source.
     # we can configure it to be list, set, or dict depends on what we want.
     program.import_(new_table_module.path + f".{new_table}", True)
+    program.import_("sqlalchemy.orm.relationship", True)
+
     # program.import_("typing.TYPE_CHECKING", True)
     # program.import_area.if_(expr.ExprIdent("TYPE_CHECKING"))(
     #     lambda ast00: ast00.import_(
