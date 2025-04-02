@@ -258,6 +258,12 @@ def make_python_relational_model(
     """
     app = target_pkg.app
 
+    def get_property_name(prop: DataProperty | ObjectProperty):
+        if isinstance(prop, ObjectProperty):
+            if prop.target.db is not None:
+                return f"{prop.name}_id"
+        return prop.name
+
     def make_base(custom_types: Sequence[ObjectProperty]):
         """Make a base class for our database."""
         program = Program()
@@ -353,6 +359,40 @@ def make_python_relational_model(
         program.import_("sqlalchemy.orm.Mapped", True)
         program.import_(f"{target_pkg.path}.base.Base", True)
 
+        index_stmts = []
+        if len(cls.db.indices) > 0:
+            program.import_("sqlalchemy.Index", True)
+            index_stmts.append(
+                stmt.DefClassVarStatement(
+                    "_table_args__",
+                    None,
+                    PredefinedFn.tuple(
+                        [
+                            expr.ExprFuncCall(
+                                expr.ExprIdent("Index"),
+                                [expr.ExprConstant(index.name)]
+                                + [
+                                    expr.ExprConstant(
+                                        get_property_name(cls.properties[prop])
+                                    )
+                                    for prop in index.columns
+                                ]
+                                + (
+                                    [
+                                        PredefinedFn.keyword_assignment(
+                                            "unique", expr.ExprConstant(index.unique)
+                                        )
+                                    ]
+                                    if index.unique
+                                    else []
+                                ),
+                            )
+                            for index in cls.db.indices
+                        ]
+                    ),
+                )
+            )
+
         cls_ast = program.root.class_(
             cls.name, [expr.ExprIdent("MappedAsDataclass"), expr.ExprIdent("Base")]
         )
@@ -362,6 +402,7 @@ def make_python_relational_model(
                 type=None,
                 value=expr.ExprConstant(cls.db.table_name),
             ),
+            *index_stmts,
             stmt.LineBreak(),
         )
 

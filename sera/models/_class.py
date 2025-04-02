@@ -9,11 +9,19 @@ from sera.models._property import DataProperty, ObjectProperty
 
 
 @dataclass(kw_only=True)
+class Index:
+    name: str
+    columns: list[str]
+    unique: bool = False
+
+
+@dataclass(kw_only=True)
 class ClassDBMapInfo:
     """Represent database information for a class."""
 
     # name of a corresponding table in the database for this class
     table_name: str
+    indices: list[Index] = field(default_factory=list)
 
 
 @dataclass(kw_only=True)

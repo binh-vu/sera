@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Sequence
 
 import serde.yaml
-from sera.models._class import Class, ClassDBMapInfo
+from sera.models._class import Class, ClassDBMapInfo, Index
 from sera.models._datatype import (
     DataType,
     predefined_datatypes,
@@ -54,7 +54,16 @@ def parse_schema(files: Sequence[Path | str]) -> Schema:
 def _parse_class_without_prop(schema: Schema, clsname: str, cls: dict) -> Class:
     db = None
     if "db" in cls:
-        db = ClassDBMapInfo(table_name=cls["db"]["table_name"])
+        indices = []
+        for idx in cls["db"].get("indices", []):
+            index = Index(
+                name=idx.get("name", "_".join(idx["columns"]) + "_index"),
+                columns=idx["columns"],
+                unique=idx.get("unique", False),
+            )
+            indices.append(index)
+        db = ClassDBMapInfo(table_name=cls["db"]["table_name"], indices=indices)
+
     return Class(
         name=clsname,
         label=_parse_multi_lingual_string(cls["label"]),
