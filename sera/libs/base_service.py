@@ -7,7 +7,7 @@ from sera.libs.base_orm import BaseORM
 from sera.misc import assert_not_null
 from sera.models import Class
 from sera.typing import FieldName, T, doc
-from sqlalchemy import exists, select
+from sqlalchemy import Result, Select, exists, select
 from sqlalchemy.orm import Session
 
 
@@ -31,6 +31,7 @@ Query = Annotated[
 ]
 R = TypeVar("R", bound=BaseORM)
 ID = TypeVar("ID")  # ID of a class
+SqlResult = TypeVar("SqlResult", bound=Result)
 
 
 class BaseService(Generic[ID, R]):
@@ -68,8 +69,8 @@ class BaseService(Generic[ID, R]):
 
     def get_by_id(self, id: ID, session: Session) -> Optional[R]:
         """Retrieving a record by ID."""
-        q = select(self.orm_cls).where(self._cls_id_prop == id)
-        result = session.execute(q).scalar_one_or_none()
+        q = self._select().where(self._cls_id_prop == id)
+        result = self._process_result(session.execute(q)).scalar_one_or_none()
         return result
 
     def has_id(self, id: ID, session: Session) -> bool:
@@ -89,3 +90,11 @@ class BaseService(Generic[ID, R]):
         session.add(record)
         session.commit()
         return record
+
+    def _select(self) -> Select:
+        """Get the select statement for the class."""
+        return select(self.orm_cls)
+
+    def _process_result(self, result: SqlResult) -> SqlResult:
+        """Process the result of a query."""
+        return result

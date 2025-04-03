@@ -155,7 +155,7 @@ def make_python_get_api(
     program.import_(app.models.db.path + ".base.get_session", True)
     program.import_("litestar.di.Provide", True)
     program.import_("sqlalchemy.orm.Session", True)
-    program.import_(app.config.path + ".ROUTER_DEBUG", True)
+    program.import_(app.config.path + ".API_DEBUG", True)
     program.import_(
         f"{app.api.path}.dependencies.{collection.get_pymodule_name()}.{ServiceNameDep}",
         True,
@@ -269,7 +269,7 @@ def make_python_get_api(
                         expr.ExprIdent("QUERYABLE_FIELDS"),
                         PredefinedFn.keyword_assignment(
                             "debug",
-                            expr.ExprIdent("ROUTER_DEBUG"),
+                            expr.ExprIdent("API_DEBUG"),
                         ),
                     ],
                 ),

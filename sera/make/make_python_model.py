@@ -620,21 +620,6 @@ def make_python_relational_object_property_many_to_many(
             ),
             stmt.LineBreak(),
             stmt.DefClassVarStatement(
-                "id",
-                "Mapped[int]",
-                expr.ExprFuncCall(
-                    expr.ExprIdent("mapped_column"),
-                    [
-                        PredefinedFn.keyword_assignment(
-                            "primary_key", expr.ExprConstant(True)
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "autoincrement", expr.ExprConstant("auto")
-                        ),
-                    ],
-                ),
-            ),
-            stmt.DefClassVarStatement(
                 to_snake_case(cls.name),
                 f"Mapped[{cls.name}]",
                 expr.ExprFuncCall(
@@ -677,6 +662,9 @@ def make_python_relational_object_property_many_to_many(
                                 ),
                             ],
                         ),
+                        PredefinedFn.keyword_assignment(
+                            "primary_key", expr.ExprConstant(True)
+                        ),
                     ],
                 ),
             ),
@@ -718,6 +706,9 @@ def make_python_relational_object_property_many_to_many(
                                     ),
                                 ),
                             ],
+                        ),
+                        PredefinedFn.keyword_assignment(
+                            "primary_key", expr.ExprConstant(True)
                         ),
                     ],
                 ),

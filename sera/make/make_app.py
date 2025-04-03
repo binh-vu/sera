@@ -63,8 +63,8 @@ def make_config(app: App):
             expr.ExprIdent('os.environ.get("DB_DEBUG", "0") == "1"'),
         ),
         lambda ast: ast.assign(
-            DeferredVar.simple("ROUTER_DEBUG"),
-            expr.ExprIdent('os.environ.get("ROUTER_DEBUG", "0") == "1"'),
+            DeferredVar.simple("API_DEBUG"),
+            expr.ExprIdent('os.environ.get("API_DEBUG", "0") == "1"'),
         ),
         stmt.LineBreak(),
         lambda ast: ast.assign(
