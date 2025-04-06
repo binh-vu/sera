@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from operator import is_
 from typing import Any, Callable
 
 from codegen.models import AST, PredefinedFn, Program, expr, stmt
@@ -649,6 +648,117 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
 
         outmod.write(program)
 
+    def make_definition(cls: Class, pkg: Package):
+        """Make schema definition for the class in frontend so that we can generate components"""
+        if not cls.is_public:
+            # skip classes that are not public
+            return
+
+        program = Program()
+        prop_defs: list[tuple[expr.Expr, expr.Expr]] = []
+
+        for prop in cls.properties.values():
+            if prop.data.is_private:
+                # skip private fields as this is for APIs exchange
+                continue
+            propname = to_camel_case(prop.name)
+            tsprop = {}
+
+            if isinstance(prop, DataProperty):
+                tstype = prop.get_data_model_datatype().get_typescript_type()
+                # for schema definition, we need to use the original type, not the type alias
+                # if prop.name == idprop.name:
+                #     # use id type alias
+                #     tstype = TsTypeWithDep(f"{cls.name}Id")
+                if tstype.dep is not None:
+                    program.import_(tstype.dep, True)
+                tsprop = [
+                    (expr.ExprIdent("datatype"), expr.ExprConstant(tstype.type)),
+                    (
+                        expr.ExprIdent("isList"),
+                        expr.ExprConstant(prop.datatype.is_list),
+                    ),
+                ]
+            else:
+                assert isinstance(prop, ObjectProperty)
+                if prop.target.db is not None:
+                    # this class is stored in the database, we store the id instead
+                    tstype = (
+                        assert_not_null(prop.target.get_id_property())
+                        .get_data_model_datatype()
+                        .get_typescript_type()
+                    )
+                else:
+                    # we are going to store the whole object
+                    tstype = TsTypeWithDep(
+                        prop.target.name,
+                        f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}",
+                    )
+
+                if tstype.dep is not None:
+                    program.import_(
+                        tstype.dep,
+                        True,
+                    )
+
+                tsprop = [
+                    (
+                        expr.ExprIdent("targetClass"),
+                        expr.ExprConstant(prop.target.name),
+                    ),
+                    (expr.ExprIdent("datatype"), expr.ExprConstant(tstype.type)),
+                    (
+                        expr.ExprIdent("isList"),
+                        expr.ExprConstant(prop.cardinality.is_star_to_many()),
+                    ),
+                    (
+                        expr.ExprIdent("isEmbedded"),
+                        expr.ExprConstant(prop.target.db is not None),
+                    ),
+                ]
+
+            prop_defs.append(
+                (
+                    expr.ExprIdent(propname),
+                    PredefinedFn.dict(
+                        [
+                            (expr.ExprIdent("name"), expr.ExprConstant(prop.name)),
+                            (
+                                expr.ExprIdent("label"),
+                                expr.ExprConstant(prop.label.to_dict()),
+                            ),
+                            (
+                                expr.ExprIdent("description"),
+                                expr.ExprConstant(prop.description.to_dict()),
+                            ),
+                        ]
+                        + tsprop
+                    ),
+                )
+            )
+
+        program.import_("sera-db.Schema", True)
+        program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}", True)
+        program.root(
+            stmt.LineBreak(),
+            stmt.TypescriptStatement(
+                f"export const {cls.name}Schema: Schema<{cls.name}> = "
+                + PredefinedFn.dict(
+                    [
+                        (expr.ExprIdent("properties"), PredefinedFn.dict(prop_defs)),
+                        (
+                            expr.ExprIdent("primaryKey"),
+                            expr.ExprConstant(
+                                assert_not_null(cls.get_id_property()).name
+                            ),
+                        ),
+                    ]
+                ).to_typescript()
+                + ";"
+            ),
+        )
+        pkg.module(cls.name + "Schema").write(program)
+
     def make_index(pkg: Package):
         outmod = pkg.module("index")
         if outmod.exists():
@@ -660,6 +770,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}", True)
         program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id", True)
         program.import_(
+            f"@.models.{pkg.dir.name}.{cls.name}Schema.{cls.name}Schema", True
+        )
+        program.import_(
             f"@.models.{pkg.dir.name}.Draft{cls.name}.Draft{cls.name}", True
         )
         program.import_(
@@ -669,7 +782,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         program.root(
             stmt.LineBreak(),
             stmt.TypescriptStatement(
-                f"export {{ {cls.name}, Draft{cls.name}, {cls.name}Table }};"
+                f"export {{ {cls.name}, Draft{cls.name}, {cls.name}Table, {cls.name}Schema }};"
             ),
             stmt.TypescriptStatement(f"export type {{ {cls.name}Id }};"),
         )
@@ -682,5 +795,6 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         make_draft(cls, pkg)
         make_query_processor(cls, pkg)
         make_table(cls, pkg)
+        make_definition(cls, pkg)
 
         make_index(pkg)

@@ -67,6 +67,8 @@ class TsTypeWithDep:
             return expr.ExprConstant(0)
         if self.type == "boolean":
             return expr.ExprConstant(False)
+        if self.type == "string | undefined":
+            return expr.ExprConstant("undefined")
         raise ValueError(f"Unknown type: {self.type}")
 
     def as_list_type(self) -> TsTypeWithDep:
