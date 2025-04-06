@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated, Any, Generic, Optional, Sequence, TypeVar
+from math import dist
+from typing import Annotated, Any, Generic, NamedTuple, Optional, Sequence, TypeVar
 
 from sera.libs.base_orm import BaseORM
 from sera.misc import assert_not_null
 from sera.models import Class
 from sera.typing import FieldName, T, doc
-from sqlalchemy import Result, Select, exists, select
-from sqlalchemy.orm import Session
+from sqlalchemy import Result, Select, exists, func, select
+from sqlalchemy.orm import Session, load_only
 
 
 class QueryOp(str, Enum):
@@ -34,6 +35,11 @@ ID = TypeVar("ID")  # ID of a class
 SqlResult = TypeVar("SqlResult", bound=Result)
 
 
+class QueryResult(NamedTuple, Generic[R]):
+    records: Sequence[R]
+    total: int
+
+
 class BaseService(Generic[ID, R]):
 
     def __init__(self, cls: Class, orm_cls: type[R]):
@@ -53,7 +59,7 @@ class BaseService(Generic[ID, R]):
         group_by: list[str],
         fields: list[str],
         session: Session,
-    ) -> Sequence[R]:
+    ) -> QueryResult[R]:
         """Retrieving records matched a query.
 
         Args:
@@ -63,9 +69,30 @@ class BaseService(Generic[ID, R]):
             unique: Whether to return unique results only
             sorted_by: list of field names to sort by, prefix a field with '-' to sort that field in descending order
             group_by: list of field names to group by
-            fields: list of field names to include in the results
+            fields: list of field names to include in the results -- empty means all fields
         """
-        return []
+        q = self._select()
+        if fields:
+            q = q.options(
+                load_only(*[getattr(self.orm_cls, field) for field in fields])
+            )
+        if unique:
+            q = q.distinct()
+        if sorted_by:
+            for field in sorted_by:
+                if field.startswith("-"):
+                    q = q.order_by(getattr(self.orm_cls, field[1:]).desc())
+                else:
+                    q = q.order_by(getattr(self.orm_cls, field))
+        if group_by:
+            for field in group_by:
+                q = q.group_by(getattr(self.orm_cls, field))
+
+        cq = select(func.count()).select_from(q.subquery())
+        rq = q.limit(limit).offset(offset)
+        records = self._process_result(session.execute(q)).scalars().all()
+        total = session.execute(cq).scalar_one()
+        return QueryResult(records, total)
 
     def get_by_id(self, id: ID, session: Session) -> Optional[R]:
         """Retrieving a record by ID."""

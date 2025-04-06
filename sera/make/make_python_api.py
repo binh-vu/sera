@@ -226,19 +226,19 @@ def make_python_get_api(
                 DeferredVar.simple(
                     "sorted_by",
                     expr.ExprIdent(
-                        "Annotated[list[str], Parameter(description=\"list of field names to sort by, prefix a field with '-' to sort that field in descending order\")]"
+                        "Annotated[list[str], Parameter(default=tuple(), description=\"list of field names to sort by, prefix a field with '-' to sort that field in descending order\")]"
                     ),
                 ),
                 DeferredVar.simple(
                     "group_by",
                     expr.ExprIdent(
-                        'Annotated[list[str], Parameter(description="list of field names to group by")]'
+                        'Annotated[list[str], Parameter(default=tuple(), description="list of field names to group by")]'
                     ),
                 ),
                 DeferredVar.simple(
                     "fields",
                     expr.ExprIdent(
-                        'Annotated[list[str], Parameter(description="list of field names to include in the results")]'
+                        'Annotated[list[str], Parameter(default=tuple(), description="list of field names to include in the results")]'
                     ),
                 ),
                 DeferredVar.simple(
@@ -254,7 +254,7 @@ def make_python_get_api(
                     expr.ExprIdent("Session"),
                 ),
             ],
-            return_type=expr.ExprIdent(f"Sequence[{collection.name}]"),
+            return_type=expr.ExprIdent(f"dict"),
             is_async=True,
         )(
             stmt.SingleExprStatement(
@@ -305,14 +305,31 @@ def make_python_get_api(
                 ),
             ),
             lambda ast13: ast13.return_(
-                PredefinedFn.map_list(
-                    expr.ExprIdent("result"),
-                    lambda item: expr.ExprFuncCall(
-                        PredefinedFn.attr_getter(
-                            expr.ExprIdent(collection.name), expr.ExprIdent("from_db")
+                PredefinedFn.dict(
+                    [
+                        (
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent(collection.name),
+                                expr.ExprIdent("__name__"),
+                            ),
+                            PredefinedFn.map_list(
+                                PredefinedFn.attr_getter(
+                                    expr.ExprIdent("result"), expr.ExprIdent("records")
+                                ),
+                                lambda item: expr.ExprMethodCall(
+                                    expr.ExprIdent(collection.name),
+                                    "from_db",
+                                    [item],
+                                ),
+                            ),
                         ),
-                        [item],
-                    ),
+                        (
+                            expr.ExprConstant("total"),
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("result"), expr.ExprIdent("total")
+                            ),
+                        ),
+                    ]
                 )
             ),
         ),
