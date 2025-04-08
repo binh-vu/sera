@@ -10,7 +10,6 @@ repository = "https://github.com/binh-vu/sera"
 [tool.poetry.dependencies]
 python = "^3.12"
 codegen-2 = "^2.1.4"
-black = "^25.0.1"
 msgspec = "^0.19.0"
 litestar = "^2.15.1"
 
