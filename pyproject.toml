@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sera-2"
-version = "1.4.5"
+version = "1.4.6"
 description = ""
 authors = ["Binh Vu <bvu687@gmail.com>"]
 readme = "README.md"
@@ -15,6 +15,7 @@ litestar = "^2.15.1"
 loguru = "^0.7.0"
 typer = "^0.12.3"
 black = "^25.1.0"
+sqlalchemy = "^2.0.40"
 
 [build-system]
 requires = ["poetry-core"]
