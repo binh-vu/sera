@@ -114,6 +114,12 @@ def make_app(
             "Language of the generated application. Currently only Python is supported."
         ),
     ] = Language.Python,
+    referenced_schema: Annotated[
+        list[str],
+        doc(
+            "Classes in the schema that are defined in different modules, used as references and thus should not be generated."
+        ),
+    ] = [],
 ):
     schema = parse_schema(schema_files)
 
@@ -124,9 +130,25 @@ def make_app(
         make_config(app)
 
         # generate models from schema
-        make_python_data_model(schema, app.models.pkg("data"))
+        # TODO: fix me, this is a hack to make the code work for referenced classes
+        referenced_classes = {
+            path.rsplit(".", 1)[1]: (parts := path.rsplit(".", 1))[0]
+            + ".data."
+            + parts[1]
+            for path in referenced_schema
+        }
+        make_python_data_model(schema, app.models.pkg("data"), referenced_classes)
+        referenced_classes = {
+            path.rsplit(".", 1)[1]: (parts := path.rsplit(".", 1))[0]
+            + ".db."
+            + parts[1]
+            for path in referenced_schema
+        }
         make_python_relational_model(
-            schema, app.models.pkg("db"), app.models.pkg("data")
+            schema,
+            app.models.pkg("db"),
+            app.models.pkg("data"),
+            referenced_classes,
         )
 
         collections = [

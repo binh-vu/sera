@@ -73,7 +73,7 @@ class ListDataclassType(TypeDecorator):
         return [self.cls.from_dict(x) for x in result]
 
 
-class DictDataClassType(TypeDecorator):
+class DictDataclassType(TypeDecorator):
     """SqlAlchemy Type decorator to serialize mapping of dataclasses"""
 
     impl = LargeBinary

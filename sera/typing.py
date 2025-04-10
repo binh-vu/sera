@@ -9,3 +9,6 @@ class doc(str):
 
 T = TypeVar("T")
 FieldName = Annotated[str, doc("field name of a class")]
+ObjectPath = Annotated[
+    str, doc("path of an object (e.g., can be function, class, etc.)")
+]

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from operator import is_
-from re import T
 from typing import Callable, Sequence
 
 from codegen.models import AST, DeferredVar, PredefinedFn, Program, expr, stmt
@@ -20,10 +18,19 @@ from sera.models import (
     PyTypeWithDep,
     Schema,
 )
+from sera.typing import ObjectPath
 
 
-def make_python_data_model(schema: Schema, target_pkg: Package):
-    """Generate public classes for the API from the schema."""
+def make_python_data_model(
+    schema: Schema, target_pkg: Package, reference_classes: dict[str, ObjectPath]
+):
+    """Generate public classes for the API from the schema.
+
+    Args:
+        schema: The schema to generate the classes from.
+        target_pkg: The package to write the classes to.
+        reference_classes: A dictionary of class names to their references (e.g., the ones that are defined outside and used as referenced such as Tenant).
+    """
     app = target_pkg.app
 
     def from_db_type_conversion(
@@ -106,11 +113,13 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
     def make_upsert(program: Program, cls: Class):
         program.import_("__future__.annotations", True)
         program.import_("msgspec", False)
-        program.import_(
-            app.models.db.path + f".{cls.get_pymodule_name()}.{cls.name}",
-            True,
-            alias=f"{cls.name}DB",
-        )
+        if cls.db is not None:
+            # if the class is stored in the database, we need to import the database module
+            program.import_(
+                app.models.db.path + f".{cls.get_pymodule_name()}.{cls.name}",
+                True,
+                alias=f"{cls.name}DB",
+            )
         cls_ast = program.root.class_(
             "Upsert" + cls.name, [expr.ExprIdent("msgspec.Struct")]
         )
@@ -156,11 +165,15 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
                 [
                     DeferredVar.simple("self"),
                 ],
-                return_type=expr.ExprIdent(f"{cls.name}DB"),
+                return_type=expr.ExprIdent(
+                    f"{cls.name}DB" if cls.db is not None else cls.name
+                ),
             )(
                 lambda ast10: ast10.return_(
                     expr.ExprFuncCall(
-                        expr.ExprIdent(f"{cls.name}DB"),
+                        expr.ExprIdent(
+                            f"{cls.name}DB" if cls.db is not None else cls.name
+                        ),
                         [
                             to_db_type_conversion(
                                 program, expr.ExprIdent("self"), cls, prop
@@ -179,11 +192,13 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
 
         program.import_("__future__.annotations", True)
         program.import_("msgspec", False)
-        program.import_(
-            app.models.db.path + f".{cls.get_pymodule_name()}.{cls.name}",
-            True,
-            alias=f"{cls.name}DB",
-        )
+        if cls.db is not None:
+            # if the class is stored in the database, we need to import the database module
+            program.import_(
+                app.models.db.path + f".{cls.get_pymodule_name()}.{cls.name}",
+                True,
+                alias=f"{cls.name}DB",
+            )
 
         cls_ast = program.root.class_(cls.name, [expr.ExprIdent("msgspec.Struct")])
         for prop in cls.properties.values():
@@ -218,30 +233,41 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
 
         cls_ast(
             stmt.LineBreak(),
-            stmt.PythonDecoratorStatement(
-                expr.ExprFuncCall(expr.ExprIdent("classmethod"), [])
+            (
+                stmt.PythonDecoratorStatement(
+                    expr.ExprFuncCall(expr.ExprIdent("classmethod"), [])
+                )
+                if cls.db is not None
+                else None
             ),
-            lambda ast00: ast00.func(
-                "from_db",
-                [
-                    DeferredVar.simple("cls"),
-                    DeferredVar.simple("record", expr.ExprIdent(f"{cls.name}DB")),
-                ],
-            )(
-                lambda ast10: ast10.return_(
-                    expr.ExprFuncCall(
-                        expr.ExprIdent("cls"),
-                        [
-                            from_db_type_conversion(expr.ExprIdent("record"), prop)
-                            for prop in cls.properties.values()
-                            if not prop.data.is_private
-                        ],
+            lambda ast00: (
+                ast00.func(
+                    "from_db",
+                    [
+                        DeferredVar.simple("cls"),
+                        DeferredVar.simple("record", expr.ExprIdent(f"{cls.name}DB")),
+                    ],
+                )(
+                    lambda ast10: ast10.return_(
+                        expr.ExprFuncCall(
+                            expr.ExprIdent("cls"),
+                            [
+                                from_db_type_conversion(expr.ExprIdent("record"), prop)
+                                for prop in cls.properties.values()
+                                if not prop.data.is_private
+                            ],
+                        )
                     )
                 )
+                if cls.db is not None
+                else None
             ),
         )
 
     for cls in schema.topological_sort():
+        if cls.name in reference_classes:
+            continue
+
         program = Program()
         make_upsert(program, cls)
         program.root.linebreak()
@@ -250,11 +276,20 @@ def make_python_data_model(schema: Schema, target_pkg: Package):
 
 
 def make_python_relational_model(
-    schema: Schema, target_pkg: Package, target_data_pkg: Package
+    schema: Schema,
+    target_pkg: Package,
+    target_data_pkg: Package,
+    reference_classes: dict[str, ObjectPath],
 ):
     """Make python classes for relational database using SQLAlchemy.
 
     The new classes is going be compatible with SQLAlchemy 2.
+
+    Args:
+        schema: The schema to generate the classes from.
+        target_pkg: The package to write the classes to.
+        target_data_pkg: The package to write the data classes to.
+        reference_classes: A dictionary of class names to their references (e.g., the ones that are defined outside and used as referenced such as Tenant).
     """
     app = target_pkg.app
 
@@ -289,18 +324,18 @@ def make_python_relational_model(
             if custom_type.cardinality.is_star_to_many():
                 if custom_type.is_map:
                     program.import_("typing.Mapping", True)
-                    program.import_("sera.libs.baseorm.DictDataClassType", True)
+                    program.import_("sera.libs.base_orm.DictDataclassType", True)
                     type = f"Mapping[str, {custom_type.target.name}]"
-                    maptype = f"DictDataClassType({custom_type.target.name})"
+                    maptype = f"DictDataclassType({custom_type.target.name})"
                 else:
                     program.import_("typing.Sequence", True)
-                    program.import_("sera.libs.baseorm.ListDataClassType", True)
+                    program.import_("sera.libs.base_orm.ListDataclassType", True)
                     type = f"Sequence[str, {custom_type.target.name}]"
-                    maptype = f"ListDataClassType({custom_type.target.name})"
+                    maptype = f"ListDataclassType({custom_type.target.name})"
             else:
-                program.import_("sera.libs.baseorm.DataClassType", True)
+                program.import_("sera.libs.base_orm.DataclassType", True)
                 type = custom_type.target.name
-                maptype = f"DataClassType({custom_type.target.name})"
+                maptype = f"DataclassType({custom_type.target.name})"
 
             if custom_type.is_optional:
                 program.import_("typing.Optional", True)
@@ -348,7 +383,7 @@ def make_python_relational_model(
     custom_types: list[ObjectProperty] = []
 
     for cls in schema.topological_sort():
-        if cls.db is None:
+        if cls.db is None or cls.name in reference_classes:
             # skip classes that are not stored in the database
             continue
 
@@ -460,6 +495,7 @@ def make_python_relational_model(
                 make_python_relational_object_property(
                     program=program,
                     target_pkg=target_pkg,
+                    target_data_pkg=target_data_pkg,
                     cls_ast=cls_ast,
                     cls=cls,
                     prop=prop,
@@ -478,6 +514,7 @@ def make_python_relational_model(
 def make_python_relational_object_property(
     program: Program,
     target_pkg: Package,
+    target_data_pkg: Package,
     cls_ast: AST,
     cls: Class,
     prop: ObjectProperty,
@@ -532,7 +569,7 @@ def make_python_relational_object_property(
 
     # if the target class is not in the database,
     program.import_(
-        f"{target_pkg.module(prop.target.get_pymodule_name()).path}.{prop.target.name}",
+        f"{target_data_pkg.module(prop.target.get_pymodule_name()).path}.{prop.target.name}",
         is_import_attr=True,
     )
     propname = prop.name
@@ -566,6 +603,7 @@ def make_python_relational_object_property(
             propvalargs,
         )
     else:
+        assert prop.db.is_embedded == "json"
         # we create a custom field, the custom field mapping need to be defined in the base
         propval = expr.ExprFuncCall(expr.ExprIdent("mapped_column"), [])
         custom_types.append(prop)
