@@ -71,37 +71,46 @@ def make_python_data_model(
         prop: DataProperty | ObjectProperty,
     ):
         value = PredefinedFn.attr_getter(slf, expr.ExprIdent(prop.name))
-        if (
-            isinstance(prop, ObjectProperty)
-            and prop.target.db is not None
-            and prop.cardinality == Cardinality.MANY_TO_MANY
-        ):
-            # we have to use the associated object
-            # if this isn't a many-to-many relationship, we only keep the id, so no need to convert to the type.
-            AssociationTable = f"{cls.name}{prop.target.name}"
-            program.import_(
-                app.models.db.path
-                + f".{to_snake_case(AssociationTable)}.{AssociationTable}",
-                True,
-            )
+        if isinstance(prop, ObjectProperty):
+            if (
+                prop.target.db is not None
+                and prop.cardinality == Cardinality.MANY_TO_MANY
+            ):
+                # we have to use the associated object
+                # if this isn't a many-to-many relationship, we only keep the id, so no need to convert to the type.
+                AssociationTable = f"{cls.name}{prop.target.name}"
+                program.import_(
+                    app.models.db.path
+                    + f".{to_snake_case(AssociationTable)}.{AssociationTable}",
+                    True,
+                )
 
-            target_idprop = assert_not_null(prop.target.get_id_property())
-            conversion_fn = get_data_conversion(
-                target_idprop.get_data_model_datatype().get_python_type().type,
-                target_idprop.datatype.get_python_type().type,
-            )
+                target_idprop = assert_not_null(prop.target.get_id_property())
+                conversion_fn = get_data_conversion(
+                    target_idprop.get_data_model_datatype().get_python_type().type,
+                    target_idprop.datatype.get_python_type().type,
+                )
 
-            return PredefinedFn.map_list(
-                value,
-                lambda item: expr.ExprFuncCall(
-                    expr.ExprIdent(AssociationTable),
-                    [
-                        PredefinedFn.keyword_assignment(
-                            f"{prop.name}_id", conversion_fn(item)
-                        )
-                    ],
-                ),
-            )
+                return PredefinedFn.map_list(
+                    value,
+                    lambda item: expr.ExprFuncCall(
+                        expr.ExprIdent(AssociationTable),
+                        [
+                            PredefinedFn.keyword_assignment(
+                                f"{prop.name}_id", conversion_fn(item)
+                            )
+                        ],
+                    ),
+                )
+            elif prop.target.db is None:
+                # if the target class is not in the database, we need to convert the value to the python type used in db.
+                # if the cardinality is many-to-many, we need to convert each item in the list.
+                if prop.cardinality.is_star_to_many():
+                    value = PredefinedFn.map_list(
+                        value, lambda item: expr.ExprMethodCall(item, "to_db", [])
+                    )
+                else:
+                    value = expr.ExprMethodCall(value, "to_db", [])
         elif isinstance(prop, DataProperty) and prop.is_diff_data_model_datatype():
             # convert the value to the python type used in db.
             value = get_data_conversion(
@@ -144,8 +153,8 @@ def make_python_data_model(
                     )
                 else:
                     pytype = PyTypeWithDep(
-                        prop.target.name,
-                        f"{target_pkg.module(prop.target.get_pymodule_name()).path}.{prop.target.name}",
+                        f"Upsert{prop.target.name}",
+                        f"{target_pkg.module(prop.target.get_pymodule_name()).path}.Upsert{prop.target.name}",
                     )
 
                 if pytype.dep is not None:
