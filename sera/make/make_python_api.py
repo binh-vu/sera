@@ -84,15 +84,19 @@ def make_main(target_pkg: Package, routes: Sequence[Module]):
     program.root(
         stmt.LineBreak(),
         lambda ast: ast.assign(
+            DeferredVar.simple("app_routes"),
+            PredefinedFn.list(
+                [expr.ExprIdent(route.path + ".router") for route in routes]
+            ),
+        ),
+        lambda ast: ast.assign(
             DeferredVar.simple("app"),
             expr.ExprFuncCall(
                 expr.ExprIdent("Litestar"),
                 [
                     PredefinedFn.keyword_assignment(
                         "route_handlers",
-                        PredefinedFn.list(
-                            [expr.ExprIdent(route.path + ".router") for route in routes]
-                        ),
+                        expr.ExprIdent("app_routes"),
                     )
                 ],
             ),
