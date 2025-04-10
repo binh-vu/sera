@@ -37,7 +37,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             # skip classes that are not public
             return
 
-        idprop = assert_not_null(cls.get_id_property())
+        idprop = cls.get_id_property()
 
         program = Program()
 
@@ -57,7 +57,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 if tstype.dep is not None:
                     program.import_(tstype.dep, True)
 
-                if prop.name == idprop.name:
+                if idprop is not None and prop.name == idprop.name:
                     # use id type alias
                     tstype = TsTypeWithDep(f"{cls.name}Id")
 
@@ -153,8 +153,12 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
 
         program.root(
             stmt.LineBreak(),
-            stmt.TypescriptStatement(
-                f"export type {cls.name}Id = {idprop.get_data_model_datatype().get_typescript_type().type};"
+            (
+                stmt.TypescriptStatement(
+                    f"export type {cls.name}Id = {idprop.get_data_model_datatype().get_typescript_type().type};"
+                )
+                if idprop is not None
+                else None
             ),
             stmt.LineBreak(),
             lambda ast00: ast00.interface(
@@ -198,13 +202,12 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             # skip classes that are not public
             return
 
-        idprop = assert_not_null(cls.get_id_property())
+        idprop = cls.get_id_property()
 
         draft_clsname = "Draft" + cls.name
 
         program = Program()
         program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}", True)
-        program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id", True)
         program.import_("mobx.makeObservable", True)
         program.import_("mobx.observable", True)
         program.import_("mobx.action", True)
@@ -270,12 +273,14 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
 
             if isinstance(prop, DataProperty):
                 tstype = prop.get_data_model_datatype().get_typescript_type()
+                if idprop is not None and prop.name == idprop.name:
+                    # use id type alias
+                    tstype = TsTypeWithDep(
+                        f"{cls.name}Id",
+                        dep=f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id",
+                    )
                 if tstype.dep is not None:
                     program.import_(tstype.dep, True)
-
-                if prop.name == idprop.name:
-                    # use id type alias
-                    tstype = TsTypeWithDep(f"{cls.name}Id")
 
                 # however, if this is a primary key and auto-increment, we set a different default value
                 # to be -1 to avoid start from 0
@@ -284,12 +289,17 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     and prop.db.is_primary_key
                     and prop.db.is_auto_increment
                 ):
-                    propvalue = expr.ExprConstant(-1)
+                    create_propvalue = expr.ExprConstant(-1)
                 else:
-                    propvalue = tstype.get_default()
+                    create_propvalue = tstype.get_default()
 
                 if prop.db is not None and prop.db.is_primary_key:
-                    cls_pk = (expr.ExprIdent(propname), propvalue)
+                    # for checking if the primary key is from the database or default (create_propvalue)
+                    cls_pk = (expr.ExprIdent(propname), create_propvalue)
+
+                update_propvalue = PredefinedFn.attr_getter(
+                    expr.ExprIdent("record"), expr.ExprIdent(propname)
+                )
 
                 ser_args.append(
                     (
@@ -323,7 +333,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     )
                     if prop.cardinality.is_star_to_many():
                         tstype = tstype.as_list_type()
-                    propvalue = tstype.get_default()
+                    create_propvalue = tstype.get_default()
+                    update_propvalue = PredefinedFn.attr_getter(
+                        expr.ExprIdent("record"), expr.ExprIdent(propname)
+                    )
                     ser_args.append(
                         (
                             expr.ExprIdent(prop.name),
@@ -335,26 +348,21 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 else:
                     # we are going to store the whole object
                     tstype = TsTypeWithDep(
-                        prop.target.name,
-                        f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}",
+                        f"Draft{prop.target.name}",
+                        f"@.models.{prop.target.get_tsmodule_name()}.Draft{prop.target.name}.Draft{prop.target.name}",
                     )
                     if prop.cardinality.is_star_to_many():
                         tstype = tstype.as_list_type()
-                        propvalue = expr.ExprConstant([])
-                        ser_args.append(
-                            expr.ExprMethodCall(
-                                PredefinedFn.attr_getter(
-                                    expr.ExprIdent("this"), expr.ExprIdent(propname)
-                                ),
-                                "ser",
-                                [],
-                            )
-                        )
-                    else:
-                        propvalue = expr.ExprMethodCall(
-                            expr.ExprIdent(prop.target.name),
-                            "create",
-                            [],
+                        create_propvalue = expr.ExprConstant([])
+                        update_propvalue = PredefinedFn.map_list(
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("record"), expr.ExprIdent(propname)
+                            ),
+                            lambda item: expr.ExprMethodCall(
+                                expr.ExprIdent(tstype.type),
+                                "update",
+                                [item],
+                            ),
                         )
                         ser_args.append(
                             (
@@ -364,6 +372,33 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                         expr.ExprIdent("this"), expr.ExprIdent(propname)
                                     ),
                                     lambda item: expr.ExprMethodCall(item, "ser", []),
+                                ),
+                            )
+                        )
+                    else:
+                        create_propvalue = expr.ExprMethodCall(
+                            expr.ExprIdent(tstype.type),
+                            "create",
+                            [],
+                        )
+                        update_propvalue = expr.ExprMethodCall(
+                            expr.ExprIdent(tstype.type),
+                            "update",
+                            [
+                                PredefinedFn.attr_getter(
+                                    expr.ExprIdent("record"), expr.ExprIdent(propname)
+                                ),
+                            ],
+                        )
+                        ser_args.append(
+                            (
+                                expr.ExprIdent(prop.name),
+                                expr.ExprMethodCall(
+                                    PredefinedFn.attr_getter(
+                                        expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                    ),
+                                    "ser",
+                                    [],
                                 ),
                             )
                         )
@@ -397,17 +432,12 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     expr.ExprIdent("args." + propname),
                 )
             )
-            create_args.append((expr.ExprIdent(propname), propvalue))
+            create_args.append((expr.ExprIdent(propname), create_propvalue))
             update_args.append(
                 (
                     expr.ExprIdent(propname),
                     # if this is mutable property, we need to copy to make it immutable.
-                    clone_prop(
-                        prop,
-                        PredefinedFn.attr_getter(
-                            expr.ExprIdent("record"), expr.ExprIdent(propname)
-                        ),
-                    ),
+                    clone_prop(prop, update_propvalue),
                 )
             )
             update_field_funcs.append(
@@ -540,8 +570,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         pkg.module("Draft" + cls.name).write(program)
 
     def make_table(cls: Class, pkg: Package):
-        if not cls.is_public:
-            # skip classes that are not public
+        if not cls.is_public or cls.db is None:
+            # skip classes that are not public and not stored in the database
             return
 
         outmod = pkg.module(cls.name + "Table")
@@ -695,11 +725,13 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}",
                     )
 
-                if tstype.dep is not None:
-                    program.import_(
-                        tstype.dep,
-                        True,
-                    )
+                # we don't store the type itself, but just the name of the type
+                # so not need to import the dependency
+                # if tstype.dep is not None:
+                #     program.import_(
+                #         tstype.dep,
+                #         True,
+                #     )
 
                 tsprop = [
                     (
@@ -746,13 +778,19 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 + PredefinedFn.dict(
                     [
                         (expr.ExprIdent("properties"), PredefinedFn.dict(prop_defs)),
-                        (
-                            expr.ExprIdent("primaryKey"),
-                            expr.ExprConstant(
-                                assert_not_null(cls.get_id_property()).name
-                            ),
-                        ),
                     ]
+                    + (
+                        [
+                            (
+                                expr.ExprIdent("primaryKey"),
+                                expr.ExprConstant(
+                                    assert_not_null(cls.get_id_property()).name
+                                ),
+                            )
+                        ]
+                        if cls.db is not None
+                        else []
+                    )
                 ).to_typescript()
                 + ";"
             ),
@@ -768,23 +806,32 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
 
         program = Program()
         program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}", True)
-        program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id", True)
+        if cls.db is not None:
+            # only import the id if this class is stored in the database
+            program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id", True)
         program.import_(
             f"@.models.{pkg.dir.name}.{cls.name}Schema.{cls.name}Schema", True
         )
         program.import_(
             f"@.models.{pkg.dir.name}.Draft{cls.name}.Draft{cls.name}", True
         )
-        program.import_(
-            f"@.models.{pkg.dir.name}.{cls.name}Table.{cls.name}Table", True
-        )
+        if cls.db is not None:
+            program.import_(
+                f"@.models.{pkg.dir.name}.{cls.name}Table.{cls.name}Table", True
+            )
 
         program.root(
             stmt.LineBreak(),
             stmt.TypescriptStatement(
                 f"export {{ {cls.name}, Draft{cls.name}, {cls.name}Table, {cls.name}Schema }};"
+                if cls.db is not None
+                else f"export {{ {cls.name}, Draft{cls.name}, {cls.name}Schema }};"
             ),
-            stmt.TypescriptStatement(f"export type {{ {cls.name}Id }};"),
+            (
+                stmt.TypescriptStatement(f"export type {{ {cls.name}Id }};")
+                if cls.db
+                else None
+            ),
         )
 
         outmod.write(program)

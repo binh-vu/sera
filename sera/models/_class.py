@@ -51,14 +51,19 @@ class Class:
         Get the ID property of this class.
         The ID property is the one tagged with is_primary_key
         """
-        assert self.db is not None, "This class is not stored in the database"
         for prop in self.properties.values():
             if (
                 isinstance(prop, DataProperty)
                 and prop.db is not None
                 and prop.db.is_primary_key
             ):
+                assert (
+                    self.db is not None
+                ), "This class is not stored in the database and thus, cannot have a primary key"
                 return prop
+        assert (
+            self.db is None
+        ), "This class is stored in the database and thus, must have a primary key"
         return None
 
     def get_pymodule_name(self) -> str:
