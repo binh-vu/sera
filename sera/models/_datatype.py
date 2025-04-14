@@ -147,7 +147,9 @@ predefined_datatypes = {
     "datetime": DataType(
         pytype=PyTypeWithDep(type="datetime", dep="datetime.datetime"),
         sqltype=SQLTypeWithDep(
-            type="DateTime", mapped_pytype="datetime", deps=["sqlalchemy.DateTime"]
+            type="DateTime",
+            mapped_pytype="datetime",
+            deps=["sqlalchemy.DateTime", "datetime.datetime"],
         ),
         tstype=TsTypeWithDep(type="string"),
         is_list=False,
