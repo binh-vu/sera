@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Literal, Optional
 
+from sera.models._constraints import Constraint
 from sera.models._datatype import DataType
 from sera.models._multi_lingual_string import MultiLingualString
 
@@ -65,6 +66,9 @@ class PropDataAttrs:
 
     # whether this data model has a different data type than the one from the database
     datatype: Optional[DataType] = None
+
+    # list of constraints applied to the data model's field
+    constraints: list[Constraint] = field(default_factory=list)
 
 
 @dataclass(kw_only=True)

@@ -20,6 +20,9 @@ class MultiLingualString(str):
     def has_lang(self, lang: str) -> bool:
         return lang in self.lang2value
 
+    def is_empty(self):
+        return all(value == "" for value in self.lang2value.values())
+
     @staticmethod
     def en(label: str):
         return MultiLingualString(lang2value={"en": label}, lang="en")

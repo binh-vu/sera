@@ -7,6 +7,7 @@ from typing import Sequence
 
 import serde.yaml
 from sera.models._class import Class, ClassDBMapInfo, Index
+from sera.models._constraints import Constraint, predefined_constraints
 from sera.models._datatype import (
     DataType,
     predefined_datatypes,
@@ -99,6 +100,9 @@ def _parse_property(
     data_attrs = PropDataAttrs(
         is_private=_data.get("is_private", False),
         datatype=_parse_datatype(_data["datatype"]) if "datatype" in _data else None,
+        constraints=[
+            _parse_constraint(constraint) for constraint in _data.get("constraints", [])
+        ],
     )
 
     assert isinstance(prop, dict), prop
@@ -161,6 +165,12 @@ def _parse_multi_lingual_string(o: dict | str) -> MultiLingualString:
     assert isinstance(o, dict), o
     assert "en" in o
     return MultiLingualString(lang2value=o, lang="en")
+
+
+def _parse_constraint(constraint: str) -> Constraint:
+    if constraint not in predefined_constraints:
+        raise NotImplementedError(constraint)
+    return predefined_constraints[constraint]
 
 
 def _parse_datatype(datatype: dict | str) -> DataType:

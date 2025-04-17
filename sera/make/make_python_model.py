@@ -142,7 +142,19 @@ def make_python_data_model(
                 pytype = prop.get_data_model_datatype().get_python_type()
                 if pytype.dep is not None:
                     program.import_(pytype.dep, True)
-                cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
+                pytype_type = pytype.type
+                if len(prop.data.constraints) > 0:
+                    # if the property has constraints, we need to figure out
+                    program.import_("typing.Annotated", True)
+                    if len(prop.data.constraints) == 1:
+                        pytype_type = f"Annotated[%s, %s]" % (
+                            pytype_type,
+                            prop.data.constraints[0].get_msgspec_constraint(),
+                        )
+                    else:
+                        raise NotImplementedError(prop.data.constraints)
+
+                cls_ast(stmt.DefClassVarStatement(prop.name, pytype_type))
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
                     # if the target class is in the database, we expect the user to pass the foreign key for it.

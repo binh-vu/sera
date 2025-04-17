@@ -706,7 +706,15 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     (expr.ExprIdent("datatype"), expr.ExprConstant(tstype.type)),
                     (
                         expr.ExprIdent("isList"),
-                        expr.ExprConstant(prop.datatype.is_list),
+                        expr.ExprConstant(prop.get_data_model_datatype().is_list),
+                    ),
+                    (
+                        expr.ExprIdent("isRequired"),
+                        expr.ExprConstant(
+                            # TODO: fix me.
+                            prop.db is None
+                            or not prop.db.is_nullable
+                        ),
                     ),
                 ]
             else:
@@ -747,6 +755,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         expr.ExprIdent("isEmbedded"),
                         expr.ExprConstant(prop.target.db is not None),
                     ),
+                    (
+                        expr.ExprIdent("isRequired"),
+                        expr.ExprConstant(not prop.is_optional),
+                    ),
                 ]
 
             prop_defs.append(
@@ -761,7 +773,11 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                             ),
                             (
                                 expr.ExprIdent("description"),
-                                expr.ExprConstant(prop.description.to_dict()),
+                                (
+                                    expr.ExprConstant(prop.description.to_dict())
+                                    if not prop.description.is_empty()
+                                    else expr.ExprConstant("undefined")
+                                ),
                             ),
                         ]
                         + tsprop
