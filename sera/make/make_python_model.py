@@ -580,11 +580,11 @@ def make_python_relational_object_property(
                             "onupdate",
                             expr.ExprConstant(prop.db.on_target_update.to_sqlalchemy()),
                         ),
-                        PredefinedFn.keyword_assignment(
-                            "nullable",
-                            expr.ExprConstant(prop.is_optional),
-                        ),
                     ],
+                ),
+                PredefinedFn.keyword_assignment(
+                    "nullable",
+                    expr.ExprConstant(prop.is_optional),
                 ),
             ],
         )
