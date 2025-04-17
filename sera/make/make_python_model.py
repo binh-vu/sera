@@ -154,7 +154,25 @@ def make_python_data_model(
                     else:
                         raise NotImplementedError(prop.data.constraints)
 
-                cls_ast(stmt.DefClassVarStatement(prop.name, pytype_type))
+                prop_default_value = None
+                if prop.default_value is not None:
+                    prop_default_value = expr.ExprConstant(prop.default_value)
+                elif prop.default_factory is not None:
+                    program.import_(prop.default_factory.pyfunc)
+                    prop_default_value = expr.ExprFuncCall(
+                        expr.ExprIdent("msgspec.field"),
+                        [
+                            PredefinedFn.keyword_assignment(
+                                "default_factory",
+                                expr.ExprIdent(prop.default_factory.pyfunc),
+                            )
+                        ],
+                    )
+                cls_ast(
+                    stmt.DefClassVarStatement(
+                        prop.name, pytype_type, prop_default_value
+                    )
+                )
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
                     # if the target class is in the database, we expect the user to pass the foreign key for it.
@@ -501,7 +519,7 @@ def make_python_relational_model(
                                 "index", expr.ExprConstant(True)
                             )
                         )
-                if prop.db.is_nullable:
+                if prop.is_optional:
                     propvalargs.append(
                         PredefinedFn.keyword_assignment(
                             "nullable", expr.ExprConstant(True)

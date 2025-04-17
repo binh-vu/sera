@@ -711,9 +711,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     (
                         expr.ExprIdent("isRequired"),
                         expr.ExprConstant(
-                            # TODO: fix me.
-                            prop.db is None
-                            or not prop.db.is_nullable
+                            not prop.is_optional
+                            and prop.default_value is None
+                            and prop.default_factory is None
                         ),
                     ),
                 ]

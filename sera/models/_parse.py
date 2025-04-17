@@ -15,6 +15,7 @@ from sera.models._datatype import (
     predefined_sql_datatypes,
     predefined_ts_datatypes,
 )
+from sera.models._default import DefaultFactory
 from sera.models._multi_lingual_string import MultiLingualString
 from sera.models._property import (
     Cardinality,
@@ -121,11 +122,13 @@ def _parse_property(
                     is_indexed=db.get("is_indexed", False)
                     or db.get("is_unique", False)
                     or db.get("is_primary_key", False),
-                    is_nullable=db.get("is_nullable", False),
                 )
                 if "db" in prop
                 else None
             ),
+            is_optional=prop.get("is_optional", False),
+            default_value=_parse_default_value(prop.get("default_value", None)),
+            default_factory=_parse_default_factory(prop.get("default_factory", None)),
         )
 
     assert "target" in prop, prop
@@ -213,3 +216,21 @@ def _parse_datatype(datatype: dict | str) -> DataType:
         )
 
     raise NotImplementedError(datatype)
+
+
+def _parse_default_value(
+    default_value: str | int | bool | None,
+) -> str | int | bool | None:
+    if default_value is None:
+        return None
+    if not isinstance(default_value, (str, int, bool)):
+        raise NotImplementedError(default_value)
+    return default_value
+
+
+def _parse_default_factory(default_factory: str | None) -> str | None:
+    if default_factory is None:
+        return None
+    return DefaultFactory(
+        pyfunc=default_factory["pyfunc"], tsfunc=default_factory["tsfunc"]
+    )

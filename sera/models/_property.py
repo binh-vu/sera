@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Literal, Optional
 
 from sera.models._constraints import Constraint
 from sera.models._datatype import DataType
+from sera.models._default import DefaultFactory
 from sera.models._multi_lingual_string import MultiLingualString
 
 if TYPE_CHECKING:
@@ -87,6 +88,8 @@ class Property:
     description: MultiLingualString
     # other attributes for generating data model such as upsert and return.
     data: PropDataAttrs = field(default_factory=PropDataAttrs)
+    # whether this property is optional or not
+    is_optional: bool = False
 
 
 @dataclass(kw_only=True)
@@ -101,14 +104,17 @@ class DataPropDBInfo:
     is_unique: bool = False
     # whether this property is indexed or not
     is_indexed: bool = False
-    # whether this property is nullable or not
-    is_nullable: bool = False
 
 
 @dataclass(kw_only=True)
 class DataProperty(Property):
     # data type of the property
     datatype: DataType
+    # default value of this property if it is not provided (then optional is false by default)
+    default_value: Optional[str | int | bool] = None
+    # default value factory of this property if it is not provided
+    default_factory: Optional[DefaultFactory] = None
+
     # other database properties of this property
     db: Optional[DataPropDBInfo] = None
 
@@ -148,8 +154,6 @@ class ObjectProperty(Property):
     # to store the relationship -- users can overwrite this generated class by define the one with the same
     # name
     cardinality: Cardinality
-    # whether this property is optional or not
-    is_optional: bool = False
     # whether this property is stored as a mapping dic[str, Target] or not
     # only valid for *-to-many relationships
     is_map: bool = False
