@@ -753,7 +753,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     ),
                     (
                         expr.ExprIdent("isEmbedded"),
-                        expr.ExprConstant(prop.target.db is not None),
+                        expr.ExprConstant(prop.target.db is None),
                     ),
                     (
                         expr.ExprIdent("isRequired"),
