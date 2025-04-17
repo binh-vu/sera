@@ -580,6 +580,10 @@ def make_python_relational_object_property(
                             "onupdate",
                             expr.ExprConstant(prop.db.on_target_update.to_sqlalchemy()),
                         ),
+                        PredefinedFn.keyword_assignment(
+                            "nullable",
+                            expr.ExprConstant(prop.is_optional),
+                        ),
                     ],
                 ),
             ],
@@ -612,7 +616,7 @@ def make_python_relational_object_property(
                             .datatype.get_sqlalchemy_type()
                             .type
                         ),
-                        expr.PredefinedFn.keyword_assignment(
+                        PredefinedFn.keyword_assignment(
                             "nullable",
                             expr.ExprConstant(prop.is_optional),
                         ),
@@ -626,7 +630,15 @@ def make_python_relational_object_property(
     else:
         assert prop.db.is_embedded == "json"
         # we create a custom field, the custom field mapping need to be defined in the base
-        propval = expr.ExprFuncCall(expr.ExprIdent("mapped_column"), [])
+        propval = expr.ExprFuncCall(
+            expr.ExprIdent("mapped_column"),
+            [
+                PredefinedFn.keyword_assignment(
+                    "nullable",
+                    expr.ExprConstant(prop.is_optional),
+                ),
+            ],
+        )
         custom_types.append(prop)
 
     cls_ast(stmt.DefClassVarStatement(propname, proptype, propval))
