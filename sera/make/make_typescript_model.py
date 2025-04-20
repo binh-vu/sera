@@ -5,7 +5,6 @@ from typing import Any, Callable
 from codegen.models import AST, PredefinedFn, Program, expr, stmt
 from codegen.models.var import DeferredVar
 from loguru import logger
-
 from sera.misc import (
     assert_isinstance,
     assert_not_null,
@@ -723,9 +722,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         prop_defs: list[tuple[expr.Expr, expr.Expr]] = []
 
         for prop in cls.properties.values():
-            if prop.data.is_private:
-                # skip private fields as this is for APIs exchange
-                continue
+            # we must include private properties that are needed during upsert for our forms.
+            # if prop.data.is_private:
+            #     # skip private fields as this is for APIs exchange
+            #     continue
             propname = to_camel_case(prop.name)
             tsprop = {}
 
@@ -821,11 +821,24 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             )
 
         program.import_("sera-db.Schema", True)
-        program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}", True)
+        program.import_(
+            f"@.models.{pkg.dir.name}.Draft{cls.name}.Draft{cls.name}", True
+        )
         program.root(
             stmt.LineBreak(),
             stmt.TypescriptStatement(
-                f"export const {cls.name}Schema: Schema<{cls.name}> = "
+                f"export type {cls.name}Properties = "
+                + " | ".join(
+                    [
+                        expr.ExprConstant(to_camel_case(prop.name)).to_typescript()
+                        for prop in cls.properties.values()
+                    ]
+                )
+                + ";"
+            ),
+            stmt.LineBreak(),
+            stmt.TypescriptStatement(
+                f"export const {cls.name}Schema: Schema<Draft{cls.name}, {cls.name}Properties> = "
                 + PredefinedFn.dict(
                     [
                         (expr.ExprIdent("properties"), PredefinedFn.dict(prop_defs)),
