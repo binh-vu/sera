@@ -5,6 +5,7 @@ from typing import Any, Callable
 from codegen.models import AST, PredefinedFn, Program, expr, stmt
 from codegen.models.var import DeferredVar
 from loguru import logger
+
 from sera.misc import (
     assert_isinstance,
     assert_not_null,
@@ -15,6 +16,7 @@ from sera.misc import (
 from sera.models import (
     Class,
     DataProperty,
+    Enum,
     ObjectProperty,
     Package,
     Schema,
@@ -25,6 +27,15 @@ from sera.models import (
 def make_typescript_data_model(schema: Schema, target_pkg: Package):
     """Generate TypeScript data model from the schema. The data model aligns with the public data model in Python, not the database model."""
     app = target_pkg.app
+
+    # mapping from type alias of idprop to its real type
+    idprop_aliases = {}
+    for cls in schema.classes.values():
+        idprop = cls.get_id_property()
+        if idprop is not None:
+            idprop_aliases[f"{cls.name}Id"] = (
+                idprop.get_data_model_datatype().get_typescript_type()
+            )
 
     def clone_prop(prop: DataProperty | ObjectProperty, value: expr.Expr):
         # detect all complex types is hard, we can assume that any update to this does not mutate
@@ -38,7 +49,6 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             return
 
         idprop = cls.get_id_property()
-
         program = Program()
 
         prop_defs = []
@@ -161,7 +171,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 else None
             ),
             stmt.LineBreak(),
-            lambda ast00: ast00.interface(
+            lambda ast00: ast00.class_like(
+                "interface",
                 cls.name + "ConstructorArgs",
             )(*prop_defs),
             stmt.LineBreak(),
@@ -230,9 +241,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         update_field_funcs: list[Callable[[AST], Any]] = []
 
         for prop in cls.properties.values():
-            if prop.data.is_private:
-                # skip private fields as this is for APIs exchange
-                continue
+            # if prop.data.is_private:
+            #     # skip private fields as this is for APIs exchange
+            #     continue
 
             propname = to_camel_case(prop.name)
 
@@ -291,15 +302,23 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 ):
                     create_propvalue = expr.ExprConstant(-1)
                 else:
-                    create_propvalue = tstype.get_default()
+                    if tstype.type in idprop_aliases:
+                        create_propvalue = idprop_aliases[tstype.type].get_default()
+                    else:
+                        create_propvalue = tstype.get_default()
 
                 if prop.db is not None and prop.db.is_primary_key:
                     # for checking if the primary key is from the database or default (create_propvalue)
                     cls_pk = (expr.ExprIdent(propname), create_propvalue)
 
-                update_propvalue = PredefinedFn.attr_getter(
-                    expr.ExprIdent("record"), expr.ExprIdent(propname)
-                )
+                # if this field is private, we cannot get it from the normal record
+                # we have to create a default value for it.
+                if prop.data.is_private:
+                    update_propvalue = create_propvalue
+                else:
+                    update_propvalue = PredefinedFn.attr_getter(
+                        expr.ExprIdent("record"), expr.ExprIdent(propname)
+                    )
 
                 ser_args.append(
                     (
@@ -333,7 +352,22 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     )
                     if prop.cardinality.is_star_to_many():
                         tstype = tstype.as_list_type()
-                    create_propvalue = tstype.get_default()
+                        create_propvalue = expr.ExprConstant([])
+                    else:
+                        # if target class has an auto-increment primary key, we set a different default value
+                        # to be -1 to avoid start from 0
+                        target_idprop = prop.target.get_id_property()
+                        if (
+                            target_idprop is not None
+                            and target_idprop.db is not None
+                            and target_idprop.db.is_primary_key
+                            and target_idprop.db.is_auto_increment
+                        ):
+                            create_propvalue = expr.ExprConstant(-1)
+                        else:
+                            assert tstype.type in idprop_aliases
+                            create_propvalue = idprop_aliases[tstype.type].get_default()
+
                     update_propvalue = PredefinedFn.attr_getter(
                         expr.ExprIdent("record"), expr.ExprIdent(propname)
                     )
@@ -474,7 +508,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         observable_args.sort(key=lambda x: {"observable": 0, "action": 1}[x[1].ident])
 
         program.root(
-            lambda ast00: ast00.interface(
+            lambda ast00: ast00.class_like(
+                "interface",
                 draft_clsname + "ConstructorArgs",
             )(*prop_defs),
             stmt.LineBreak(),
@@ -861,3 +896,44 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         make_definition(cls, pkg)
 
         make_index(pkg)
+
+
+def make_typescript_enum(schema: Schema, target_pkg: Package):
+    """Make typescript enum for the schema"""
+    enum_pkg = target_pkg.pkg("enums")
+
+    def make_enum(enum: Enum, pkg: Package):
+        program = Program()
+        program.root(
+            stmt.LineBreak(),
+            lambda ast: ast.class_like("enum", enum.name)(
+                *[
+                    stmt.DefClassVarStatement(
+                        name=value.name,
+                        type=None,
+                        value=expr.ExprConstant(value.value),
+                    )
+                    for value in enum.values.values()
+                ]
+            ),
+            stmt.LineBreak(),
+            stmt.TypescriptStatement("export " + enum.name + ";"),
+        )
+        pkg.module(enum.get_tsmodule_name()).write(program)
+
+    for enum in schema.enums.values():
+        make_enum(enum, enum_pkg)
+
+    program = Program()
+    for enum in schema.enums.values():
+        program.import_(f"@.models.enums.{enum.get_tsmodule_name()}.{enum.name}", True)
+
+    program.root(
+        stmt.LineBreak(),
+        stmt.TypescriptStatement(
+            "export { "
+            + ", ".join([enum.name for enum in schema.enums.values()])
+            + "};"
+        ),
+    )
+    enum_pkg.module("index").write(program)

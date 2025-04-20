@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import subprocess
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Sequence
 
@@ -12,10 +11,8 @@ import isort
 from codegen.models import Program
 from loguru import logger
 
-
-class Language(str, Enum):
-    Python = "python"
-    Typescript = "typescript"
+from sera.misc import File, Formatter
+from sera.typing import Language
 
 
 @dataclass
@@ -106,15 +103,9 @@ class Module:
         outfile.write_text(copyright_statement + code)
 
         if self.language == Language.Typescript:
-            # invoke prettier to format the code
-            try:
-                subprocess.check_output(
-                    ["npx", "prettier", "--write", str(outfile.absolute())],
-                    cwd=self.package.app.root.dir,
-                )
-            except Exception as e:
-                logger.error("Error formatting Typescript file: {}", e)
-                raise
+            Formatter.get_instance().register(
+                File(path=outfile, language=self.language)
+            )
 
     def exists(self) -> bool:
         """Check if the module exists"""

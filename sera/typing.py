@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import Annotated, TypeVar
 
 
@@ -12,3 +13,8 @@ FieldName = Annotated[str, doc("field name of a class")]
 ObjectPath = Annotated[
     str, doc("path of an object (e.g., can be function, class, etc.)")
 ]
+
+
+class Language(str, Enum):
+    Python = "python"
+    Typescript = "typescript"

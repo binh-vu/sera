@@ -7,6 +7,7 @@ from typing import Annotated
 
 from codegen.models import DeferredVar, PredefinedFn, Program, expr, stmt
 from loguru import logger
+
 from sera.make.make_python_api import make_python_api
 from sera.make.make_python_model import (
     make_python_data_model,
@@ -14,8 +15,13 @@ from sera.make.make_python_model import (
     make_python_relational_model,
 )
 from sera.make.make_python_services import make_python_service_structure
-from sera.make.make_typescript_model import make_typescript_data_model
-from sera.models import App, DataCollection, Language, parse_schema
+from sera.make.make_typescript_model import (
+    make_typescript_data_model,
+    make_typescript_enum,
+)
+from sera.misc import Formatter
+from sera.models import App, DataCollection, parse_schema
+from sera.typing import Language
 
 
 def make_config(app: App):
@@ -164,8 +170,10 @@ def make_app(
         # generate services
         make_python_service_structure(app, collections)
     elif language == Language.Typescript:
+        make_typescript_enum(schema, app.models)
         make_typescript_data_model(schema, app.models)
 
+    Formatter.get_instance().process()
     return app
 
 

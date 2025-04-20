@@ -4,8 +4,9 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+
 from sera.make.make_app import make_app
-from sera.models import Language
+from sera.typing import Language
 
 app = typer.Typer(pretty_exceptions_short=True, pretty_exceptions_enable=False)
 
