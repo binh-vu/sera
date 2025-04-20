@@ -10,6 +10,7 @@ from loguru import logger
 from sera.make.make_python_api import make_python_api
 from sera.make.make_python_model import (
     make_python_data_model,
+    make_python_enums,
     make_python_relational_model,
 )
 from sera.make.make_python_services import make_python_service_structure
@@ -121,7 +122,7 @@ def make_app(
         ),
     ] = [],
 ):
-    schema = parse_schema(schema_files)
+    schema = parse_schema(app_dir.name, schema_files)
 
     app = App(app_dir.name, app_dir, schema_files, language)
 
@@ -137,6 +138,8 @@ def make_app(
             + parts[1]
             for path in referenced_schema
         }
+
+        make_python_enums(schema, app.models.pkg("enums"), referenced_classes)
         make_python_data_model(schema, app.models.pkg("data"), referenced_classes)
         referenced_classes = {
             path.rsplit(".", 1)[1]: (parts := path.rsplit(".", 1))[0]

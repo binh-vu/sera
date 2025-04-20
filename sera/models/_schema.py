@@ -4,12 +4,16 @@ from dataclasses import dataclass
 from graphlib import TopologicalSorter
 
 from sera.models._class import Class
+from sera.models._enum import Enum
 from sera.models._property import ObjectProperty
 
 
 @dataclass
 class Schema:
+    # top-level application name
+    name: str
     classes: dict[str, Class]
+    enums: dict[str, Enum]
 
     def topological_sort(self) -> list[Class]:
         """

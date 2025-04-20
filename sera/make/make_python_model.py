@@ -21,6 +21,53 @@ from sera.models import (
 from sera.typing import ObjectPath
 
 
+def make_python_enums(
+    schema: Schema,
+    target_pkg: Package,
+    reference_objects: dict[str, ObjectPath],
+):
+    """Make enums defined in the schema.
+
+    Args:
+        schema: The schema to generate the classes from.
+        target_pkg: The package to write the enums to.
+        reference_objects: A dictionary of objects to their references (e.g., the ones that are defined outside and used as referenced such as Tenant).
+    """
+    for enum in schema.enums.values():
+        if enum.name in reference_objects:
+            # skip enums that are defined in different apps
+            continue
+
+        program = Program()
+        program.import_("__future__.annotations", True)
+        program.import_("enum.Enum", True)
+
+        enum_values = []
+        for value in enum.values.values():
+            enum_values.append(
+                stmt.DefClassVarStatement(
+                    name=value.name,
+                    type=None,
+                    value=expr.ExprConstant(value.value),
+                )
+            )
+
+        program.root(
+            stmt.LineBreak(),
+            lambda ast: ast.class_(
+                enum.name,
+                (
+                    [expr.ExprIdent("str")]
+                    if enum.is_str_enum()
+                    else [expr.ExprIdent("int")]
+                )
+                + [expr.ExprIdent("Enum")],
+            )(*enum_values),
+        )
+
+        target_pkg.module(enum.get_pymodule_name()).write(program)
+
+
 def make_python_data_model(
     schema: Schema, target_pkg: Package, reference_classes: dict[str, ObjectPath]
 ):
@@ -158,7 +205,7 @@ def make_python_data_model(
                 if prop.default_value is not None:
                     prop_default_value = expr.ExprConstant(prop.default_value)
                 elif prop.default_factory is not None:
-                    program.import_(prop.default_factory.pyfunc)
+                    program.import_(prop.default_factory.pyfunc, True)
                     prop_default_value = expr.ExprFuncCall(
                         expr.ExprIdent("msgspec.field"),
                         [
