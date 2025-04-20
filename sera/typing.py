@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated, TypeVar
+from typing import Annotated, Any, TypeGuard, TypeVar, Union
+
+import msgspec
 
 
 class doc(str):
@@ -18,3 +20,13 @@ ObjectPath = Annotated[
 class Language(str, Enum):
     Python = "python"
     Typescript = "typescript"
+
+
+# re-export msgspec.UnsetType & msgspec.UNSET, so that we are consistent with ORM & data modules
+UnsetType = msgspec.UnsetType
+UNSET: Any = msgspec.UNSET
+
+
+def is_set(value: Union[T, UnsetType]) -> TypeGuard[T]:
+    """Typeguard to check if a value is set (not UNSET)"""
+    return value is not UNSET

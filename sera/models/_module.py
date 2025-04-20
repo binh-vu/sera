@@ -10,7 +10,6 @@ import black.mode
 import isort
 from codegen.models import Program
 from loguru import logger
-
 from sera.misc import File, Formatter
 from sera.typing import Language
 
@@ -169,3 +168,8 @@ class App:
         self.schema_files = schema_files
 
         self.language = language
+
+    @property
+    def name(self) -> str:
+        """Get the name of the application"""
+        return self.root.dir.name

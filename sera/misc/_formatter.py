@@ -5,9 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
-from tqdm import tqdm
-
 from sera.typing import Language
+from tqdm import tqdm
 
 
 @dataclass
@@ -48,6 +47,9 @@ class Formatter:
                 raise NotImplementedError(
                     f"Formatting not implemented for {file.language}"
                 )
+
+        if len(self.pending_files) == 0:
+            return
 
         with ThreadPoolExecutor() as executor:
             list(

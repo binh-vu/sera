@@ -7,7 +7,6 @@ from typing import Annotated
 
 from codegen.models import DeferredVar, PredefinedFn, Program, expr, stmt
 from loguru import logger
-
 from sera.make.make_python_api import make_python_api
 from sera.make.make_python_model import (
     make_python_data_model,
@@ -83,6 +82,7 @@ def make_config(app: App):
             expr.ExprFuncCall(
                 expr.ExprIdent("parse_schema"),
                 [
+                    expr.ExprConstant(app.name),
                     PredefinedFn.list(
                         [
                             expr.ExprDivision(
@@ -93,7 +93,7 @@ def make_config(app: App):
                             )
                             for path in app.schema_files
                         ]
-                    )
+                    ),
                 ],
             ),
         ),

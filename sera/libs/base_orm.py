@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 import orjson
+from sera.typing import UNSET
 from sqlalchemy import LargeBinary, TypeDecorator
 from sqlalchemy import create_engine as sqlalchemy_create_engine
 from sqlalchemy import update
@@ -15,6 +16,8 @@ class BaseORM:
         args = {}
         for col in self.__table__.columns:  # type: ignore
             val = getattr(self, col.name)
+            if val is UNSET:
+                continue
             if col.primary_key:
                 q = q.where(getattr(self.__class__, col.name) == val)
             args[col.name] = val
@@ -22,7 +25,12 @@ class BaseORM:
         return q.values(**args)
 
     def get_update_args(self):
-        return {col.name: getattr(self, col.name) for col in self.__table__.columns}  # type: ignore
+        table = self.__table__  # type: ignore
+        return {
+            col.name: val
+            for col in table.columns
+            if (val := getattr(self, col.name)) is not UNSET
+        }
 
     @classmethod
     def from_dict(cls, data: dict):

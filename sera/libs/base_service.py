@@ -114,7 +114,7 @@ class BaseService(Generic[ID, R]):
 
     def update(self, record: R, session: Session) -> R:
         """Update an existing record."""
-        session.add(record)
+        session.execute(record.get_update_query())
         session.commit()
         return record
 

@@ -159,11 +159,24 @@ def make_python_data_model(
                 else:
                     value = expr.ExprMethodCall(value, "to_db", [])
         elif isinstance(prop, DataProperty) and prop.is_diff_data_model_datatype():
-            # convert the value to the python type used in db.
-            value = get_data_conversion(
+            # convert the value to the python type used in db
+            converted_value = get_data_conversion(
                 prop.get_data_model_datatype().get_python_type().type,
                 prop.datatype.get_python_type().type,
             )(value)
+
+            if prop.data.is_private:
+                # if the property is private and it's UNSET, we cannot transform it to the database type
+                # and has to use the UNSET value (the update query will ignore this field)
+                program.import_("sera.typing.UNSET", True)
+                program.import_("sera.typing.is_set", True)
+                value = expr.ExprTernary(
+                    expr.ExprFuncCall(expr.ExprIdent("is_set"), [value]),
+                    converted_value,
+                    expr.ExprIdent("UNSET"),
+                )
+            else:
+                value = converted_value
         return value
 
     def make_upsert(program: Program, cls: Class):
@@ -177,11 +190,13 @@ def make_python_data_model(
                 alias=f"{cls.name}DB",
             )
         cls_ast = program.root.class_(
-            "Upsert" + cls.name, [expr.ExprIdent("msgspec.Struct")]
+            "Upsert" + cls.name,
+            [expr.ExprIdent("msgspec.Struct"), expr.ExprIdent("kw_only=True")],
         )
         for prop in cls.properties.values():
             # this is a create object, so users can create private field
-            # hence, we do not check for prop.is_private
+            # hence, we do not check for prop.is_private -- however, this field can be omitted
+            # during update, so we need to mark it as optional
             # if prop.data.is_private:
             #     continue
 
@@ -189,7 +204,14 @@ def make_python_data_model(
                 pytype = prop.get_data_model_datatype().get_python_type()
                 if pytype.dep is not None:
                     program.import_(pytype.dep, True)
+
                 pytype_type = pytype.type
+                if prop.data.is_private:
+                    program.import_("typing.Union", True)
+                    program.import_("sera.typing.UnsetType", True)
+                    program.import_("sera.typing.UNSET", True)
+                    pytype_type = f"Union[{pytype_type}, UnsetType]"
+
                 if len(prop.data.constraints) > 0:
                     # if the property has constraints, we need to figure out
                     program.import_("typing.Annotated", True)
@@ -202,7 +224,9 @@ def make_python_data_model(
                         raise NotImplementedError(prop.data.constraints)
 
                 prop_default_value = None
-                if prop.default_value is not None:
+                if prop.data.is_private:
+                    prop_default_value = expr.ExprIdent("UNSET")
+                elif prop.default_value is not None:
                     prop_default_value = expr.ExprConstant(prop.default_value)
                 elif prop.default_factory is not None:
                     program.import_(prop.default_factory.pyfunc, True)
@@ -215,6 +239,7 @@ def make_python_data_model(
                             )
                         ],
                     )
+
                 cls_ast(
                     stmt.DefClassVarStatement(
                         prop.name, pytype_type, prop_default_value
