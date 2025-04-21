@@ -833,6 +833,17 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                     else expr.ExprConstant("undefined")
                                 ),
                             ),
+                            (
+                                expr.ExprIdent("constraints"),
+                                PredefinedFn.list(
+                                    [
+                                        expr.ExprConstant(
+                                            constraint.get_typescript_constraint()
+                                        )
+                                        for constraint in prop.data.constraints
+                                    ]
+                                ),
+                            ),
                         ]
                         + tsprop
                     ),

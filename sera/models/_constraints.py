@@ -28,6 +28,14 @@ class Constraint:
 
         raise NotImplementedError()
 
+    def get_typescript_constraint(self) -> str | dict:
+        if len(self.args) == 0:
+            return self.name
+        return {
+            "name": self.name,
+            "args": self.args,
+        }
+
 
 predefined_constraints: dict[ConstraintName, Constraint] = {
     "phone_number": Constraint("phone_number", ()),
