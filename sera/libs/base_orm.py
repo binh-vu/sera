@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 import orjson
+from msgspec.json import decode, encode
 from sera.typing import UNSET
 from sqlalchemy import LargeBinary, TypeDecorator
 from sqlalchemy import create_engine as sqlalchemy_create_engine
@@ -50,13 +51,12 @@ class DataclassType(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return None
-        return orjson.dumps(value.to_dict())
+        return encode(value)
 
     def process_result_value(self, value, dialect):
         if value is None:
             return None
-        result = orjson.loads(value)
-        return self.cls.from_dict(result)
+        return decode(value, type=self.cls)
 
 
 class ListDataclassType(TypeDecorator):
@@ -72,13 +72,12 @@ class ListDataclassType(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return None
-        return orjson.dumps([x.to_dict() for x in value])
+        return encode(value)
 
     def process_result_value(self, value, dialect):
         if value is None:
             return None
-        result = orjson.loads(value)
-        return [self.cls.from_dict(x) for x in result]
+        return decode(value, type=list[self.cls])
 
 
 class DictDataclassType(TypeDecorator):
@@ -94,13 +93,12 @@ class DictDataclassType(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return None
-        return orjson.dumps({k: v.to_dict() for k, v in value.items()})
+        return encode(value)
 
     def process_result_value(self, value, dialect):
         if value is None:
             return None
-        result = orjson.loads(value)
-        return {k: self.cls.from_dict(v) for k, v in result.items()}
+        return decode(value, type=dict[str, self.cls])
 
 
 def create_engine(

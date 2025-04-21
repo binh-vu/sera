@@ -49,6 +49,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
 
         idprop = cls.get_id_property()
         program = Program()
+        program.import_(
+            f"@.models.{pkg.dir.name}.Draft{cls.name}.Draft{cls.name}", True
+        )
 
         prop_defs = []
         prop_constructor_assigns = []
@@ -201,6 +204,21 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                             expr.ExprIdent(cls.name), [PredefinedFn.dict(deser_args)]
                         )
                     )
+                ),
+                stmt.LineBreak(),
+                lambda ast13: ast13.func(
+                    "toDraft",
+                    [],
+                    expr.ExprIdent(f"Draft{cls.name}"),
+                    comment="Convert the class instance to a draft for editing",
+                )(
+                    stmt.ReturnStatement(
+                        expr.ExprMethodCall(
+                            expr.ExprIdent(f"Draft{cls.name}"),
+                            "update",
+                            [expr.ExprIdent("this")],
+                        )
+                    ),
                 ),
             ),
         )
@@ -821,85 +839,95 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 )
             )
 
-        program.import_("sera-db.Schema", True)
+        for type in ["Schema", "ObjectProperty", "DataProperty"]:
+            program.import_(f"sera-db.{type}", True)
+
         program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}", True)
+        program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id", True)
         program.import_(
             f"@.models.{pkg.dir.name}.Draft{cls.name}.Draft{cls.name}", True
         )
         program.root(
             stmt.LineBreak(),
             stmt.TypescriptStatement(
-                f"export type {cls.name}Properties = "
-                + " | ".join(
+                f"export type {cls.name}SchemaType = "
+                + PredefinedFn.dict(
                     [
-                        expr.ExprConstant(to_camel_case(prop.name)).to_typescript()
-                        for prop in cls.properties.values()
-                        if not prop.data.is_private
+                        (expr.ExprIdent("id"), expr.ExprIdent(f"{cls.name}Id")),
+                        (
+                            expr.ExprIdent("publicProperties"),
+                            expr.ExprIdent(
+                                " | ".join(
+                                    [
+                                        expr.ExprConstant(
+                                            to_camel_case(prop.name)
+                                        ).to_typescript()
+                                        for prop in cls.properties.values()
+                                        if not prop.data.is_private
+                                    ]
+                                )
+                            ),
+                        ),
+                        (
+                            expr.ExprIdent("allProperties"),
+                            expr.ExprIdent(
+                                f"{cls.name}SchemaType['publicProperties']"
+                                + (
+                                    " | "
+                                    + " | ".join(
+                                        [
+                                            expr.ExprConstant(
+                                                to_camel_case(prop.name)
+                                            ).to_typescript()
+                                            for prop in cls.properties.values()
+                                            if prop.data.is_private
+                                        ]
+                                    )
+                                    if any(
+                                        prop.data.is_private
+                                        for prop in cls.properties.values()
+                                    )
+                                    else ""
+                                )
+                            ),
+                        ),
+                        (
+                            expr.ExprIdent("cls"),
+                            expr.ExprIdent(cls.name),
+                        ),
+                        (
+                            expr.ExprIdent("draftCls"),
+                            expr.ExprIdent(f"Draft{cls.name}"),
+                        ),
                     ]
-                )
-                + ";"
-            ),
-            stmt.LineBreak(),
-            (
-                stmt.TypescriptStatement(
-                    f"export type Draft{cls.name}Properties = {cls.name}Properties"
-                    + (
-                        " | "
-                        + " | ".join(
-                            [
-                                expr.ExprConstant(
-                                    to_camel_case(prop.name)
-                                ).to_typescript()
-                                for prop in cls.properties.values()
-                                if prop.data.is_private
-                            ]
-                        )
-                        if any(prop.data.is_private for prop in cls.properties.values())
-                        else ""
-                    )
-                    + ";"
-                )
+                ).to_typescript()
+                + ";",
             ),
             stmt.LineBreak(),
             stmt.TypescriptStatement(
-                f"export const {cls.name}Schema: Schema<{cls.name}, {cls.name}Properties> = "
+                f"const publicProperties: Record<{cls.name}SchemaType['publicProperties'], DataProperty | ObjectProperty> = "
                 + PredefinedFn.dict(
                     [
-                        (
-                            expr.ExprIdent("properties"),
-                            PredefinedFn.dict(
-                                [
-                                    (prop_name, prop_def)
-                                    for prop, prop_name, prop_def in prop_defs
-                                    if not prop.data.is_private
-                                ]
-                            ),
-                        ),
+                        (prop_name, prop_def)
+                        for prop, prop_name, prop_def in prop_defs
+                        if not prop.data.is_private
                     ]
-                    + (
-                        [
-                            (
-                                expr.ExprIdent("primaryKey"),
-                                expr.ExprConstant(
-                                    assert_not_null(cls.get_id_property()).name
-                                ),
-                            )
-                        ]
-                        if cls.db is not None
-                        else []
-                    )
                 ).to_typescript()
                 + ";"
             ),
             stmt.LineBreak(),
             stmt.TypescriptStatement(
-                f"export const Draft{cls.name}Schema: Schema<Draft{cls.name}, Draft{cls.name}Properties> = "
+                f"export const {cls.name}Schema: Schema<{cls.name}SchemaType> = "
                 + PredefinedFn.dict(
                     [
                         (
-                            expr.ExprIdent("properties"),
+                            expr.ExprIdent("publicProperties"),
+                            expr.ExprIdent("publicProperties"),
+                        ),
+                        (
+                            expr.ExprIdent("allProperties"),
                             expr.ExprIdent(
-                                f"{{ ...{cls.name}Schema.properties, "
+                                "{ ...publicProperties, "
                                 + ", ".join(
                                     [
                                         f"{prop_name.to_typescript()}: {prop_def.to_typescript()}"
@@ -909,7 +937,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                 )
                                 + "}"
                             ),
-                        )
+                        ),
                     ]
                     + (
                         [
@@ -937,6 +965,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             return
 
         export_types = []
+        export_iso_types = []  # isolatedModules required separate export type clause
 
         program = Program()
         program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}", True)
@@ -944,15 +973,16 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         if cls.db is not None:
             # only import the id if this class is stored in the database
             program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id", True)
+            export_iso_types.append(f"{cls.name}Id")
 
-        for type in [
-            f"{cls.name}Schema",
-            f"Draft{cls.name}Schema",
-            f"{cls.name}Properties",
-            f"Draft{cls.name}Properties",
-        ]:
-            program.import_(f"@.models.{pkg.dir.name}.{cls.name}Schema.{type}", True)
-            export_types.append(type)
+        program.import_(
+            f"@.models.{pkg.dir.name}.{cls.name}Schema.{cls.name}Schema", True
+        )
+        export_types.append(f"{cls.name}Schema")
+        program.import_(
+            f"@.models.{pkg.dir.name}.{cls.name}Schema.{cls.name}SchemaType", True
+        )
+        export_iso_types.append(f"{cls.name}SchemaType")
 
         program.import_(
             f"@.models.{pkg.dir.name}.Draft{cls.name}.Draft{cls.name}", True
@@ -968,9 +998,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             stmt.LineBreak(),
             stmt.TypescriptStatement("export { %s };" % (", ".join(export_types))),
             (
-                stmt.TypescriptStatement(f"export type {{ {cls.name}Id }};")
-                if cls.db
-                else None
+                stmt.TypescriptStatement(
+                    "export type { %s };" % (", ".join(export_iso_types))
+                )
             ),
         )
 
