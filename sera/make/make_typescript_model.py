@@ -928,7 +928,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             ),
             stmt.LineBreak(),
             stmt.TypescriptStatement(
-                f"export const {cls.name}Schema: Schema<{cls.name}SchemaType> = "
+                f"export const {cls.name}Schema: Schema<{cls.name}SchemaType['id'], {cls.name}SchemaType['cls'], {cls.name}SchemaType['draftCls'], {cls.name}SchemaType['publicProperties'], {cls.name}SchemaType['allProperties'], {cls.name}SchemaType> = "
                 + PredefinedFn.dict(
                     [
                         (
