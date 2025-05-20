@@ -89,10 +89,42 @@ export interface Schema<
   primaryKey?: keyof ST["cls"];
 }
 
+/**
+ * Type guard function to check if a value is a DraftRecord.
+ *
+ * @param record
+ * @returns
+ */
 export function isDraftRecord<
   ID,
   R extends GenericRecord<ID, DR>,
   DR extends DraftRecord<ID>
 >(record: R | DR): record is DR {
   return (record as any)["stale"] !== undefined;
+}
+
+/**
+ * Type guard function to check if a value is a MultiLingualString.
+ * 
+ * @param value - The value to check
+ * @returns True if the value is a MultiLingualString, false otherwise
+ * 
+ * @example
+ * const value = { lang: 'en', lang2value: { en: 'Hello', fr: 'Bonjour' } };
+ * if (isMultiLingualString(value)) {
+ *   // value is now typed as MultiLingualString
+ *   console.log(value.lang2value.en);
+ * }
+ */
+export function isMultiLingualString(value: unknown): value is MultiLingualString {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'lang' in value &&
+    'lang2value' in value
+    //  &&
+    // typeof (value as MultiLingualString).lang === 'string' &&
+    // typeof (value as MultiLingualString).lang2value === 'object' &&
+    // (value as MultiLingualString).lang2value !== null
+  );
 }
