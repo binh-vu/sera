@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
 
 from codegen.models import AST, PredefinedFn, Program, expr, stmt
 from codegen.models.var import DeferredVar
 from loguru import logger
+
 from sera.misc import (
     assert_isinstance,
     assert_not_null,
@@ -307,6 +309,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         f"{cls.name}Id",
                         dep=f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id",
                     )
+                else:
+                    # for none id properties, we need to include a type for "invalid" value
+                    tstype = _inject_type_for_invalid_value(tstype)
+
                 if tstype.dep is not None:
                     program.import_(tstype.dep, True)
 
@@ -822,7 +828,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         [
                             (expr.ExprIdent("name"), expr.ExprConstant(prop.name)),
                             (expr.ExprIdent("tsName"), expr.ExprConstant(propname)),
-                            (expr.ExprIdent("updateFuncName"), expr.ExprConstant(f"update{to_pascal_case(prop.name)}")),
+                            (
+                                expr.ExprIdent("updateFuncName"),
+                                expr.ExprConstant(f"update{to_pascal_case(prop.name)}"),
+                            ),
                             (
                                 expr.ExprIdent("label"),
                                 expr.ExprConstant(prop.label.to_dict()),
@@ -1069,3 +1078,48 @@ def make_typescript_enum(schema: Schema, target_pkg: Package):
         ),
     )
     enum_pkg.module("index").write(program)
+
+
+def _inject_type_for_invalid_value(tstype: TsTypeWithDep) -> TsTypeWithDep:
+    """
+    Inject a type for "invalid" values into the given TypeScript type. For context, see the discussion in Data Modeling Problems:
+    What would be an appropriate type for an invalid value? Since it's user input, it will be a string type.
+
+    However, there are some exceptions such as boolean type, which will always be valid and do not need injection.
+
+    If the type already includes `string` type, no changes are needed. Otherwise, we add `string` to the type. For example:
+    - (number | undefined) -> (number | undefined | string)
+    - number | undefined -> number | undefined | string
+    - number[] -> (number | string)[]
+    - (number | undefined)[] -> (number | undefined | string)[]
+    """
+    if tstype.type == "boolean":
+        return tstype
+
+    # TODO: fix me and make it more robust!
+    m = re.match(r"(\(?[a-zA-Z \|]+\)?)(\[\])", tstype.type)
+    if m is not None:
+        # This is an array type, add string to the inner type
+        inner_type = m.group(1)
+        if "string" not in inner_type:
+            if inner_type.startswith("(") and inner_type.endswith(")"):
+                # Already has parentheses
+                inner_type = f"{inner_type[:-1]} | string)"
+            else:
+                # Need to add parentheses
+                inner_type = f"({inner_type} | string)"
+        return TsTypeWithDep(inner_type + "[]", tstype.dep)
+
+    m = re.match(r"^\(?[a-zA-Z \|]+\)?$", tstype.type)
+    if m is not None:
+        if "string" not in tstype.type:
+            if tstype.type.startswith("(") and tstype.type.endswith(")"):
+                # Already has parentheses
+                new_type = f"{tstype.type[:-1]} | string)"
+            else:
+                # Needs parentheses for clarity
+                new_type = f"({tstype.type} | string)"
+            return TsTypeWithDep(new_type, tstype.dep)
+        return tstype
+
+    raise NotImplementedError(tstype.type)

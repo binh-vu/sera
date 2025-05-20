@@ -69,10 +69,21 @@ class TsTypeWithDep:
             return expr.ExprConstant(False)
         if self.type == "string | undefined":
             return expr.ExprConstant("undefined")
+        if self.type.endswith("| string)") or self.type.endswith("| string"):
+            return expr.ExprConstant("")
         raise ValueError(f"Unknown type: {self.type}")
 
     def as_list_type(self) -> TsTypeWithDep:
-        return TsTypeWithDep(type=f"{self.type}[]", dep=self.dep)
+        """Convert the type to a list type.
+        If the type is not a simple identifier, wrap it in parentheses.
+        """
+        # Check if type is a simple identifier or needs parentheses
+        if not all(c.isalnum() or c == "_" for c in self.type.strip()):
+            # Type contains special chars like | or spaces, wrap in parentheses
+            list_type = f"({self.type})[]"
+        else:
+            list_type = f"{self.type}[]"
+        return TsTypeWithDep(type=list_type, dep=self.dep)
 
 
 @dataclass
