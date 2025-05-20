@@ -821,6 +821,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     PredefinedFn.dict(
                         [
                             (expr.ExprIdent("name"), expr.ExprConstant(prop.name)),
+                            (expr.ExprIdent("tsName"), expr.ExprConstant(propname)),
+                            (expr.ExprIdent("updateFuncName"), expr.ExprConstant(f"update{to_pascal_case(prop.name)}")),
                             (
                                 expr.ExprIdent("label"),
                                 expr.ExprConstant(prop.label.to_dict()),

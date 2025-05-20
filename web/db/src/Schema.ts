@@ -21,6 +21,10 @@ export type Constraint =
 export interface Property {
   // name of the property
   name: PropertyName;
+  // name of the property in TypeScript
+  tsName: PropertyName;
+  // name of the function to update the property
+  updateFuncName: PropertyName;
   // label of the property
   label: MultiLingualString;
   // description of the property
