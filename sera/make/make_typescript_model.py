@@ -506,6 +506,26 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     )
                 )
 
+                # TODO: fix me!
+                prop_validators.append(
+                    (
+                        expr.ExprIdent(propname),
+                        expr.ExprFuncCall(
+                            expr.ExprIdent("getValidator"),
+                            [
+                                PredefinedFn.list(
+                                    [
+                                        expr.ExprConstant(
+                                            constraint.get_typescript_constraint()
+                                        )
+                                        for constraint in prop.data.constraints
+                                    ]
+                                ),
+                            ],
+                        ),
+                    )
+                )
+
             prop_defs.append(stmt.DefClassVarStatement(propname, tstype.type))
             prop_constructor_assigns.append(
                 stmt.AssignStatement(
@@ -569,10 +589,6 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             stmt.LineBreak(),
             lambda ast10: ast10.class_(draft_clsname)(
                 *prop_defs,
-                stmt.LineBreak(),
-                stmt.DefClassVarStatement(
-                    "validators", type=None, value=validators, is_static=True
-                ),
                 stmt.LineBreak(),
                 lambda ast10: ast10.func(
                     "constructor",
@@ -657,6 +673,12 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         PredefinedFn.dict(ser_args),
                     ),
                 ),
+            ),
+            stmt.LineBreak(),
+            stmt.TypescriptStatement(
+                f"export const draft{cls.name}Validators = "
+                + validators.to_typescript()
+                + ";"
             ),
         )
 
@@ -904,6 +926,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         program.import_(
             f"@.models.{pkg.dir.name}.Draft{cls.name}.Draft{cls.name}", True
         )
+        program.import_(
+            f"@.models.{pkg.dir.name}.Draft{cls.name}.draft{cls.name}Validators", True
+        )
         program.root(
             stmt.LineBreak(),
             stmt.TypescriptStatement(
@@ -994,6 +1019,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                 )
                                 + "}"
                             ),
+                        ),
+                        (
+                            expr.ExprIdent("validators"),
+                            expr.ExprIdent(f"draft{cls.name}Validators"),
                         ),
                     ]
                     + (
