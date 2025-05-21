@@ -903,8 +903,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     ),
                     (expr.ExprIdent("datatype"), expr.ExprConstant(tstype.type)),
                     (
-                        expr.ExprIdent("isList"),
-                        expr.ExprConstant(prop.cardinality.is_star_to_many()),
+                        expr.ExprIdent("cardinality"),
+                        expr.ExprConstant(prop.cardinality.value),
                     ),
                     (
                         expr.ExprIdent("isEmbedded"),

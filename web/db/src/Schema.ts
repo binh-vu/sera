@@ -39,7 +39,10 @@ export interface Property {
 export interface ObjectProperty extends Property {
   // name of the target class
   targetClass: TargetClassName;
+  // the cardinality of the property -- is it one-to-one, many-to-one, etc.
+  cardinality: "1:1" | "1:N" | "N:1" | "N:N";
   // data type of the id property of the target class if not embedded
+  // if embedded, the datatype is the same as the target class
   datatype: DataType;
   // whether the whole object is embedded in the parent object
   // if false, only the id of the object is stored in the parent object
