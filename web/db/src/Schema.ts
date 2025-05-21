@@ -30,8 +30,6 @@ export interface Property {
   label: MultiLingualString;
   // description of the property
   description?: MultiLingualString;
-  // whether the property is a list of values
-  isList: boolean;
   // whether the property is required
   isRequired: boolean;
   // list of constraints applied to the property

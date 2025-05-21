@@ -864,10 +864,6 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 tsprop = [
                     (expr.ExprIdent("datatype"), expr.ExprConstant(tstype.type)),
                     (
-                        expr.ExprIdent("isList"),
-                        expr.ExprConstant(prop.get_data_model_datatype().is_list),
-                    ),
-                    (
                         expr.ExprIdent("isRequired"),
                         expr.ExprConstant(
                             not prop.is_optional
