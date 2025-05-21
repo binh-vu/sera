@@ -235,6 +235,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         idprop = cls.get_id_property()
 
         draft_clsname = "Draft" + cls.name
+        draft_validators = f"draft{cls.name}Validators"
 
         program = Program()
         program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}", True)
@@ -259,7 +260,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         cls_pk = None
         observable_args: list[tuple[expr.Expr, expr.ExprIdent]] = []
         prop_defs = []
-        prop_validators = []
+        prop_validators: list[tuple[expr.ExprIdent, expr.Expr]] = []
         prop_constructor_assigns = []
         # attrs needed for the cls.create function
         create_args = []
@@ -267,12 +268,15 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         ser_args = []
         update_field_funcs: list[Callable[[AST], Any]] = []
 
+        prop2tsname = {}
+
         for prop in cls.properties.values():
             # if prop.data.is_private:
             #     # skip private fields as this is for APIs exchange
             #     continue
 
             propname = to_camel_case(prop.name)
+            prop2tsname[prop.name] = propname
 
             def _update_field_func(
                 prop: DataProperty | ObjectProperty,
@@ -373,8 +377,32 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 ser_args.append(
                     (
                         expr.ExprIdent(prop.name),
-                        PredefinedFn.attr_getter(
-                            expr.ExprIdent("this"), expr.ExprIdent(propname)
+                        (
+                            expr.ExprTernary(
+                                PredefinedFn.attr_getter(
+                                    expr.ExprFuncCall(
+                                        PredefinedFn.attr_getter(
+                                            expr.ExprIdent(draft_validators),
+                                            expr.ExprIdent(propname),
+                                        ),
+                                        [
+                                            PredefinedFn.attr_getter(
+                                                expr.ExprIdent("this"),
+                                                expr.ExprIdent(propname),
+                                            )
+                                        ],
+                                    ),
+                                    expr.ExprIdent("isValid"),
+                                ),
+                                PredefinedFn.attr_getter(
+                                    expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                ),
+                                expr.ExprIdent("undefined"),
+                            )
+                            if prop.is_optional
+                            else PredefinedFn.attr_getter(
+                                expr.ExprIdent("this"), expr.ExprIdent(propname)
+                            )
                         ),
                     )
                 )
@@ -664,10 +692,27 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 *update_field_funcs,
                 stmt.LineBreak(),
                 lambda ast14: ast14.func(
+                    "isValid",
+                    [],
+                    expr.ExprIdent("boolean"),
+                    comment="Check if the draft is valid (only check the required fields as the non-required fields if it's invalid will be set to undefined)",
+                )(
+                    stmt.ReturnStatement(
+                        stmt.TypescriptStatement(
+                            " && ".join(
+                                f"{draft_validators}.{prop2tsname[prop.name]}(this.{prop2tsname[prop.name]}).isValid"
+                                for prop in cls.properties.values()
+                                if not prop.is_optional
+                            )
+                        )
+                    )
+                ),
+                stmt.LineBreak(),
+                lambda ast15: ast15.func(
                     "ser",
                     [],
                     expr.ExprIdent("any"),
-                    comment="Serialize the draft to communicate with the server",
+                    comment="Serialize the draft to communicate with the server. `isValid` must be called first to ensure all data is valid",
                 )(
                     stmt.ReturnStatement(
                         PredefinedFn.dict(ser_args),
@@ -676,9 +721,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             ),
             stmt.LineBreak(),
             stmt.TypescriptStatement(
-                f"export const draft{cls.name}Validators = "
-                + validators.to_typescript()
-                + ";"
+                f"export const {draft_validators} = " + validators.to_typescript() + ";"
             ),
         )
 
