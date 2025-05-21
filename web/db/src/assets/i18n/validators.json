@@ -1,0 +1,10 @@
+{
+    "en": {
+        "validator.not_empty": "This field cannot be empty.",
+        "validator.password": "Password must be between 8 and 32 characters and contain at least one uppercase letter and one number",
+        "validator.email": "Email must be a valid email address",
+        "validator.username": "Username must be between 3 and 20 characters, start with a letter, and contain only alphanumeric characters, hyphens, underscores, or periods",
+        "validator.url": "URL must be a valid URL",
+        "validator.phone_number": "Phone number must be a valid phone number"
+    }
+}

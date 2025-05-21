@@ -1,1 +1,1 @@
-{"root":["./src/db.ts","./src/deduprequest.ts","./src/query.ts","./src/record.ts","./src/schema.ts","./src/table.ts","./src/tableindex.ts","./src/index.ts","./src/vite-env.d.ts"],"version":"5.7.3"}
+{"root":["./src/db.ts","./src/deduprequest.ts","./src/i18n.ts","./src/query.ts","./src/record.ts","./src/schema.ts","./src/table.ts","./src/tableindex.ts","./src/index.ts","./src/validators.ts","./src/vite-env.d.ts"],"version":"5.7.3"}
