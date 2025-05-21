@@ -241,8 +241,15 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         program.import_("mobx.makeObservable", True)
         program.import_("mobx.observable", True)
         program.import_("mobx.action", True)
+        program.import_("sera-db.validators", True)
 
-        program.root.linebreak()
+        program.root(
+            stmt.LineBreak(),
+            stmt.TypescriptStatement(
+                "const {getValidator, memoizeOneValidators} = validators;"
+            ),
+            stmt.LineBreak(),
+        )
 
         # make sure that the property stale is not in existing properties
         if "stale" in cls.properties:
@@ -252,6 +259,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         cls_pk = None
         observable_args: list[tuple[expr.Expr, expr.ExprIdent]] = []
         prop_defs = []
+        prop_validators = []
         prop_constructor_assigns = []
         # attrs needed for the cls.create function
         create_args = []
@@ -329,6 +337,25 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         create_propvalue = idprop_aliases[tstype.type].get_default()
                     else:
                         create_propvalue = tstype.get_default()
+
+                prop_validators.append(
+                    (
+                        expr.ExprIdent(propname),
+                        expr.ExprFuncCall(
+                            expr.ExprIdent("getValidator"),
+                            [
+                                PredefinedFn.list(
+                                    [
+                                        expr.ExprConstant(
+                                            constraint.get_typescript_constraint()
+                                        )
+                                        for constraint in prop.data.constraints
+                                    ]
+                                ),
+                            ],
+                        ),
+                    )
+                )
 
                 if prop.db is not None and prop.db.is_primary_key:
                     # for checking if the primary key is from the database or default (create_propvalue)
@@ -530,6 +557,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         )
         observable_args.sort(key=lambda x: {"observable": 0, "action": 1}[x[1].ident])
 
+        validators = expr.ExprFuncCall(
+            expr.ExprIdent("memoizeOneValidators"), [PredefinedFn.dict(prop_validators)]
+        )
+
         program.root(
             lambda ast00: ast00.class_like(
                 "interface",
@@ -538,6 +569,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             stmt.LineBreak(),
             lambda ast10: ast10.class_(draft_clsname)(
                 *prop_defs,
+                stmt.LineBreak(),
+                stmt.DefClassVarStatement(
+                    "validators", type=None, value=validators, is_static=True
+                ),
                 stmt.LineBreak(),
                 lambda ast10: ast10.func(
                     "constructor",
