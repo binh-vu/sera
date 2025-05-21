@@ -66,8 +66,10 @@ export class Table<
       records: observable,
       draftRecords: observable,
       set: action,
+      remove: action,
       setDraft: action,
       batchSet: action,
+      upsert: action,
       fetch: action,
       fetchById: action,
       remoteSize: action,
@@ -118,7 +120,7 @@ export class Table<
           error.response.status === 404
         ) {
           runInAction(() => {
-            this.records.set(record.id, null);
+            this.remove(record.id);
           });
           return undefined;
         }
@@ -175,7 +177,7 @@ export class Table<
         error.response.status === 404
       ) {
         runInAction(() => {
-          this.records.set(id, null);
+          this.remove(id);
         });
         return undefined;
       }
@@ -203,6 +205,17 @@ export class Table<
    */
   public get(id: ID): R | null | undefined {
     return this.records.get(id);
+  }
+
+  /**
+   * Remove a record from the table
+   */
+  public remove(id: ID) {
+    const m = this.records.get(id);
+    if (m !== null && m !== undefined) {
+      this.records.delete(id);
+      this.deindex(m);
+    }
   }
 
   /**
@@ -326,6 +339,15 @@ export class Table<
   protected index(record: R): void {
     for (const index of this.indices) {
       index.add(record);
+    }
+  }
+
+  /**
+   * Remove a record to your indexes. Its implementation must be IDEMPOTENT
+   */
+  protected deindex(record: R): void {
+    for (const index of this.indices) {
+      index.remove(record);
     }
   }
 }

@@ -131,3 +131,19 @@ export function isMultiLingualString(value: unknown): value is MultiLingualStrin
     // (value as MultiLingualString).lang2value !== null
   );
 }
+
+/**
+ * Determines if the given property is an `ObjectProperty`.
+ *
+ * This function performs a type guard check to determine if the provided
+ * `property` is of type `ObjectProperty` by verifying the presence of the
+ * `targetClass` property.
+ *
+ * @param property - The property to check, which can be either a `DataProperty` or an `ObjectProperty`.
+ * @returns A boolean indicating whether the property is an `ObjectProperty`.
+ */
+export function isObjectProperty(
+  property: DataProperty | ObjectProperty
+): property is ObjectProperty {
+  return (property as ObjectProperty).targetClass !== undefined;
+}
