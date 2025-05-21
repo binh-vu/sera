@@ -86,6 +86,48 @@ export class Table<
     return (await this.fetch({ limit: 1, offset: 0 })).total;
   }
 
+  /**
+   * Creates or updates a record in the table. This function assumes the record has already been validated; ensure `isValid` is called beforehand.
+   *
+   * @param record - The record to create or update.
+   *
+   * @returns The newly created or updated record. If the record has been deleted on the server, it will be removed from the store and `undefined` will be returned.
+   */
+  async upsert(
+    record: DR
+  ): Promise<R | undefined> {
+    if (record.isNewRecord()) {
+      let resp = await axios.post(`${this.remoteURL}`, record.ser());
+      runInAction(() => {
+        this.db.populateData(resp.data);
+        this.draftRecords.delete(record.id);
+      });
+    } else {
+      try {
+        let resp = await axios.put(`${this.remoteURL}/${record.id}`, record.ser());
+        runInAction(() => {
+          this.db.populateData(resp.data);
+          this.draftRecords.delete(record.id);
+        });
+      } catch (error: unknown) {
+        // If the record does not exist, 404 is returned
+        // and we will remove the record from the store!
+        if (
+          axios.isAxiosError(error) &&
+          error.response &&
+          error.response.status === 404
+        ) {
+          runInAction(() => {
+            this.records.set(record.id, null);
+          });
+          return undefined;
+        }
+        throw error;
+      }
+    }
+    return this.records.get(record.id)!;
+  }
+
   /** Fetch records by query */
   async fetch(query: Query<R>): Promise<FetchResult<R>> {
     let resp = await axios.get(`${this.remoteURL}`, {

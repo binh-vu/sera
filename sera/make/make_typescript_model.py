@@ -642,7 +642,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 stmt.LineBreak(),
                 lambda ast11: (
                     ast11.func(
-                        "is_new_record",
+                        "isNewRecord",
                         [],
                         expr.ExprIdent("boolean"),
                         comment="Check if this draft is for creating a new record",
