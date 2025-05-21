@@ -91,7 +91,7 @@ export function constraintToValidator(constraint: Constraint): ValueValidator {
  * @param value - Any value to validate.
  * @returns An object with `isValid` set to true and an optional `errorMessage` property.
  */
-function alwaysValid(_value: any): ValidationResult {
+export function alwaysValid(_value: any): ValidationResult {
   return { isValid: true };
 }
 
@@ -100,7 +100,7 @@ function alwaysValid(_value: any): ValidationResult {
  * @param value - The value to validate.
  * @returns An object with `isValid` set to true if the value is not empty, false otherwise.
  */
-function notEmpty(value: any): ValidationResult {
+export function notEmpty(value: any): ValidationResult {
   const isValid = value !== undefined && value !== null && value !== "";
   return {
     isValid,
@@ -122,7 +122,7 @@ function notEmpty(value: any): ValidationResult {
  *          - isValid: boolean indicating if the password meets all requirements
  *          - errorMessage: undefined if valid, otherwise a DynamicMultiLingualString with the error
  */
-function validatePassword(value: any): ValidationResult {
+export function validatePassword(value: any): ValidationResult {
   const hasMinLength = value.length >= 8;
   const hasValidLength = value.length <= 32;
   const hasUppercase = /[A-Z]/.test(value);
@@ -153,7 +153,7 @@ function validatePassword(value: any): ValidationResult {
  * const result = validateEmail("invalid-email");
  * // result: { isValid: false, errorMessage: DynamicMultiLingualString("validator.email") }
  */
-function validateEmail(value: any): ValidationResult {
+export function validateEmail(value: any): ValidationResult {
   const isValid = validator.isEmail(value);
   return {
     isValid,
@@ -161,7 +161,7 @@ function validateEmail(value: any): ValidationResult {
   };
 }
 
-function validateURL(value: any): ValidationResult {
+export function validateURL(value: any): ValidationResult {
   const isValid = validator.isURL(value);
   return {
     isValid,
@@ -178,7 +178,7 @@ function validateURL(value: any): ValidationResult {
  *   - isValid: boolean indicating if the value is a valid phone number
  *   - errorMessage: undefined if valid, otherwise a DynamicMultiLingualString with the error key
  */
-function validatePhoneNumber(value: any): ValidationResult {
+export function validatePhoneNumber(value: any): ValidationResult {
   // Accept any locale for more flexible validation
   const isValid = validator.isMobilePhone(String(value), 'any');
   return {
@@ -199,7 +199,7 @@ function validatePhoneNumber(value: any): ValidationResult {
  *   - isValid: boolean indicating if the username is valid
  *   - errorMessage: undefined if valid, or a DynamicMultiLingualString with error key if invalid
  */
-function validateUsername(value: any): ValidationResult {
+export function validateUsername(value: any): ValidationResult {
 
   const regex = /^[a-zA-Z][a-zA-Z0-9-_.]{2,19}$/;
   const isValid = regex.test(value);

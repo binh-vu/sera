@@ -1,7 +1,8 @@
 import { Record as DBRecord, DraftRecord } from "./Record";
+import { ValueValidator } from "./validators";
 export type PropertyName = string;
 export type TargetClassName = string;
-export type DataType = "string" | "number" | "boolean" | "string | undefined";
+export type DataType = "string" | "number" | "boolean" | "string | undefined" | "string[]";
 
 export interface MultiLingualString {
   lang2value: { [lang: string]: string };
@@ -86,6 +87,7 @@ export interface Schema<
     DataProperty | ObjectProperty
   >;
   allProperties: Record<ST["allProperties"], DataProperty | ObjectProperty>;
+  validators: Record<ST["allProperties"], ValueValidator>;
   primaryKey?: keyof ST["cls"];
 }
 
