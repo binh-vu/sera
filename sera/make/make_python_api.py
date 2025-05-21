@@ -4,6 +4,7 @@ from typing import Sequence
 
 from codegen.models import DeferredVar, PredefinedFn, Program, expr, stmt
 from loguru import logger
+
 from sera.misc import assert_not_null, to_snake_case
 from sera.models import App, DataCollection, Module, Package
 
@@ -656,7 +657,7 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
             func_name,
             [
                 DeferredVar.simple(
-                    "record",
+                    "data",
                     expr.ExprIdent(f"Upsert{cls.name}"),
                 ),
                 DeferredVar.simple(
@@ -682,7 +683,7 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
                             "create",
                             [
                                 expr.ExprMethodCall(
-                                    expr.ExprIdent("record"), "to_db", []
+                                    expr.ExprIdent("data"), "to_db", []
                                 ),
                                 expr.ExprIdent("session"),
                             ],
@@ -770,7 +771,7 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
                     expr.ExprIdent(id_type),
                 ),
                 DeferredVar.simple(
-                    "record",
+                    "data",
                     expr.ExprIdent(f"Upsert{cls.name}"),
                 ),
                 DeferredVar.simple(
@@ -788,7 +789,7 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
             stmt.SingleExprStatement(expr.ExprConstant("Update an existing record")),
             stmt.SingleExprStatement(
                 PredefinedFn.attr_setter(
-                    expr.ExprIdent("record"),
+                    expr.ExprIdent("data"),
                     expr.ExprIdent(id_prop.name),
                     expr.ExprIdent("id"),
                 )
@@ -803,7 +804,7 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
                             "update",
                             [
                                 expr.ExprMethodCall(
-                                    expr.ExprIdent("record"), "to_db", []
+                                    expr.ExprIdent("data"), "to_db", []
                                 ),
                                 expr.ExprIdent("session"),
                             ],
