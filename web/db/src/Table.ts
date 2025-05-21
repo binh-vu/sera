@@ -33,6 +33,10 @@ export class Table<
   // whether to reload the entity if the store already has an entity
   public refetch: boolean = true;
 
+  /// approximate version of the data in the table -- this is a useful property to know whether the data has been potentially updated
+  /// NOTE: this does not keep track of changes in the draft records
+  public version: number = 0;
+
   /**
    * Constructor
    *
@@ -65,6 +69,7 @@ export class Table<
     makeObservable(this, {
       records: observable,
       draftRecords: observable,
+      version: observable,
       set: action,
       remove: action,
       setDraft: action,
@@ -215,6 +220,7 @@ export class Table<
     if (m !== null && m !== undefined) {
       this.records.delete(id);
       this.deindex(m);
+      this.version++;
     }
   }
 
@@ -247,6 +253,7 @@ export class Table<
   public set(m: R) {
     this.records.set(m.id, m);
     this.index(m);
+    this.version++;
   }
 
   /**
@@ -266,6 +273,7 @@ export class Table<
     for (const m of records) {
       this.records.set(m.id, m);
       this.index(m);
+      this.version++;
     }
   }
 
@@ -293,6 +301,7 @@ export class Table<
   clear() {
     this.records.clear();
     this.indices.forEach((index) => index.clear());
+    this.version++;
   }
 
   /**
