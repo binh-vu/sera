@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Callable, Sequence
 
 from codegen.models import AST, DeferredVar, PredefinedFn, Program, expr, stmt
+
 from sera.misc import (
     assert_isinstance,
     assert_not_null,
@@ -206,12 +207,6 @@ def make_python_data_model(
                     program.import_(pytype.dep, True)
 
                 pytype_type = pytype.type
-                if prop.data.is_private:
-                    program.import_("typing.Union", True)
-                    program.import_("sera.typing.UnsetType", True)
-                    program.import_("sera.typing.UNSET", True)
-                    pytype_type = f"Union[{pytype_type}, UnsetType]"
-
                 if len(prop.data.constraints) > 0:
                     # if the property has constraints, we need to figure out
                     program.import_("typing.Annotated", True)
@@ -222,6 +217,12 @@ def make_python_data_model(
                         )
                     else:
                         raise NotImplementedError(prop.data.constraints)
+
+                if prop.data.is_private:
+                    program.import_("typing.Union", True)
+                    program.import_("sera.typing.UnsetType", True)
+                    program.import_("sera.typing.UNSET", True)
+                    pytype_type = f"Union[{pytype_type}, UnsetType]"
 
                 prop_default_value = None
                 if prop.data.is_private:
