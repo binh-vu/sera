@@ -270,6 +270,35 @@ def make_python_data_model(
         # has_to_db = True
         # if any(prop for prop in cls.properties.values() if isinstance(prop, ObjectProperty) and prop.cardinality == Cardinality.MANY_TO_MANY):
         #     # if the class has many-to-many relationship, we need to
+
+        has_system_controlled = any(
+            prop.data.is_system_controlled for prop in cls.properties.values()
+        )
+        if has_system_controlled:
+            cls_ast(
+                stmt.LineBreak(),
+                stmt.Comment(
+                    "_verified is a special marker to indicate whether the data is updated by the system."
+                ),
+                stmt.DefClassVarStatement(
+                    "_verified", "bool", expr.ExprConstant(False)
+                ),
+                stmt.LineBreak(),
+                lambda ast: ast.func(
+                    "__post_init__",
+                    [
+                        DeferredVar.simple("self"),
+                    ],
+                )(
+                    stmt.AssignStatement(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"), expr.ExprIdent("_verified")
+                        ),
+                        expr.ExprConstant(False),
+                    )
+                ),
+            )
+
         cls_ast(
             stmt.LineBreak(),
             lambda ast00: ast00.func(
@@ -281,6 +310,18 @@ def make_python_data_model(
                     f"{cls.name}DB" if cls.db is not None else cls.name
                 ),
             )(
+                (
+                    stmt.AssertionStatement(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"), expr.ExprIdent("_verified")
+                        ),
+                        expr.ExprConstant(
+                            "The model data must be verified before converting to db model"
+                        ),
+                    )
+                    if has_system_controlled
+                    else None
+                ),
                 lambda ast10: ast10.return_(
                     expr.ExprFuncCall(
                         expr.ExprIdent(
@@ -293,7 +334,7 @@ def make_python_data_model(
                             for prop in cls.properties.values()
                         ],
                     )
-                )
+                ),
             ),
         )
 
