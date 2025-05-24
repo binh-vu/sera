@@ -24,7 +24,7 @@ SQLAlchemyDataType = Literal[
 @dataclass
 class PyTypeWithDep:
     type: str
-    dep: str | None = None
+    deps: list[str] = field(default_factory=list)
 
     def get_python_type(self) -> type:
         """Get the Python type from the type string for typing annotation in Python."""
@@ -50,13 +50,25 @@ class PyTypeWithDep:
 
     def as_list_type(self) -> PyTypeWithDep:
         """Convert the type to a list type."""
-        return PyTypeWithDep(type=f"list[{self.type}]", dep=self.dep)
+        return PyTypeWithDep(type=f"list[{self.type}]", deps=self.deps)
+
+    def as_optional_type(self) -> PyTypeWithDep:
+        """Convert the type to an optional type."""
+        if "typing.Optional" not in self.deps:
+            deps = self.deps + ["typing.Optional"]
+        else:
+            deps = self.deps
+        if "Optional[" in self.type:
+            raise NotImplementedError(
+                f"Have not handle nested optional yet: {self.type}"
+            )
+        return PyTypeWithDep(type=f"Optional[{self.type}]", deps=deps)
 
 
 @dataclass
 class TsTypeWithDep:
     type: str
-    dep: str | None = None
+    deps: list[str] = field(default_factory=list)
 
     def get_default(self) -> expr.ExprConstant:
         if self.type.endswith("[]"):
@@ -83,7 +95,7 @@ class TsTypeWithDep:
             list_type = f"({self.type})[]"
         else:
             list_type = f"{self.type}[]"
-        return TsTypeWithDep(type=list_type, dep=self.dep)
+        return TsTypeWithDep(type=list_type, deps=self.deps)
 
 
 @dataclass
@@ -137,16 +149,6 @@ predefined_datatypes = {
         tstype=TsTypeWithDep(type="string"),
         is_list=False,
     ),
-    "optional[string]": DataType(
-        pytype=PyTypeWithDep(type="Optional[str]", dep="typing.Optional"),
-        sqltype=SQLTypeWithDep(
-            type="String",
-            mapped_pytype="Optional[str]",
-            deps=["sqlalchemy.String", "typing.Optional"],
-        ),
-        tstype=TsTypeWithDep(type="string | undefined"),
-        is_list=False,
-    ),
     "integer": DataType(
         pytype=PyTypeWithDep(type="int"),
         sqltype=SQLTypeWithDep(
@@ -156,7 +158,7 @@ predefined_datatypes = {
         is_list=False,
     ),
     "datetime": DataType(
-        pytype=PyTypeWithDep(type="datetime", dep="datetime.datetime"),
+        pytype=PyTypeWithDep(type="datetime", deps=["datetime.datetime"]),
         sqltype=SQLTypeWithDep(
             type="DateTime",
             mapped_pytype="datetime",

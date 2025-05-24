@@ -234,8 +234,11 @@ def make_python_data_model(
 
             if isinstance(prop, DataProperty):
                 pytype = prop.get_data_model_datatype().get_python_type()
-                if pytype.dep is not None:
-                    program.import_(pytype.dep, True)
+                if prop.is_optional:
+                    pytype = pytype.as_optional_type()
+
+                for dep in pytype.deps:
+                    program.import_(dep, True)
 
                 pytype_type = pytype.type
                 if len(prop.data.constraints) > 0:
@@ -288,11 +291,13 @@ def make_python_data_model(
                 else:
                     pytype = PyTypeWithDep(
                         f"Upsert{prop.target.name}",
-                        f"{target_pkg.module(prop.target.get_pymodule_name()).path}.Upsert{prop.target.name}",
+                        [
+                            f"{target_pkg.module(prop.target.get_pymodule_name()).path}.Upsert{prop.target.name}"
+                        ],
                     )
 
-                if pytype.dep is not None:
-                    program.import_(pytype.dep, True)
+                for dep in pytype.deps:
+                    program.import_(dep, True)
 
                 if prop.cardinality.is_star_to_many():
                     pytype = pytype.as_list_type()
@@ -426,8 +431,12 @@ def make_python_data_model(
 
             if isinstance(prop, DataProperty):
                 pytype = prop.get_data_model_datatype().get_python_type()
-                if pytype.dep is not None:
-                    program.import_(pytype.dep, True)
+                if prop.is_optional:
+                    pytype = pytype.as_optional_type()
+
+                for dep in pytype.deps:
+                    program.import_(dep, True)
+
                 cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
@@ -439,11 +448,13 @@ def make_python_data_model(
                 else:
                     pytype = PyTypeWithDep(
                         prop.target.name,
-                        f"{target_pkg.module(prop.target.get_pymodule_name()).path}.{prop.target.name}",
+                        [
+                            f"{target_pkg.module(prop.target.get_pymodule_name()).path}.{prop.target.name}"
+                        ],
                     )
 
-                if pytype.dep is not None:
-                    program.import_(pytype.dep, True)
+                for dep in pytype.deps:
+                    program.import_(dep, True)
 
                 if prop.cardinality.is_star_to_many():
                     pytype = pytype.as_list_type()
@@ -816,7 +827,7 @@ def make_python_relational_object_property(
                 expr.ExprFuncCall(
                     expr.ExprIdent("mapped_column"),
                     [
-                        expr.ExprIdent(f"{prop.name}_{p.name}"),
+                        expr.ExprConstant(f"{prop.name}_{p.name}"),
                         expr.ExprIdent(
                             assert_isinstance(p, DataProperty)
                             .datatype.get_sqlalchemy_type()
@@ -824,7 +835,7 @@ def make_python_relational_object_property(
                         ),
                         PredefinedFn.keyword_assignment(
                             "nullable",
-                            expr.ExprConstant(prop.is_optional),
+                            expr.ExprConstant(prop.is_optional or p.is_optional),
                         ),
                     ],
                 )
