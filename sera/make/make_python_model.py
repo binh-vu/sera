@@ -190,6 +190,37 @@ def make_python_data_model(
                 True,
                 alias=f"{cls.name}DB",
             )
+
+        has_system_controlled = any(
+            prop.data.is_system_controlled for prop in cls.properties.values()
+        )
+        if has_system_controlled:
+            program.import_("typing.TypedDict", True)
+            program.root(
+                stmt.LineBreak(),
+                lambda ast: ast.class_(
+                    "SystemControlledProps",
+                    [expr.ExprIdent("TypedDict")],
+                )(
+                    *[
+                        stmt.DefClassVarStatement(
+                            prop.name,
+                            (
+                                prop.get_data_model_datatype().get_python_type().type
+                                if isinstance(prop, DataProperty)
+                                else assert_not_null(prop.target.get_id_property())
+                                .get_data_model_datatype()
+                                .get_python_type()
+                                .type
+                            ),
+                        )
+                        for prop in cls.properties.values()
+                        if prop.data.is_system_controlled
+                    ],
+                ),
+            )
+
+        program.root.linebreak()
         cls_ast = program.root.class_(
             "Upsert" + cls.name,
             [expr.ExprIdent("msgspec.Struct"), expr.ExprIdent("kw_only=True")],
@@ -271,9 +302,6 @@ def make_python_data_model(
         # if any(prop for prop in cls.properties.values() if isinstance(prop, ObjectProperty) and prop.cardinality == Cardinality.MANY_TO_MANY):
         #     # if the class has many-to-many relationship, we need to
 
-        has_system_controlled = any(
-            prop.data.is_system_controlled for prop in cls.properties.values()
-        )
         if has_system_controlled:
             cls_ast(
                 stmt.LineBreak(),
@@ -296,6 +324,35 @@ def make_python_data_model(
                         ),
                         expr.ExprConstant(False),
                     )
+                ),
+                stmt.LineBreak(),
+                lambda ast: ast.func(
+                    "update_system_controlled_props",
+                    [
+                        DeferredVar.simple("self"),
+                        DeferredVar.simple(
+                            "data", expr.ExprIdent("SystemControlledProps")
+                        ),
+                    ],
+                )(
+                    *[
+                        stmt.AssignStatement(
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("self"), expr.ExprIdent(prop.name)
+                            ),
+                            PredefinedFn.item_getter(
+                                expr.ExprIdent("data"), expr.ExprConstant(prop.name)
+                            ),
+                        )
+                        for prop in cls.properties.values()
+                        if prop.data.is_system_controlled
+                    ],
+                    stmt.AssignStatement(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"), expr.ExprIdent("_verified")
+                        ),
+                        expr.ExprConstant(True),
+                    ),
                 ),
             )
 

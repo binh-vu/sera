@@ -51,6 +51,7 @@ class BaseService(Generic[ID, R]):
         self.id_prop = assert_not_null(cls.get_id_property())
 
         self._cls_id_prop = getattr(self.orm_cls, self.id_prop.name)
+        self.is_id_auto_increment = self.id_prop.db.is_auto_increment
 
     @classmethod
     def get_instance(cls):
@@ -120,6 +121,9 @@ class BaseService(Generic[ID, R]):
 
     def create(self, record: R, session: Session) -> R:
         """Create a new record."""
+        if self.is_id_auto_increment:
+            setattr(record, self.id_prop.name, None)
+
         session.add(record)
         session.commit()
         return record

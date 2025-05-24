@@ -509,25 +509,13 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
     """Make an endpoint for creating a resource"""
     app = target_pkg.app
 
-    ServiceNameDep = to_snake_case(f"{collection.name}ServiceDependency")
-
     program = Program()
     program.import_("__future__.annotations", True)
     program.import_("litestar.post", True)
-    program.import_("litestar.di.Provide", True)
     program.import_("sqlalchemy.orm.Session", True)
-    program.import_(app.models.db.path + ".base.get_session", True)
-    program.import_(
-        f"{app.api.path}.dependencies.{collection.get_pymodule_name()}.{ServiceNameDep}",
-        True,
-    )
     program.import_(
         app.services.path
         + f".{collection.get_pymodule_name()}.{collection.get_service_name()}",
-        True,
-    )
-    program.import_(
-        app.models.data.path + f".{collection.get_pymodule_name()}.{collection.name}",
         True,
     )
     program.import_(
@@ -538,7 +526,13 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
 
     # assuming the collection has only one class
     cls = collection.cls
-    id_type = assert_not_null(cls.get_id_property()).datatype.get_python_type().type
+    has_system_controlled_prop = any(
+        prop.data.is_system_controlled for prop in cls.properties.values()
+    )
+    idprop = assert_not_null(cls.get_id_property())
+
+    if has_system_controlled_prop:
+        program.import_("sera.libs.api_helper.SingleAutoUSCP", True)
 
     func_name = "create"
 
@@ -549,22 +543,20 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
                 expr.ExprIdent("post"),
                 [
                     expr.ExprConstant("/"),
-                    PredefinedFn.keyword_assignment(
-                        "dependencies",
-                        PredefinedFn.dict(
-                            [
-                                (
-                                    expr.ExprConstant("service"),
-                                    expr.ExprIdent(f"Provide({ServiceNameDep})"),
-                                ),
-                                (
-                                    expr.ExprConstant("session"),
-                                    expr.ExprIdent(f"Provide(get_session)"),
-                                ),
-                            ]
-                        ),
-                    ),
-                ],
+                ]
+                + (
+                    [
+                        PredefinedFn.keyword_assignment(
+                            "dto",
+                            PredefinedFn.item_getter(
+                                expr.ExprIdent("SingleAutoUSCP"),
+                                expr.ExprIdent(f"Upsert{cls.name}"),
+                            ),
+                        )
+                    ]
+                    if has_system_controlled_prop
+                    else []
+                ),
             )
         ),
         lambda ast10: ast10.func(
@@ -575,34 +567,35 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
                     expr.ExprIdent(f"Upsert{cls.name}"),
                 ),
                 DeferredVar.simple(
-                    "service",
-                    expr.ExprIdent(collection.get_service_name()),
-                ),
-                DeferredVar.simple(
                     "session",
                     expr.ExprIdent("Session"),
                 ),
             ],
-            return_type=expr.ExprIdent(cls.name),
+            return_type=expr.ExprIdent(idprop.datatype.get_python_type().type),
             is_async=True,
         )(
             stmt.SingleExprStatement(expr.ExprConstant("Creating new record")),
+            lambda ast100: ast100.assign(
+                DeferredVar.simple("service"),
+                expr.ExprFuncCall(
+                    PredefinedFn.attr_getter(
+                        expr.ExprIdent(collection.get_service_name()),
+                        expr.ExprIdent("get_instance"),
+                    ),
+                    [],
+                ),
+            ),
             lambda ast13: ast13.return_(
-                expr.ExprMethodCall(
-                    expr.ExprIdent(cls.name),
-                    "from_db",
-                    [
-                        expr.ExprMethodCall(
-                            expr.ExprIdent("service"),
-                            "create",
-                            [
-                                expr.ExprMethodCall(
-                                    expr.ExprIdent("data"), "to_db", []
-                                ),
-                                expr.ExprIdent("session"),
-                            ],
-                        )
-                    ],
+                PredefinedFn.attr_getter(
+                    expr.ExprMethodCall(
+                        expr.ExprIdent("service"),
+                        "create",
+                        [
+                            expr.ExprMethodCall(expr.ExprIdent("data"), "to_db", []),
+                            expr.ExprIdent("session"),
+                        ],
+                    ),
+                    expr.ExprIdent(idprop.name),
                 )
             ),
         ),

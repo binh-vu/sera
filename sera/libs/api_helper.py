@@ -99,7 +99,7 @@ class SingleAutoUSCP(MsgspecDTO[T], Generic[T]):
             "data_backend"
         ]  # pyright: ignore
         obj = backend.populate_data_from_raw(value, self.asgi_connection)
-        obj.update_system_controlled_properties(
+        obj.update_system_controlled_props(
             self.asgi_connection.scope["state"][STATE_SYSTEM_CONTROLLED_PROP_KEY]
         )
         return obj
