@@ -307,13 +307,7 @@ def make_python_get_by_id_api(
     program.import_("litestar.get", True)
     program.import_("litestar.status_codes", True)
     program.import_("litestar.exceptions.HTTPException", True)
-    program.import_("litestar.di.Provide", True)
     program.import_("sqlalchemy.orm.Session", True)
-    program.import_(app.models.db.path + ".base.get_session", True)
-    program.import_(
-        f"{app.api.path}.dependencies.{collection.get_pymodule_name()}.{ServiceNameDep}",
-        True,
-    )
     program.import_(
         app.services.path
         + f".{collection.get_pymodule_name()}.{collection.get_service_name()}",
@@ -336,21 +330,6 @@ def make_python_get_by_id_api(
                 expr.ExprIdent("get"),
                 [
                     expr.ExprConstant("/{id:%s}" % id_type),
-                    PredefinedFn.keyword_assignment(
-                        "dependencies",
-                        PredefinedFn.dict(
-                            [
-                                (
-                                    expr.ExprConstant("service"),
-                                    expr.ExprIdent(f"Provide({ServiceNameDep})"),
-                                ),
-                                (
-                                    expr.ExprConstant("session"),
-                                    expr.ExprIdent(f"Provide(get_session)"),
-                                ),
-                            ]
-                        ),
-                    ),
                 ],
             )
         ),
@@ -362,10 +341,6 @@ def make_python_get_by_id_api(
                     expr.ExprIdent(id_type),
                 ),
                 DeferredVar.simple(
-                    "service",
-                    expr.ExprIdent(collection.get_service_name()),
-                ),
-                DeferredVar.simple(
                     "session",
                     expr.ExprIdent("Session"),
                 ),
@@ -374,6 +349,16 @@ def make_python_get_by_id_api(
             is_async=True,
         )(
             stmt.SingleExprStatement(expr.ExprConstant("Retrieving record by id")),
+            lambda ast100: ast100.assign(
+                DeferredVar.simple("service"),
+                expr.ExprFuncCall(
+                    PredefinedFn.attr_getter(
+                        expr.ExprIdent(collection.get_service_name()),
+                        expr.ExprIdent("get_instance"),
+                    ),
+                    [],
+                ),
+            ),
             lambda ast11: ast11.assign(
                 DeferredVar.simple("record"),
                 expr.ExprFuncCall(
