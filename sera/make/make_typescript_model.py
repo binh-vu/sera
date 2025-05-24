@@ -68,8 +68,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
 
             if isinstance(prop, DataProperty):
                 tstype = prop.get_data_model_datatype().get_typescript_type()
-                if tstype.dep is not None:
-                    program.import_(tstype.dep, True)
+                for dep in tstype.deps:
+                    program.import_(dep, True)
 
                 if idprop is not None and prop.name == idprop.name:
                     # use id type alias
@@ -89,7 +89,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     # this class is stored in the database, we store the id instead
                     tstype = TsTypeWithDep(
                         f"{prop.target.name}Id",
-                        f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}Id",
+                        [
+                            f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}Id"
+                        ],
                     )
                     if prop.cardinality.is_star_to_many():
                         tstype = tstype.as_list_type()
@@ -105,7 +107,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     # we are going to store the whole object
                     tstype = TsTypeWithDep(
                         prop.target.name,
-                        f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}",
+                        [
+                            f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}"
+                        ],
                     )
                     if prop.cardinality.is_star_to_many():
                         tstype = tstype.as_list_type()
@@ -148,9 +152,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                             )
                         )
 
-                if tstype.dep is not None:
+                for dep in tstype.deps:
                     program.import_(
-                        tstype.dep,
+                        dep,
                         True,
                     )
 
@@ -319,14 +323,14 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     # use id type alias
                     tstype = TsTypeWithDep(
                         f"{cls.name}Id",
-                        dep=f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id",
+                        deps=[f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id"],
                     )
                 else:
                     # for none id properties, we need to include a type for "invalid" value
                     tstype = _inject_type_for_invalid_value(tstype)
 
-                if tstype.dep is not None:
-                    program.import_(tstype.dep, True)
+                for dep in tstype.deps:
+                    program.import_(dep, True)
 
                 # however, if this is a primary key and auto-increment, we set a different default value
                 # to be -1 to avoid start from 0
@@ -426,7 +430,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     # this class is stored in the database, we store the id instead
                     tstype = TsTypeWithDep(
                         f"{prop.target.name}Id",
-                        f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}Id",
+                        [
+                            f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}Id"
+                        ],
                     )
                     if prop.cardinality.is_star_to_many():
                         tstype = tstype.as_list_type()
@@ -461,7 +467,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     # we are going to store the whole object
                     tstype = TsTypeWithDep(
                         f"Draft{prop.target.name}",
-                        f"@.models.{prop.target.get_tsmodule_name()}.Draft{prop.target.name}.Draft{prop.target.name}",
+                        [
+                            f"@.models.{prop.target.get_tsmodule_name()}.Draft{prop.target.name}.Draft{prop.target.name}"
+                        ],
                     )
                     if prop.cardinality.is_star_to_many():
                         tstype = tstype.as_list_type()
@@ -515,9 +523,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                             )
                         )
 
-                if tstype.dep is not None:
+                for dep in tstype.deps:
                     program.import_(
-                        tstype.dep,
+                        dep,
                         True,
                     )
 
@@ -698,7 +706,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     comment="Check if the draft is valid (only check the required fields as the non-required fields if it's invalid will be set to undefined)",
                 )(
                     stmt.ReturnStatement(
-                        stmt.TypescriptStatement(
+                        expr.ExprRawTypescript(
                             " && ".join(
                                 f"{draft_validators}.{prop2tsname[prop.name]}(this.{prop2tsname[prop.name]}).isValid"
                                 for prop in cls.properties.values()
@@ -859,8 +867,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 # if prop.name == idprop.name:
                 #     # use id type alias
                 #     tstype = TsTypeWithDep(f"{cls.name}Id")
-                if tstype.dep is not None:
-                    program.import_(tstype.dep, True)
+                for dep in tstype.deps:
+                    program.import_(dep, True)
                 tsprop = [
                     (expr.ExprIdent("datatype"), expr.ExprConstant(tstype.type)),
                     (
@@ -885,7 +893,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     # we are going to store the whole object
                     tstype = TsTypeWithDep(
                         prop.target.name,
-                        f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}",
+                        [
+                            f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}"
+                        ],
                     )
 
                 # we don't store the type itself, but just the name of the type
@@ -1211,7 +1221,7 @@ def _inject_type_for_invalid_value(tstype: TsTypeWithDep) -> TsTypeWithDep:
             else:
                 # Need to add parentheses
                 inner_type = f"({inner_type} | string)"
-        return TsTypeWithDep(inner_type + "[]", tstype.dep)
+        return TsTypeWithDep(inner_type + "[]", tstype.deps)
 
     m = re.match(r"^\(?[a-zA-Z \|]+\)?$", tstype.type)
     if m is not None:
@@ -1222,7 +1232,7 @@ def _inject_type_for_invalid_value(tstype: TsTypeWithDep) -> TsTypeWithDep:
             else:
                 # Needs parentheses for clarity
                 new_type = f"({tstype.type} | string)"
-            return TsTypeWithDep(new_type, tstype.dep)
+            return TsTypeWithDep(new_type, tstype.deps)
         return tstype
 
     raise NotImplementedError(tstype.type)
