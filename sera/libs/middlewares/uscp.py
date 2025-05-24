@@ -21,7 +21,8 @@ class USCPMiddleware(AbstractMiddleware):
     def __init__(
         self,
         app: ASGIApp,
-        get_system_controlled_properties: Callable[[UserT], dict],
+        get_system_controlled_props: Callable[[UserT], dict],
+        skip_update_system_controlled_props: Callable[[UserT], bool],
         exclude: str | list[str] | None = None,
         exclude_opt_key: str | None = None,
         scopes: Scopes | None = None,
@@ -38,13 +39,17 @@ class USCPMiddleware(AbstractMiddleware):
                 either or both 'ScopeType.HTTP' and 'ScopeType.WEBSOCKET'.
         """
         super().__init__(app, exclude, exclude_opt_key, scopes)
-        self.get_system_controlled_properties = get_system_controlled_properties
+        self.get_system_controlled_props = get_system_controlled_props
+        self.skip_update_system_controlled_props = skip_update_system_controlled_props
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         user = scope["user"]
-        scope["state"][STATE_SYSTEM_CONTROLLED_PROP_KEY] = (
-            self.get_system_controlled_properties(user)
-        )
+        if self.skip_update_system_controlled_props(user):
+            scope["state"][STATE_SYSTEM_CONTROLLED_PROP_KEY] = None
+        else:
+            scope["state"][STATE_SYSTEM_CONTROLLED_PROP_KEY] = (
+                self.get_system_controlled_props(user)
+            )
         await self.app(scope, receive, send)
 
 

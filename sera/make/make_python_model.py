@@ -303,6 +303,7 @@ def make_python_data_model(
         #     # if the class has many-to-many relationship, we need to
 
         if has_system_controlled:
+            program.import_("typing.Optional", True)
             cls_ast(
                 stmt.LineBreak(),
                 stmt.Comment(
@@ -331,22 +332,29 @@ def make_python_data_model(
                     [
                         DeferredVar.simple("self"),
                         DeferredVar.simple(
-                            "data", expr.ExprIdent("SystemControlledProps")
+                            "data",
+                            expr.ExprIdent("Optional[SystemControlledProps]"),
                         ),
                     ],
                 )(
-                    *[
-                        stmt.AssignStatement(
-                            PredefinedFn.attr_getter(
-                                expr.ExprIdent("self"), expr.ExprIdent(prop.name)
-                            ),
-                            PredefinedFn.item_getter(
-                                expr.ExprIdent("data"), expr.ExprConstant(prop.name)
-                            ),
-                        )
-                        for prop in cls.properties.values()
-                        if prop.data.is_system_controlled
-                    ],
+                    lambda ast00: ast00.if_(
+                        expr.ExprNegation(
+                            expr.ExprIs(expr.ExprIdent("data"), expr.ExprConstant(None))
+                        ),
+                    )(
+                        *[
+                            stmt.AssignStatement(
+                                PredefinedFn.attr_getter(
+                                    expr.ExprIdent("self"), expr.ExprIdent(prop.name)
+                                ),
+                                PredefinedFn.item_getter(
+                                    expr.ExprIdent("data"), expr.ExprConstant(prop.name)
+                                ),
+                            )
+                            for prop in cls.properties.values()
+                            if prop.data.is_system_controlled
+                        ]
+                    ),
                     stmt.AssignStatement(
                         PredefinedFn.attr_getter(
                             expr.ExprIdent("self"), expr.ExprIdent("_verified")
