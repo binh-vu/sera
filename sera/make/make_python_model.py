@@ -464,6 +464,7 @@ def make_python_relational_model(
         # assume configuration for the app at the top level
         program.import_(f"{app.config.path}.DB_CONNECTION", True)
         program.import_(f"{app.config.path}.DB_DEBUG", True)
+        program.import_(f"contextlib.contextmanager", True)
 
         program.root.linebreak()
 
@@ -532,6 +533,7 @@ def make_python_relational_model(
         )
 
         program.root.linebreak()
+        program.root.python_stmt("@contextmanager")
         program.root.func("get_session", [])(
             lambda ast00: ast00.python_stmt("with Session(engine) as session:")(
                 lambda ast01: ast01.python_stmt("yield session")
