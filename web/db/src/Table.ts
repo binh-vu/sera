@@ -106,14 +106,20 @@ export class Table<
     if (record.isNewRecord()) {
       let resp = await axios.post(`${this.remoteURL}`, record.ser());
       runInAction(() => {
-        this.db.populateData(resp.data);
+        // TODO: fix me! Get the record directly from the draft instead of fetching 
+        // the record by ID to ensure it's populated in the store
+        this.fetchById(resp.data.id, true);
+        // this.db.populateData(resp.data);
         this.draftRecords.delete(record.id);
       });
     } else {
       try {
         let resp = await axios.put(`${this.remoteURL}/${record.id}`, record.ser());
         runInAction(() => {
-          this.db.populateData(resp.data);
+          // TODO: fix me! Get the record directly from the draft instead of fetching 
+          // the record by ID to ensure it's populated in the store
+          this.fetchById(resp.data.id, true);
+          // this.db.populateData(resp.data);
           this.draftRecords.delete(record.id);
         });
       } catch (error: unknown) {
