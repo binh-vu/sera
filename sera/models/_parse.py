@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Sequence
 
 import serde.yaml
+
 from sera.models._class import Class, ClassDBMapInfo, Index
 from sera.models._constraints import Constraint, predefined_constraints
 from sera.models._datatype import (
@@ -101,22 +102,24 @@ def _parse_property(
     schema: Schema, prop_name: str, prop: dict
 ) -> DataProperty | ObjectProperty:
     if isinstance(prop, str):
-        datatype = prop
-        if datatype in schema.classes:
-            return ObjectProperty(
-                name=prop_name,
-                label=_parse_multi_lingual_string(prop_name),
-                description=_parse_multi_lingual_string(""),
-                target=schema.classes[datatype],
-                cardinality=Cardinality.ONE_TO_ONE,
-            )
-        else:
-            return DataProperty(
-                name=prop_name,
-                label=_parse_multi_lingual_string(prop_name),
-                description=_parse_multi_lingual_string(""),
-                datatype=_parse_datatype(schema, datatype),
-            )
+        # deprecated
+        assert False, prop
+        # datatype = prop
+        # if datatype in schema.classes:
+        #     return ObjectProperty(
+        #         name=prop_name,
+        #         label=_parse_multi_lingual_string(prop_name),
+        #         description=_parse_multi_lingual_string(""),
+        #         target=schema.classes[datatype],
+        #         cardinality=Cardinality.ONE_TO_ONE,
+        #     )
+        # else:
+        #     return DataProperty(
+        #         name=prop_name,
+        #         label=_parse_multi_lingual_string(prop_name),
+        #         description=_parse_multi_lingual_string(""),
+        #         datatype=_parse_datatype(schema, datatype),
+        #     )
 
     db = prop.get("db", {})
     _data = prop.get("data", {})
@@ -128,6 +131,7 @@ def _parse_property(
         constraints=[
             _parse_constraint(constraint) for constraint in _data.get("constraints", [])
         ],
+        is_system_controlled=prop.get("is_system_controlled", False),
     )
 
     assert isinstance(prop, dict), prop

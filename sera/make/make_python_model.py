@@ -190,6 +190,37 @@ def make_python_data_model(
                 True,
                 alias=f"{cls.name}DB",
             )
+
+        has_system_controlled = any(
+            prop.data.is_system_controlled for prop in cls.properties.values()
+        )
+        if has_system_controlled:
+            program.import_("typing.TypedDict", True)
+            program.root(
+                stmt.LineBreak(),
+                lambda ast: ast.class_(
+                    "SystemControlledProps",
+                    [expr.ExprIdent("TypedDict")],
+                )(
+                    *[
+                        stmt.DefClassVarStatement(
+                            prop.name,
+                            (
+                                prop.get_data_model_datatype().get_python_type().type
+                                if isinstance(prop, DataProperty)
+                                else assert_not_null(prop.target.get_id_property())
+                                .get_data_model_datatype()
+                                .get_python_type()
+                                .type
+                            ),
+                        )
+                        for prop in cls.properties.values()
+                        if prop.data.is_system_controlled
+                    ],
+                ),
+            )
+
+        program.root.linebreak()
         cls_ast = program.root.class_(
             "Upsert" + cls.name,
             [expr.ExprIdent("msgspec.Struct"), expr.ExprIdent("kw_only=True")],
@@ -270,6 +301,69 @@ def make_python_data_model(
         # has_to_db = True
         # if any(prop for prop in cls.properties.values() if isinstance(prop, ObjectProperty) and prop.cardinality == Cardinality.MANY_TO_MANY):
         #     # if the class has many-to-many relationship, we need to
+
+        if has_system_controlled:
+            program.import_("typing.Optional", True)
+            cls_ast(
+                stmt.LineBreak(),
+                stmt.Comment(
+                    "_verified is a special marker to indicate whether the data is updated by the system."
+                ),
+                stmt.DefClassVarStatement(
+                    "_verified", "bool", expr.ExprConstant(False)
+                ),
+                stmt.LineBreak(),
+                lambda ast: ast.func(
+                    "__post_init__",
+                    [
+                        DeferredVar.simple("self"),
+                    ],
+                )(
+                    stmt.AssignStatement(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"), expr.ExprIdent("_verified")
+                        ),
+                        expr.ExprConstant(False),
+                    )
+                ),
+                stmt.LineBreak(),
+                lambda ast: ast.func(
+                    "update_system_controlled_props",
+                    [
+                        DeferredVar.simple("self"),
+                        DeferredVar.simple(
+                            "data",
+                            expr.ExprIdent("Optional[SystemControlledProps]"),
+                        ),
+                    ],
+                )(
+                    lambda ast00: ast00.if_(
+                        expr.ExprNegation(
+                            expr.ExprIs(expr.ExprIdent("data"), expr.ExprConstant(None))
+                        ),
+                    )(
+                        *[
+                            stmt.AssignStatement(
+                                PredefinedFn.attr_getter(
+                                    expr.ExprIdent("self"), expr.ExprIdent(prop.name)
+                                ),
+                                PredefinedFn.item_getter(
+                                    expr.ExprIdent("data"), expr.ExprConstant(prop.name)
+                                ),
+                            )
+                            for prop in cls.properties.values()
+                            if prop.data.is_system_controlled
+                        ]
+                    ),
+                    stmt.AssignStatement(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"), expr.ExprIdent("_verified")
+                        ),
+                        expr.ExprConstant(True),
+                    ),
+                ),
+            )
+
         cls_ast(
             stmt.LineBreak(),
             lambda ast00: ast00.func(
@@ -281,6 +375,18 @@ def make_python_data_model(
                     f"{cls.name}DB" if cls.db is not None else cls.name
                 ),
             )(
+                (
+                    stmt.AssertionStatement(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"), expr.ExprIdent("_verified")
+                        ),
+                        expr.ExprConstant(
+                            "The model data must be verified before converting to db model"
+                        ),
+                    )
+                    if has_system_controlled
+                    else None
+                ),
                 lambda ast10: ast10.return_(
                     expr.ExprFuncCall(
                         expr.ExprIdent(
@@ -293,7 +399,7 @@ def make_python_data_model(
                             for prop in cls.properties.values()
                         ],
                     )
-                )
+                ),
             ),
         )
 
@@ -423,6 +529,7 @@ def make_python_relational_model(
         # assume configuration for the app at the top level
         program.import_(f"{app.config.path}.DB_CONNECTION", True)
         program.import_(f"{app.config.path}.DB_DEBUG", True)
+        program.import_(f"contextlib.contextmanager", True)
 
         program.root.linebreak()
 
@@ -484,7 +591,15 @@ def make_python_relational_model(
         )
 
         program.root.linebreak()
-        program.root.func("get_session", [], is_async=True)(
+        program.root.func("async_get_session", [], is_async=True)(
+            lambda ast00: ast00.python_stmt("with Session(engine) as session:")(
+                lambda ast01: ast01.python_stmt("yield session")
+            )
+        )
+
+        program.root.linebreak()
+        program.root.python_stmt("@contextmanager")
+        program.root.func("get_session", [])(
             lambda ast00: ast00.python_stmt("with Session(engine) as session:")(
                 lambda ast01: ast01.python_stmt("yield session")
             )
