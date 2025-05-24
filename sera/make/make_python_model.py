@@ -525,7 +525,14 @@ def make_python_relational_model(
         )
 
         program.root.linebreak()
-        program.root.func("get_session", [], is_async=True)(
+        program.root.func("async_get_session", [], is_async=True)(
+            lambda ast00: ast00.python_stmt("with Session(engine) as session:")(
+                lambda ast01: ast01.python_stmt("yield session")
+            )
+        )
+
+        program.root.linebreak()
+        program.root.func("get_session", [])(
             lambda ast00: ast00.python_stmt("with Session(engine) as session:")(
                 lambda ast01: ast01.python_stmt("yield session")
             )
