@@ -712,6 +712,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                 for prop in cls.properties.values()
                                 if not prop.is_optional
                             )
+                            if any(
+                                not prop.is_optional for prop in cls.properties.values()
+                            )
+                            else "true"
                         )
                     )
                 ),
@@ -911,7 +915,12 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         expr.ExprIdent("targetClass"),
                         expr.ExprConstant(prop.target.name),
                     ),
-                    (expr.ExprIdent("datatype"), expr.ExprConstant(tstype.type)),
+                    (
+                        expr.ExprIdent("datatype"),
+                        expr.ExprConstant(
+                            tstype.type if prop.target.db is not None else "embedded"
+                        ),
+                    ),
                     (
                         expr.ExprIdent("cardinality"),
                         expr.ExprConstant(prop.cardinality.value),
@@ -967,24 +976,36 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 )
             )
 
-        for type in ["Schema", "ObjectProperty", "DataProperty"]:
+        for type in ["ObjectProperty", "DataProperty"]:
             program.import_(f"sera-db.{type}", True)
+        if cls.db is not None:
+            program.import_(f"sera-db.Schema", True)
+        else:
+            program.import_(f"sera-db.EmbeddedSchema", True)
 
         program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}", True)
-        program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id", True)
         program.import_(
             f"@.models.{pkg.dir.name}.Draft{cls.name}.Draft{cls.name}", True
         )
         program.import_(
             f"@.models.{pkg.dir.name}.Draft{cls.name}.draft{cls.name}Validators", True
         )
+        if cls.db is not None:
+            program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id", True)
+
         program.root(
             stmt.LineBreak(),
             stmt.TypescriptStatement(
                 f"export type {cls.name}SchemaType = "
                 + PredefinedFn.dict(
-                    [
-                        (expr.ExprIdent("id"), expr.ExprIdent(f"{cls.name}Id")),
+                    (
+                        [
+                            (expr.ExprIdent("id"), expr.ExprIdent(f"{cls.name}Id")),
+                        ]
+                        if cls.db is not None
+                        else []
+                    )
+                    + [
                         (
                             expr.ExprIdent("publicProperties"),
                             expr.ExprIdent(
@@ -1048,7 +1069,11 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             ),
             stmt.LineBreak(),
             stmt.TypescriptStatement(
-                f"export const {cls.name}Schema: Schema<{cls.name}SchemaType['id'], {cls.name}SchemaType['cls'], {cls.name}SchemaType['draftCls'], {cls.name}SchemaType['publicProperties'], {cls.name}SchemaType['allProperties'], {cls.name}SchemaType> = "
+                (
+                    f"export const {cls.name}Schema: Schema<{cls.name}SchemaType['id'], {cls.name}SchemaType['cls'], {cls.name}SchemaType['draftCls'], {cls.name}SchemaType['publicProperties'], {cls.name}SchemaType['allProperties'], {cls.name}SchemaType> = "
+                    if cls.db is not None
+                    else f"export const {cls.name}Schema: EmbeddedSchema<{cls.name}SchemaType['cls'], {cls.name}SchemaType['draftCls'], {cls.name}SchemaType['publicProperties'], {cls.name}SchemaType['allProperties']> = "
+                )
                 + PredefinedFn.dict(
                     [
                         (

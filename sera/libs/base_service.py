@@ -103,7 +103,7 @@ class BaseService(Generic[ID, R]):
 
         cq = select(func.count()).select_from(q.subquery())
         rq = q.limit(limit).offset(offset)
-        records = self._process_result(session.execute(q)).scalars().all()
+        records = self._process_result(session.execute(rq)).scalars().all()
         total = session.execute(cq).scalar_one()
         return QueryResult(records, total)
 
