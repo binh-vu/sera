@@ -2,6 +2,8 @@ export interface Record<ID> {
   id: ID;
 }
 
+export interface EmbeddedRecord { }
+
 export type RecordClass<R> = { new(...args: any[]): R } & {
   deser(data: any): R;
 };
@@ -18,6 +20,9 @@ export interface DraftRecord<ID> {
 
   /// Serialize the draft to communicate with the server. `isValid` must be called first to ensure all data is valid
   ser(): any;
+
+  /// Convert the draft to a normal record. `isValid` must be called first to ensure all data is valid
+  toRecord(): Record<ID>;
 }
 
 export interface DraftEmbeddedRecord {
@@ -28,5 +33,8 @@ export interface DraftEmbeddedRecord {
 
   /// Serialize the draft to communicate with the server. `isValid` must be called first to ensure all data is valid
   ser(): any;
+
+  /// Convert the draft to a normal record. `isValid` must be called first to ensure all data is valid
+  toRecord(): EmbeddedRecord;
 }
 

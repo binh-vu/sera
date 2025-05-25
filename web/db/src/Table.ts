@@ -106,20 +106,15 @@ export class Table<
     if (record.isNewRecord()) {
       let resp = await axios.post(`${this.remoteURL}`, record.ser());
       runInAction(() => {
-        // TODO: fix me! Get the record directly from the draft instead of fetching 
-        // the record by ID to ensure it's populated in the store
-        this.fetchById(resp.data.id, true);
-        // this.db.populateData(resp.data);
+        record.id = resp.data.id;
+        this.set(record.toRecord() as R);
         this.draftRecords.delete(record.id);
       });
     } else {
       try {
-        let resp = await axios.put(`${this.remoteURL}/${record.id}`, record.ser());
+        await axios.put(`${this.remoteURL}/${record.id}`, record.ser());
         runInAction(() => {
-          // TODO: fix me! Get the record directly from the draft instead of fetching 
-          // the record by ID to ensure it's populated in the store
-          this.fetchById(resp.data.id, true);
-          // this.db.populateData(resp.data);
+          this.set(record.toRecord() as R);
           this.draftRecords.delete(record.id);
         });
       } catch (error: unknown) {
@@ -257,6 +252,10 @@ export class Table<
    * @param m the record
    */
   public set(m: R) {
+    const existing = this.records.get(m.id);
+    if (existing !== null && existing !== undefined) {
+      this.deindex(existing);
+    }
     this.records.set(m.id, m);
     this.index(m);
     this.version++;
@@ -277,6 +276,10 @@ export class Table<
    */
   public batchSet(records: R[]) {
     for (const m of records) {
+      const existing = this.records.get(m.id);
+      if (existing !== null && existing !== undefined) {
+        this.deindex(existing);
+      }
       this.records.set(m.id, m);
       this.index(m);
       this.version++;

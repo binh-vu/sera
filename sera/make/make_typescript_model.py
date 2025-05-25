@@ -74,7 +74,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 if idprop is not None and prop.name == idprop.name:
                     # use id type alias
                     tstype = TsTypeWithDep(f"{cls.name}Id")
-                
+
                 if prop.is_optional:
                     # convert type to optional
                     tstype = tstype.as_optional_type()
@@ -280,6 +280,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         create_args = []
         update_args = []
         ser_args = []
+        to_record_args = []
         update_field_funcs: list[Callable[[AST], Any]] = []
 
         prop2tsname = {}
@@ -424,6 +425,41 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         ),
                     )
                 )
+
+                if not prop.data.is_private:
+                    # private property does not include in the public record
+                    to_record_args.append(
+                        (
+                            expr.ExprIdent(propname),
+                            (
+                                expr.ExprTernary(
+                                    PredefinedFn.attr_getter(
+                                        expr.ExprFuncCall(
+                                            PredefinedFn.attr_getter(
+                                                expr.ExprIdent(draft_validators),
+                                                expr.ExprIdent(propname),
+                                            ),
+                                            [
+                                                PredefinedFn.attr_getter(
+                                                    expr.ExprIdent("this"),
+                                                    expr.ExprIdent(propname),
+                                                )
+                                            ],
+                                        ),
+                                        expr.ExprIdent("isValid"),
+                                    ),
+                                    PredefinedFn.attr_getter(
+                                        expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                    ),
+                                    expr.ExprIdent("undefined"),
+                                )
+                                if prop.is_optional
+                                else PredefinedFn.attr_getter(
+                                    expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                )
+                            ),
+                        )
+                    )
                 if not (prop.db is not None and prop.db.is_primary_key):
                     # skip observable for primary key as it is not needed
                     observable_args.append(
@@ -481,6 +517,17 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                             ),
                         )
                     )
+
+                    if not prop.data.is_private:
+                        # private property does not include in the public record
+                        to_record_args.append(
+                            (
+                                expr.ExprIdent(propname),
+                                PredefinedFn.attr_getter(
+                                    expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                ),
+                            )
+                        )
                 else:
                     # we are going to store the whole object
                     tstype = TsTypeWithDep(
@@ -510,9 +557,61 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                         expr.ExprIdent("this"), expr.ExprIdent(propname)
                                     ),
                                     lambda item: expr.ExprMethodCall(item, "ser", []),
+                                    (
+                                        (
+                                            lambda item: PredefinedFn.attr_getter(
+                                                expr.ExprFuncCall(
+                                                    PredefinedFn.attr_getter(
+                                                        expr.ExprIdent(
+                                                            draft_validators
+                                                        ),
+                                                        expr.ExprIdent(propname),
+                                                    ),
+                                                    [item],
+                                                ),
+                                                expr.ExprIdent("isValid"),
+                                            )
+                                        )
+                                        if prop.is_optional
+                                        else None
+                                    ),
                                 ),
                             )
                         )
+                        if not prop.data.is_private:
+                            # private property does not include in the public record
+                            to_record_args.append(
+                                (
+                                    expr.ExprIdent(propname),
+                                    PredefinedFn.map_list(
+                                        PredefinedFn.attr_getter(
+                                            expr.ExprIdent("this"),
+                                            expr.ExprIdent(propname),
+                                        ),
+                                        lambda item: expr.ExprMethodCall(
+                                            item, "toRecord", []
+                                        ),
+                                        (
+                                            (
+                                                lambda item: PredefinedFn.attr_getter(
+                                                    expr.ExprFuncCall(
+                                                        PredefinedFn.attr_getter(
+                                                            expr.ExprIdent(
+                                                                draft_validators
+                                                            ),
+                                                            expr.ExprIdent(propname),
+                                                        ),
+                                                        [item],
+                                                    ),
+                                                    expr.ExprIdent("isValid"),
+                                                )
+                                            )
+                                            if prop.is_optional
+                                            else None
+                                        ),
+                                    ),
+                                )
+                            )
                     else:
                         if prop.is_optional:
                             # convert type to optional - for list type, we don't need to do this
@@ -532,18 +631,103 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                 ),
                             ],
                         )
-                        ser_args.append(
-                            (
-                                expr.ExprIdent(prop.name),
-                                expr.ExprMethodCall(
-                                    PredefinedFn.attr_getter(
-                                        expr.ExprIdent("this"), expr.ExprIdent(propname)
+
+                        if prop.is_optional:
+                            ser_args.append(
+                                (
+                                    expr.ExprIdent(prop.name),
+                                    expr.ExprTernary(
+                                        PredefinedFn.attr_getter(
+                                            expr.ExprFuncCall(
+                                                PredefinedFn.attr_getter(
+                                                    expr.ExprIdent(draft_validators),
+                                                    expr.ExprIdent(propname),
+                                                ),
+                                                [
+                                                    PredefinedFn.attr_getter(
+                                                        expr.ExprIdent("this"),
+                                                        expr.ExprIdent(propname),
+                                                    )
+                                                ],
+                                            ),
+                                            expr.ExprIdent("isValid"),
+                                        ),
+                                        expr.ExprMethodCall(
+                                            PredefinedFn.attr_getter(
+                                                expr.ExprIdent("this"),
+                                                expr.ExprIdent(propname),
+                                            ),
+                                            "ser",
+                                            [],
+                                        ),
+                                        expr.ExprIdent("undefined"),
                                     ),
-                                    "ser",
-                                    [],
-                                ),
+                                )
                             )
-                        )
+                            if not prop.data.is_private:
+                                # private property does not include in the public record
+                                to_record_args.append(
+                                    (
+                                        expr.ExprIdent(propname),
+                                        expr.ExprTernary(
+                                            PredefinedFn.attr_getter(
+                                                expr.ExprFuncCall(
+                                                    PredefinedFn.attr_getter(
+                                                        expr.ExprIdent(
+                                                            draft_validators
+                                                        ),
+                                                        expr.ExprIdent(propname),
+                                                    ),
+                                                    [
+                                                        PredefinedFn.attr_getter(
+                                                            expr.ExprIdent("this"),
+                                                            expr.ExprIdent(propname),
+                                                        )
+                                                    ],
+                                                ),
+                                                expr.ExprIdent("isValid"),
+                                            ),
+                                            expr.ExprMethodCall(
+                                                PredefinedFn.attr_getter(
+                                                    expr.ExprIdent("this"),
+                                                    expr.ExprIdent(propname),
+                                                ),
+                                                "toRecord",
+                                                [],
+                                            ),
+                                            expr.ExprIdent("undefined"),
+                                        ),
+                                    )
+                                )
+                        else:
+                            ser_args.append(
+                                (
+                                    expr.ExprIdent(prop.name),
+                                    expr.ExprMethodCall(
+                                        PredefinedFn.attr_getter(
+                                            expr.ExprIdent("this"),
+                                            expr.ExprIdent(propname),
+                                        ),
+                                        "ser",
+                                        [],
+                                    ),
+                                )
+                            )
+                            if not prop.data.is_private:
+                                # private property does not include in the public record
+                                to_record_args.append(
+                                    (
+                                        expr.ExprIdent(propname),
+                                        expr.ExprMethodCall(
+                                            PredefinedFn.attr_getter(
+                                                expr.ExprIdent("this"),
+                                                expr.ExprIdent(propname),
+                                            ),
+                                            "toRecord",
+                                            [],
+                                        ),
+                                    )
+                                )
 
                 for dep in tstype.deps:
                     program.import_(
@@ -751,6 +935,20 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     stmt.ReturnStatement(
                         PredefinedFn.dict(ser_args),
                     ),
+                ),
+                stmt.LineBreak(),
+                lambda ast16: ast16.func(
+                    "toRecord",
+                    [],
+                    expr.ExprIdent(cls.name),
+                    comment="Convert the draft to a normal record. `isValid` must be called first to ensure all data is valid",
+                )(
+                    stmt.ReturnStatement(
+                        expr.ExprNewInstance(
+                            expr.ExprIdent(cls.name),
+                            [PredefinedFn.dict(to_record_args)],
+                        ),
+                    )
                 ),
             ),
             stmt.LineBreak(),
