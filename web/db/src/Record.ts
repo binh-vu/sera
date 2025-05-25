@@ -19,3 +19,14 @@ export interface DraftRecord<ID> {
   /// Serialize the draft to communicate with the server. `isValid` must be called first to ensure all data is valid
   ser(): any;
 }
+
+export interface DraftEmbeddedRecord {
+  stale: boolean;
+
+  /// Check if the draft is valid (only check the required fields as the non-required fields if it's invalid will be set to undefined)
+  isValid(): boolean;
+
+  /// Serialize the draft to communicate with the server. `isValid` must be called first to ensure all data is valid
+  ser(): any;
+}
+

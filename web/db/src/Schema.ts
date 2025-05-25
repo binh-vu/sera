@@ -1,8 +1,8 @@
-import { Record as DBRecord, DraftRecord } from "./Record";
+import { Record as DBRecord, DraftEmbeddedRecord, DraftRecord } from "./Record";
 import { ValueValidator } from "./validators";
 export type PropertyName = string;
 export type TargetClassName = string;
-export type DataType = "string" | "number" | "boolean" | "string | undefined" | "string[]";
+export type DataType = "string" | "number" | "boolean" | "string | undefined" | "string[]" | "embedded";
 
 export interface MultiLingualString {
   lang2value: { [lang: string]: string };
@@ -42,7 +42,7 @@ export interface ObjectProperty extends Property {
   // the cardinality of the property -- is it one-to-one, many-to-one, etc.
   cardinality: "1:1" | "1:N" | "N:1" | "N:N";
   // data type of the id property of the target class if not embedded
-  // if embedded, the datatype is the same as the target class
+  // if embedded, the datatype will be "embedded" and user would need to use the targetClass to get the schema
   datatype: DataType;
   // whether the whole object is embedded in the parent object
   // if false, only the id of the object is stored in the parent object
@@ -90,6 +90,24 @@ export interface Schema<
   allProperties: Record<ST["allProperties"], DataProperty | ObjectProperty>;
   validators: Record<ST["allProperties"], ValueValidator>;
   primaryKey?: keyof ST["cls"];
+}
+
+export type GenericEmbeddedRecord<DR> = {
+  toDraft(): DR;
+};
+
+export interface EmbeddedSchema<
+  R extends GenericEmbeddedRecord<DR>,
+  DR extends DraftEmbeddedRecord,
+  PF extends keyof R,
+  F extends keyof DR,
+> {
+  publicProperties: Record<
+    PF,
+    DataProperty | ObjectProperty
+  >;
+  allProperties: Record<F, DataProperty | ObjectProperty>;
+  validators: Record<F, ValueValidator>;
 }
 
 /**
