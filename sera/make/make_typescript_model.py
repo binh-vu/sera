@@ -74,6 +74,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 if idprop is not None and prop.name == idprop.name:
                     # use id type alias
                     tstype = TsTypeWithDep(f"{cls.name}Id")
+                
+                if prop.is_optional:
+                    # convert type to optional
+                    tstype = tstype.as_optional_type()
 
                 deser_args.append(
                     (
@@ -95,6 +99,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     )
                     if prop.cardinality.is_star_to_many():
                         tstype = tstype.as_list_type()
+                    elif prop.is_optional:
+                        # convert type to optional only if it isn't a list
+                        tstype = tstype.as_optional_type()
                     deser_args.append(
                         (
                             expr.ExprIdent(propname),
@@ -134,6 +141,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                             )
                         )
                     else:
+                        if prop.is_optional:
+                            # convert type to optional only if it isn't a list
+                            tstype = tstype.as_optional_type()
                         deser_args.append(
                             (
                                 expr.ExprIdent(propname),
@@ -329,6 +339,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     # for none id properties, we need to include a type for "invalid" value
                     tstype = _inject_type_for_invalid_value(tstype)
 
+                if prop.is_optional:
+                    # convert type to optional
+                    tstype = tstype.as_optional_type()
+
                 for dep in tstype.deps:
                     program.import_(dep, True)
 
@@ -438,6 +452,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         tstype = tstype.as_list_type()
                         create_propvalue = expr.ExprConstant([])
                     else:
+                        if prop.is_optional:
+                            # convert type to optional - for list type, we don't need to do this
+                            # as we will use empty list as no value
+                            tstype = tstype.as_optional_type()
                         # if target class has an auto-increment primary key, we set a different default value
                         # to be -1 to avoid start from 0
                         target_idprop = prop.target.get_id_property()
@@ -496,6 +514,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                             )
                         )
                     else:
+                        if prop.is_optional:
+                            # convert type to optional - for list type, we don't need to do this
+                            # as we will use empty list as no value
+                            tstype = tstype.as_optional_type()
                         create_propvalue = expr.ExprMethodCall(
                             expr.ExprIdent(tstype.type),
                             "create",

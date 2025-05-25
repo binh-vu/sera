@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from operator import is_
 from typing import Callable, Sequence
 
 from codegen.models import AST, DeferredVar, PredefinedFn, Program, expr, stmt
@@ -296,11 +297,14 @@ def make_python_data_model(
                         ],
                     )
 
+                if prop.cardinality.is_star_to_many():
+                    pytype = pytype.as_list_type()
+                elif prop.is_optional:
+                    pytype = pytype.as_optional_type()
+
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                if prop.cardinality.is_star_to_many():
-                    pytype = pytype.as_list_type()
                 cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
 
         # has_to_db = True
@@ -453,11 +457,14 @@ def make_python_data_model(
                         ],
                     )
 
+                if prop.cardinality.is_star_to_many():
+                    pytype = pytype.as_list_type()
+                elif prop.is_optional:
+                    pytype = pytype.as_optional_type()
+
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                if prop.cardinality.is_star_to_many():
-                    pytype = pytype.as_list_type()
                 cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
 
         cls_ast(
@@ -690,7 +697,12 @@ def make_python_relational_model(
                     program.import_(dep, True)
 
                 propname = prop.name
-                proptype = f"Mapped[{sqltype.mapped_pytype}]"
+
+                if prop.is_optional:
+                    program.import_("typing.Optional", True)
+                    proptype = f"Mapped[Optional[{sqltype.mapped_pytype}]]"
+                else:
+                    proptype = f"Mapped[{sqltype.mapped_pytype}]"
 
                 propvalargs: list[expr.Expr] = [expr.ExprIdent(sqltype.type)]
                 if prop.db.is_primary_key:

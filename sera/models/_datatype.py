@@ -97,6 +97,13 @@ class TsTypeWithDep:
             list_type = f"{self.type}[]"
         return TsTypeWithDep(type=list_type, deps=self.deps)
 
+    def as_optional_type(self) -> TsTypeWithDep:
+        if "undefined" in self.type:
+            raise NotImplementedError(
+                f"Have not handle nested optional yet: {self.type}"
+            )
+        return TsTypeWithDep(type=f"{self.type} | undefined", deps=self.deps)
+
 
 @dataclass
 class SQLTypeWithDep:
