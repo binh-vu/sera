@@ -4,28 +4,34 @@
  * or choose to be greater, less than (gt, lt, gte, lte) than a value (number only), or choose to be in an array of
  * values (string[] or number[])
  */
-type QueryOp =
+export type QueryOp =
   | string
   | number
   | boolean
   | {
-      op: "gt" | "lt" | "gte" | "lte" | "in";
-      value: string | number | string[] | number[];
-    };
+    op: "gt" | "lt" | "gte" | "lte" | "in";
+    value: string | number | string[] | number[] | (string | number)[];
+  };
 
 export type QueryConditions<R> = Partial<Record<keyof R, QueryOp>>;
 
 export interface Query<R> {
   limit: number;
   offset: number;
+  /// List of fields to return in the result
   fields?: (keyof R)[];
+  /// Conditions to filter the records
   conditions?: QueryConditions<R>;
+  /// Whether to return unique records (no duplicates)
   unique?: boolean;
+  /// Sort the records by a field or multiple fields
   sortedBy?:
-    | keyof R
-    | { field: keyof R; order: "desc" | "asc" }
-    | { field: keyof R; order: "desc" | "asc" }[];
+  | keyof R
+  | { field: keyof R; order: "desc" | "asc" }
+  | { field: keyof R; order: "desc" | "asc" }[];
+  /// Group the records by a field or multiple fields
   groupBy?: (keyof R)[];
+  /// Whether to return the total number of records that match the query
   returnTotal?: boolean;
 }
 

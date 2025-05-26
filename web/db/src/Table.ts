@@ -1,15 +1,15 @@
 import axios from "axios";
 import { action, makeObservable, observable, runInAction } from "mobx";
 import { Index } from "./TableIndex";
-import { Query, QueryProcessor } from "./Query";
-import { Record, DraftRecord, RecordClass } from "./Record";
+import { Query, QueryConditions, QueryProcessor } from "./Query";
+import { Record as DBRecord, DraftRecord, RecordClass } from "./Record";
 import { DB } from "./DB";
 
 export type FetchResult<R> = { records: R[]; total: number };
 
 export class Table<
   ID extends string | number,
-  R extends Record<ID>,
+  R extends DBRecord<ID>,
   DR extends DraftRecord<ID>
 > {
   records: Map<ID, R | null> = new Map();
@@ -77,6 +77,7 @@ export class Table<
       upsert: action,
       fetch: action,
       fetchById: action,
+      fetchByIds: action,
       remoteSize: action,
       clear: action,
     });
@@ -150,6 +151,65 @@ export class Table<
       records: output[this.name],
       total: resp.data.total,
     };
+  }
+
+  /**
+   * Fetches multiple records by their IDs and returns them as a dictionary.
+   *
+   * @template ID - The type of the record IDs.
+   * @template R - The type of the records being fetched.
+   * @param ids - An array of IDs for the records to fetch.
+   * @param force - A boolean flag indicating whether to force a fresh fetch
+   *                (default is `false`).
+   * @returns A promise that resolves to a dictionary where the keys are the
+   *          provided IDs and the values are the corresponding records.
+   */
+  async fetchByIds(
+    ids: ID[], force: boolean = false
+  ): Promise<Record<ID, R>> {
+    let sendoutIds = ids;
+    if (!force && !this.refetch) {
+      // no refetch, then we need to filter the list of ids
+      sendoutIds = sendoutIds.filter((id) => !this.has(id));
+
+      if (sendoutIds.length === 0) {
+        const output = {} as Record<ID, R>;
+        for (const id of ids) {
+          const record = this.records.get(id);
+          if (record !== null && record !== undefined) {
+            output[id] = record;
+          }
+        }
+        return Promise.resolve(output);
+      }
+    }
+
+    if (sendoutIds.length === 1) {
+      // if we only have one id, we can just fetch it directly
+      await this.fetchById(sendoutIds[0], true);
+    } else {
+      // complier does not smart enough to allow create object with id as key
+      // so we have to do it in two steps
+      const conditions: QueryConditions<R> = {};
+      conditions['id'] = {
+        op: "in",
+        value: sendoutIds
+      };
+      await this.fetch({
+        offset: 0,
+        limit: sendoutIds.length,
+        conditions,
+      });
+    }
+
+    const results: Record<ID, R> = {} as Record<ID, R>;
+    for (const id of ids) {
+      const record = this.get(id);
+      if (record !== null && record !== undefined) {
+        results[id] = record;
+      }
+    }
+    return results;
   }
 
   /**
