@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from operator import is_
-from typing import Callable, Sequence
+from typing import Callable, Optional, Sequence
 
 from codegen.models import AST, DeferredVar, PredefinedFn, Program, expr, stmt
 
@@ -83,9 +83,25 @@ def make_python_data_model(
     app = target_pkg.app
 
     def from_db_type_conversion(
-        record: expr.ExprIdent, prop: DataProperty | ObjectProperty
+        record: expr.ExprIdent,
+        prop: DataProperty | ObjectProperty,
+        value_pass_as_args: Optional[expr.Expr] = None,
     ):
-        value = PredefinedFn.attr_getter(record, expr.ExprIdent(prop.name))
+        """Convert the value from the database to the data model type.
+
+        Args:
+            record: The record to convert from.
+            prop: The property to convert.
+            value_pass_as_args: If provided, this value will be used instead of getting the value from the record. This is useful for functions that
+                receive the column value as an argument, such as the `as_composite` function.
+        """
+        if value_pass_as_args is not None:
+            value = value_pass_as_args
+            assert record == expr.ExprIdent(
+                ""
+            ), "If value_pass_as_args is provided, record should not be used as a dummy value should be passed instead."
+        else:
+            value = PredefinedFn.attr_getter(record, expr.ExprIdent(prop.name))
         if isinstance(prop, ObjectProperty) and prop.target.db is not None:
             if prop.cardinality.is_star_to_many():
                 value = PredefinedFn.map_list(
@@ -95,6 +111,9 @@ def make_python_data_model(
                     ),
                 )
             else:
+                assert (
+                    value_pass_as_args is None
+                ), "Cannot use value_pass_as_args for a single object property."
                 value = PredefinedFn.attr_getter(
                     record, expr.ExprIdent(prop.name + "_id")
                 )
@@ -499,6 +518,69 @@ def make_python_data_model(
                 else None
             ),
         )
+
+        if cls.db is None:
+            as_composite_args = [DeferredVar.simple("cls")]
+            as_composite_null_condition = []
+            for prop in cls.properties.values():
+                assert (
+                    not prop.data.is_private
+                ), f"Embedded classes should not have private properties: {cls.name}.{prop.name}"
+                as_composite_args.append(DeferredVar.simple(prop.name))
+                as_composite_null_condition.append(
+                    expr.ExprIs(expr.ExprIdent(prop.name), expr.ExprConstant(None))
+                )
+
+            # For simplicity, we assume that this embedded class can be used in a nullable field (check if all properties are None and return None).
+            # However, we could be more efficient by checking if there are any other classes that use this class as a composite and are non-optional,
+            # and eliminate the None check because we know that the class will always be re-created.
+            cls_ast(
+                stmt.LineBreak(),
+                stmt.PythonDecoratorStatement(
+                    expr.ExprFuncCall(expr.ExprIdent("classmethod"), [])
+                ),
+                lambda ast: ast.func(
+                    "as_composite",
+                    vars=as_composite_args,
+                    return_type=expr.ExprIdent(f"Optional[{cls.name}]"),
+                    comment="Create an embedded instance from the embedded columns in the database table. If all properties of this embedded class are None (indicating that the parent field is None), then this function will return None.",
+                )(
+                    lambda ast_l1: ast_l1.if_(
+                        expr.ExprLogicalAnd(as_composite_null_condition)
+                    )(lambda ast_l2: ast_l2.return_(expr.ExprConstant(None))),
+                    lambda ast_l1: ast_l1.return_(
+                        expr.ExprFuncCall(
+                            expr.ExprIdent("cls"),
+                            [
+                                from_db_type_conversion(
+                                    expr.ExprIdent(""), prop, expr.ExprIdent(prop.name)
+                                )
+                                for prop in cls.properties.values()
+                            ],
+                        )
+                    ),
+                ),
+                stmt.LineBreak(),
+                lambda ast: ast.func(
+                    "__composite_values__",
+                    [
+                        DeferredVar.simple("self"),
+                    ],
+                    return_type=expr.ExprIdent("tuple"),
+                    comment="Return the values of the properties of this embedded class as a tuple. This is used to create a composite object in SQLAlchemy.",
+                )(
+                    lambda ast_l1: ast_l1.return_(
+                        PredefinedFn.tuple(
+                            [
+                                to_db_type_conversion(
+                                    program, expr.ExprIdent("self"), cls, prop
+                                )
+                                for prop in cls.properties.values()
+                            ]
+                        )
+                    )
+                ),
+            )
 
     for cls in schema.topological_sort():
         if cls.name in reference_classes:
