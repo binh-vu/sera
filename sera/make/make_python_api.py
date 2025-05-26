@@ -345,7 +345,7 @@ def make_python_get_by_id_api(
                     expr.ExprIdent("Session"),
                 ),
             ],
-            return_type=expr.ExprIdent(f"{cls.name}"),
+            return_type=expr.ExprIdent("dict"),
             is_async=True,
         )(
             stmt.SingleExprStatement(expr.ExprConstant("Retrieving record by id")),
@@ -387,12 +387,26 @@ def make_python_get_by_id_api(
                 )
             ),
             lambda ast13: ast13.return_(
-                expr.ExprFuncCall(
-                    PredefinedFn.attr_getter(
-                        expr.ExprIdent(cls.name), expr.ExprIdent("from_db")
-                    ),
-                    [expr.ExprIdent("record")],
-                )
+                PredefinedFn.dict(
+                    [
+                        (
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent(cls.name), expr.ExprIdent("__name__")
+                            ),
+                            PredefinedFn.list(
+                                [
+                                    expr.ExprFuncCall(
+                                        PredefinedFn.attr_getter(
+                                            expr.ExprIdent(cls.name),
+                                            expr.ExprIdent("from_db"),
+                                        ),
+                                        [expr.ExprIdent("record")],
+                                    )
+                                ]
+                            ),
+                        )
+                    ]
+                ),
             ),
         ),
     )
