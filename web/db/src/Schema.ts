@@ -2,7 +2,7 @@ import { Record as DBRecord, DraftEmbeddedRecord, DraftRecord } from "./Record";
 import { ValueValidator } from "./validators";
 export type PropertyName = string;
 export type TargetClassName = string;
-export type DataType = "string" | "number" | "boolean" | "string | undefined" | "string[]" | "embedded";
+export type DataType = "string" | "number" | "boolean" | "string | undefined" | "string[]";
 
 export interface MultiLingualString {
   lang2value: { [lang: string]: string };
@@ -42,8 +42,8 @@ export interface ObjectProperty extends Property {
   // the cardinality of the property -- is it one-to-one, many-to-one, etc.
   cardinality: "1:1" | "1:N" | "N:1" | "N:N";
   // data type of the id property of the target class if not embedded
-  // if embedded, the datatype will be "embedded" and user would need to use the targetClass to get the schema
-  datatype: DataType;
+  // if embedded, it will be undefined
+  datatype?: DataType;
   // whether the whole object is embedded in the parent object
   // if false, only the id of the object is stored in the parent object
   isEmbedded: boolean;

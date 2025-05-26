@@ -1138,7 +1138,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     (
                         expr.ExprIdent("datatype"),
                         expr.ExprConstant(
-                            tstype.type if prop.target.db is not None else "embedded"
+                            tstype.type if prop.target.db is not None else "undefined"
                         ),
                     ),
                     (
