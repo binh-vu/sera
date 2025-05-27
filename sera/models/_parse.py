@@ -31,6 +31,7 @@ from sera.models._property import (
     ObjectPropDBInfo,
     ObjectProperty,
     PropDataAttrs,
+    SystemControlledMode,
 )
 from sera.models._schema import Schema
 
@@ -131,7 +132,9 @@ def _parse_property(
         constraints=[
             _parse_constraint(constraint) for constraint in _data.get("constraints", [])
         ],
-        is_system_controlled=_data.get("is_system_controlled", False),
+        is_system_controlled=SystemControlledMode(
+            _data.get("is_system_controlled", SystemControlledMode.NO.value)
+        ),
     )
 
     assert isinstance(prop, dict), prop

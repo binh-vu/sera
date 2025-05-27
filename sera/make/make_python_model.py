@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ast import Expr
 from operator import is_
 from typing import Callable, Optional, Sequence
 
@@ -20,6 +21,7 @@ from sera.models import (
     PyTypeWithDep,
     Schema,
 )
+from sera.models._property import SystemControlledMode
 from sera.typing import ObjectPath
 
 
@@ -211,10 +213,12 @@ def make_python_data_model(
                 alias=f"{cls.name}DB",
             )
 
-        has_system_controlled = any(
-            prop.data.is_system_controlled for prop in cls.properties.values()
+        # property that normal users cannot set, but super users can
+        has_restricted_system_controlled = any(
+            prop.data.is_system_controlled == SystemControlledMode.RESTRICTED
+            for prop in cls.properties.values()
         )
-        if has_system_controlled:
+        if has_restricted_system_controlled:
             program.import_("typing.TypedDict", True)
             program.root(
                 stmt.LineBreak(),
@@ -236,6 +240,7 @@ def make_python_data_model(
                         )
                         for prop in cls.properties.values()
                         if prop.data.is_system_controlled
+                        == SystemControlledMode.RESTRICTED
                     ],
                 ),
             )
@@ -246,11 +251,10 @@ def make_python_data_model(
             [expr.ExprIdent("msgspec.Struct"), expr.ExprIdent("kw_only=True")],
         )
         for prop in cls.properties.values():
-            # this is a create object, so users can create private field
-            # hence, we do not check for prop.is_private -- however, this field can be omitted
-            # during update, so we need to mark it as optional
-            # if prop.data.is_private:
-            #     continue
+            # a field that is fully controlled by the system (e.g., cached or derived fields)
+            # aren't allowed to be set by the users, so we skip them
+            if prop.data.is_system_controlled == SystemControlledMode.AUTO:
+                continue
 
             if isinstance(prop, DataProperty):
                 pytype = prop.get_data_model_datatype().get_python_type()
@@ -272,14 +276,20 @@ def make_python_data_model(
                     else:
                         raise NotImplementedError(prop.data.constraints)
 
-                if prop.data.is_private:
+                if (
+                    prop.data.is_private
+                    or prop.data.is_system_controlled == SystemControlledMode.RESTRICTED
+                ):
                     program.import_("typing.Union", True)
                     program.import_("sera.typing.UnsetType", True)
                     program.import_("sera.typing.UNSET", True)
                     pytype_type = f"Union[{pytype_type}, UnsetType]"
 
                 prop_default_value = None
-                if prop.data.is_private:
+                if (
+                    prop.data.is_private
+                    or prop.data.is_system_controlled == SystemControlledMode.RESTRICTED
+                ):
                     prop_default_value = expr.ExprIdent("UNSET")
                 elif prop.default_value is not None:
                     prop_default_value = expr.ExprConstant(prop.default_value)
@@ -321,25 +331,28 @@ def make_python_data_model(
                 elif prop.is_optional:
                     pytype = pytype.as_optional_type()
 
+                pytype_type = pytype.type
+                prop_default_value = None
+                if prop.data.is_system_controlled == SystemControlledMode.RESTRICTED:
+                    program.import_("typing.Union", True)
+                    program.import_("sera.typing.UnsetType", True)
+                    program.import_("sera.typing.UNSET", True)
+                    pytype_type = f"Union[{pytype_type}, UnsetType]"
+                    prop_default_value = expr.ExprIdent("UNSET")
+
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
+                cls_ast(
+                    stmt.DefClassVarStatement(
+                        prop.name, pytype_type, prop_default_value
+                    )
+                )
 
-        # has_to_db = True
-        # if any(prop for prop in cls.properties.values() if isinstance(prop, ObjectProperty) and prop.cardinality == Cardinality.MANY_TO_MANY):
-        #     # if the class has many-to-many relationship, we need to
-
-        if has_system_controlled:
+        if has_restricted_system_controlled:
             program.import_("typing.Optional", True)
+            program.import_("sera.typing.is_set", True)
             cls_ast(
-                stmt.LineBreak(),
-                stmt.Comment(
-                    "_verified is a special marker to indicate whether the data is updated by the system."
-                ),
-                stmt.DefClassVarStatement(
-                    "_verified", "bool", expr.ExprConstant(False)
-                ),
                 stmt.LineBreak(),
                 lambda ast: ast.func(
                     "__post_init__",
@@ -347,12 +360,17 @@ def make_python_data_model(
                         DeferredVar.simple("self"),
                     ],
                 )(
-                    stmt.AssignStatement(
-                        PredefinedFn.attr_getter(
-                            expr.ExprIdent("self"), expr.ExprIdent("_verified")
-                        ),
-                        expr.ExprConstant(False),
-                    )
+                    *[
+                        stmt.AssignStatement(
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("self"), expr.ExprIdent(prop.name)
+                            ),
+                            expr.ExprIdent("UNSET"),
+                        )
+                        for prop in cls.properties.values()
+                        if prop.data.is_system_controlled
+                        == SystemControlledMode.RESTRICTED
+                    ]
                 ),
                 stmt.LineBreak(),
                 lambda ast: ast.func(
@@ -381,13 +399,8 @@ def make_python_data_model(
                             )
                             for prop in cls.properties.values()
                             if prop.data.is_system_controlled
+                            == SystemControlledMode.RESTRICTED
                         ]
-                    ),
-                    stmt.AssignStatement(
-                        PredefinedFn.attr_getter(
-                            expr.ExprIdent("self"), expr.ExprIdent("_verified")
-                        ),
-                        expr.ExprConstant(True),
                     ),
                 ),
             )
@@ -405,14 +418,27 @@ def make_python_data_model(
             )(
                 (
                     stmt.AssertionStatement(
-                        PredefinedFn.attr_getter(
-                            expr.ExprIdent("self"), expr.ExprIdent("_verified")
+                        expr.ExprLogicalAnd(
+                            [
+                                expr.ExprFuncCall(
+                                    expr.ExprIdent("is_set"),
+                                    [
+                                        PredefinedFn.attr_getter(
+                                            expr.ExprIdent("self"),
+                                            expr.ExprIdent(prop.name),
+                                        )
+                                    ],
+                                )
+                                for prop in cls.properties.values()
+                                if prop.data.is_system_controlled
+                                == SystemControlledMode.RESTRICTED
+                            ]
                         ),
                         expr.ExprConstant(
                             "The model data must be verified before converting to db model"
                         ),
                     )
-                    if has_system_controlled
+                    if has_restricted_system_controlled
                     else None
                 ),
                 lambda ast10: ast10.return_(

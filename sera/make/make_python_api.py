@@ -4,8 +4,9 @@ from typing import Sequence
 
 from codegen.models import DeferredVar, PredefinedFn, Program, expr, stmt
 from loguru import logger
+
 from sera.misc import assert_not_null, to_snake_case
-from sera.models import App, DataCollection, Module, Package
+from sera.models import App, DataCollection, Module, Package, SystemControlledMode
 
 
 def make_python_api(app: App, collections: Sequence[DataCollection]):
@@ -542,7 +543,8 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
     # assuming the collection has only one class
     cls = collection.cls
     has_system_controlled_prop = any(
-        prop.data.is_system_controlled for prop in cls.properties.values()
+        prop.data.is_system_controlled != SystemControlledMode.NO
+        for prop in cls.properties.values()
     )
     idprop = assert_not_null(cls.get_id_property())
 
@@ -647,7 +649,8 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
     id_type = id_prop.datatype.get_python_type().type
 
     has_system_controlled_prop = any(
-        prop.data.is_system_controlled for prop in cls.properties.values()
+        prop.data.is_system_controlled != SystemControlledMode.NO
+        for prop in cls.properties.values()
     )
     if has_system_controlled_prop:
         program.import_("sera.libs.api_helper.SingleAutoUSCP", True)
