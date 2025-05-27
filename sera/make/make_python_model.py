@@ -5,7 +5,6 @@ from operator import is_
 from typing import Callable, Optional, Sequence
 
 from codegen.models import AST, DeferredVar, PredefinedFn, Program, expr, stmt
-
 from sera.misc import (
     assert_isinstance,
     assert_not_null,
@@ -451,6 +450,8 @@ def make_python_data_model(
                                 program, expr.ExprIdent("self"), cls, prop
                             )
                             for prop in cls.properties.values()
+                            if prop.data.is_system_controlled
+                            != SystemControlledMode.AUTO
                         ],
                     )
                 ),
