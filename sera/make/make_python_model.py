@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from ast import Expr
-from operator import is_
 from typing import Callable, Optional, Sequence
 
-from codegen.models import AST, DeferredVar, PredefinedFn, Program, expr, stmt
+from codegen.models import (
+    AST,
+    DeferredVar,
+    ImportHelper,
+    PredefinedFn,
+    Program,
+    expr,
+    stmt,
+)
 from sera.misc import (
     assert_isinstance,
     assert_not_null,
@@ -211,6 +217,13 @@ def make_python_data_model(
                 True,
                 alias=f"{cls.name}DB",
             )
+
+        ident_manager = ImportHelper(
+            program,
+            {
+                "UNSET": "sera.typing.UNSET",
+            },
+        )
 
         # property that normal users cannot set, but super users can
         has_restricted_system_controlled = any(
@@ -446,12 +459,15 @@ def make_python_data_model(
                             f"{cls.name}DB" if cls.db is not None else cls.name
                         ),
                         [
-                            to_db_type_conversion(
-                                program, expr.ExprIdent("self"), cls, prop
+                            (
+                                to_db_type_conversion(
+                                    program, expr.ExprIdent("self"), cls, prop
+                                )
+                                if prop.data.is_system_controlled
+                                != SystemControlledMode.AUTO
+                                else ident_manager.use("UNSET")
                             )
                             for prop in cls.properties.values()
-                            if prop.data.is_system_controlled
-                            != SystemControlledMode.AUTO
                         ],
                     )
                 ),
