@@ -49,4 +49,5 @@ def cli(
     make_app(app_dir, schema_files, api_collections, language, referenced_schema)
 
 
-app()
+if __name__ == "__main__":
+    app()

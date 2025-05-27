@@ -4,7 +4,6 @@ from typing import Sequence
 
 from codegen.models import DeferredVar, PredefinedFn, Program, expr, stmt
 from loguru import logger
-
 from sera.misc import assert_not_null, to_snake_case
 from sera.models import App, DataCollection, Module, Package
 
@@ -471,7 +470,9 @@ def make_python_has_api(
             return_type=expr.ExprConstant(None),
             is_async=True,
         )(
-            stmt.SingleExprStatement(expr.ExprConstant("Retrieving record by id")),
+            stmt.SingleExprStatement(
+                expr.ExprConstant("Checking if record exists by id")
+            ),
             lambda ast100: ast100.assign(
                 DeferredVar.simple("service"),
                 expr.ExprFuncCall(

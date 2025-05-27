@@ -3,7 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-ConstraintName = Literal["phone_number", "email", "not_empty", "username", "password"]
+ConstraintName = Literal[
+    "phone_number",
+    "email",
+    "not_empty",
+    "username",
+    "password",
+    "whole_number",
+    "positive_number",
+]
 
 
 @dataclass
@@ -25,6 +33,10 @@ class Constraint:
             )
         elif self.name == "password":
             return "msgspec.Meta(min_length=8, max_length=40)"
+        elif self.name == "whole_number":
+            return "msgspec.Meta(ge=0)"
+        elif self.name == "positive_number":
+            return "msgspec.Meta(gt=0)"
 
         raise NotImplementedError()
 
@@ -43,4 +55,6 @@ predefined_constraints: dict[ConstraintName, Constraint] = {
     "not_empty": Constraint("not_empty", ()),
     "username": Constraint("username", ()),
     "password": Constraint("password", ()),
+    "whole_number": Constraint("whole_number", ()),
+    "positive_number": Constraint("positive_number", ()),
 }

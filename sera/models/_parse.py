@@ -76,7 +76,7 @@ def _parse_class_without_prop(schema: Schema, clsname: str, cls: dict) -> Class:
     return Class(
         name=clsname,
         label=_parse_multi_lingual_string(cls["label"]),
-        description=_parse_multi_lingual_string(cls["desc"]),
+        description=_parse_multi_lingual_string(cls.get("desc", "")),
         properties={},
         db=db,
     )
@@ -131,7 +131,7 @@ def _parse_property(
         constraints=[
             _parse_constraint(constraint) for constraint in _data.get("constraints", [])
         ],
-        is_system_controlled=prop.get("is_system_controlled", False),
+        is_system_controlled=_data.get("is_system_controlled", False),
     )
 
     assert isinstance(prop, dict), prop
@@ -222,12 +222,14 @@ def _parse_datatype(schema: Schema, datatype: dict | str) -> DataType:
                 # the correct package yet.
                 pytype=PyTypeWithDep(
                     type=enum.name,
-                    dep=f"{schema.name}.models.enums.{enum.get_pymodule_name()}.{enum.name}",
+                    deps=[
+                        f"{schema.name}.models.enums.{enum.get_pymodule_name()}.{enum.name}"
+                    ],
                 ),
                 sqltype=SQLTypeWithDep(
                     type="String", mapped_pytype="str", deps=["sqlalchemy.String"]
                 ),
-                tstype=TsTypeWithDep(type=enum.name, dep="@/models/enums"),
+                tstype=TsTypeWithDep(type=enum.name, deps=["@/models/enums"]),
                 is_list=is_list,
             )
 
