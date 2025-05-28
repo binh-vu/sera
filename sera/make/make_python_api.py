@@ -229,35 +229,37 @@ def make_python_get_api(
             ),
             lambda ast102: ast102.assign(
                 DeferredVar.simple("result"),
-                expr.ExprFuncCall(
-                    PredefinedFn.attr_getter(
-                        expr.ExprIdent("service"),
-                        expr.ExprIdent("get"),
-                    ),
-                    [
-                        expr.ExprIdent("query"),
-                        PredefinedFn.keyword_assignment(
-                            "limit", expr.ExprIdent("limit")
+                expr.ExprAwait(
+                    expr.ExprFuncCall(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("service"),
+                            expr.ExprIdent("get"),
                         ),
-                        PredefinedFn.keyword_assignment(
-                            "offset", expr.ExprIdent("offset")
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "unique", expr.ExprIdent("unique")
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "sorted_by", expr.ExprIdent("sorted_by")
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "group_by", expr.ExprIdent("group_by")
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "fields", expr.ExprIdent("fields")
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "session", expr.ExprIdent("session")
-                        ),
-                    ],
+                        [
+                            expr.ExprIdent("query"),
+                            PredefinedFn.keyword_assignment(
+                                "limit", expr.ExprIdent("limit")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "offset", expr.ExprIdent("offset")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "unique", expr.ExprIdent("unique")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "sorted_by", expr.ExprIdent("sorted_by")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "group_by", expr.ExprIdent("group_by")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "fields", expr.ExprIdent("fields")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "session", expr.ExprIdent("session")
+                            ),
+                        ],
+                    )
                 ),
             ),
             lambda ast103: ast103.return_(
@@ -363,12 +365,14 @@ def make_python_get_by_id_api(
             ),
             lambda ast11: ast11.assign(
                 DeferredVar.simple("record"),
-                expr.ExprFuncCall(
-                    expr.ExprIdent("service.get_by_id"),
-                    [
-                        expr.ExprIdent("id"),
-                        expr.ExprIdent("session"),
-                    ],
+                expr.ExprAwait(
+                    expr.ExprFuncCall(
+                        expr.ExprIdent("service.get_by_id"),
+                        [
+                            expr.ExprIdent("id"),
+                            expr.ExprIdent("session"),
+                        ],
+                    )
                 ),
             ),
             lambda ast12: ast12.if_(PredefinedFn.is_null(expr.ExprIdent("record")))(
@@ -487,12 +491,14 @@ def make_python_has_api(
             ),
             lambda ast11: ast11.assign(
                 DeferredVar.simple("record_exist"),
-                expr.ExprFuncCall(
-                    expr.ExprIdent("service.has_id"),
-                    [
-                        expr.ExprIdent("id"),
-                        expr.ExprIdent("session"),
-                    ],
+                expr.ExprAwait(
+                    expr.ExprFuncCall(
+                        expr.ExprIdent("service.has_id"),
+                        [
+                            expr.ExprIdent("id"),
+                            expr.ExprIdent("session"),
+                        ],
+                    )
                 ),
             ),
             lambda ast12: ast12.if_(expr.ExprNegation(expr.ExprIdent("record_exist")))(
@@ -606,13 +612,17 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
             ),
             lambda ast13: ast13.return_(
                 PredefinedFn.attr_getter(
-                    expr.ExprMethodCall(
-                        expr.ExprIdent("service"),
-                        "create",
-                        [
-                            expr.ExprMethodCall(expr.ExprIdent("data"), "to_db", []),
-                            expr.ExprIdent("session"),
-                        ],
+                    expr.ExprAwait(
+                        expr.ExprMethodCall(
+                            expr.ExprIdent("service"),
+                            "create",
+                            [
+                                expr.ExprMethodCall(
+                                    expr.ExprIdent("data"), "to_db", []
+                                ),
+                                expr.ExprIdent("session"),
+                            ],
+                        )
                     ),
                     expr.ExprIdent(idprop.name),
                 )
@@ -722,13 +732,17 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
             ),
             lambda ast13: ast13.return_(
                 PredefinedFn.attr_getter(
-                    expr.ExprMethodCall(
-                        expr.ExprIdent("service"),
-                        "update",
-                        [
-                            expr.ExprMethodCall(expr.ExprIdent("data"), "to_db", []),
-                            expr.ExprIdent("session"),
-                        ],
+                    expr.ExprAwait(
+                        expr.ExprMethodCall(
+                            expr.ExprIdent("service"),
+                            "update",
+                            [
+                                expr.ExprMethodCall(
+                                    expr.ExprIdent("data"), "to_db", []
+                                ),
+                                expr.ExprIdent("session"),
+                            ],
+                        )
                     ),
                     expr.ExprIdent(id_prop.name),
                 )

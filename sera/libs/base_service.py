@@ -44,7 +44,7 @@ class QueryResult(NamedTuple, Generic[R]):
     total: int
 
 
-class BaseASyncService(Generic[ID, R]):
+class BaseAsyncService(Generic[ID, R]):
 
     instance = None
 

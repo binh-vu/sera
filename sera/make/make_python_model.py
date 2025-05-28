@@ -746,7 +746,7 @@ def make_python_relational_model(
         )
 
         program.root.linebreak()
-        program.root.func("async_get_session", [], is_async=True)(
+        program.root.func("get_async_session", [], is_async=True)(
             lambda ast: ast.python_stmt(
                 "async with AsyncSession(async_engine) as session:"
             )(
