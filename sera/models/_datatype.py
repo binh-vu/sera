@@ -164,6 +164,16 @@ predefined_datatypes = {
         tstype=TsTypeWithDep(type="number"),
         is_list=False,
     ),
+    "date": DataType(
+        pytype=PyTypeWithDep(type="date", deps=["datetime.date"]),
+        sqltype=SQLTypeWithDep(
+            type="Date",
+            mapped_pytype="date",
+            deps=["sqlalchemy.Date", "datetime.date"],
+        ),
+        tstype=TsTypeWithDep(type="string"),
+        is_list=False,
+    ),
     "datetime": DataType(
         pytype=PyTypeWithDep(type="datetime", deps=["datetime.datetime"]),
         sqltype=SQLTypeWithDep(
