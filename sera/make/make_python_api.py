@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from codegen.models import DeferredVar, PredefinedFn, Program, expr, stmt
+from codegen.models import DeferredVar, ImportHelper, PredefinedFn, Program, expr, stmt
 from loguru import logger
+
 from sera.misc import assert_not_null, to_snake_case
 from sera.models import App, DataCollection, Module, Package, SystemControlledMode
+
+GLOBAL_IDENTS = {"AsyncSession": "sqlalchemy.ext.asyncio.AsyncSession"}
 
 
 def make_python_api(app: App, collections: Sequence[DataCollection]):
@@ -111,12 +114,13 @@ def make_python_get_api(
     app = target_pkg.app
 
     program = Program()
+    import_helper = ImportHelper(program, GLOBAL_IDENTS)
+
     program.import_("__future__.annotations", True)
     program.import_("typing.Annotated", True)
     program.import_("litestar.get", True)
     program.import_("litestar.Request", True)
     program.import_("litestar.params.Parameter", True)
-    program.import_("sqlalchemy.orm.Session", True)
     program.import_(app.config.path + ".API_DEBUG", True)
     program.import_(
         app.services.path
@@ -190,7 +194,7 @@ def make_python_get_api(
                 ),
                 DeferredVar.simple(
                     "session",
-                    expr.ExprIdent("Session"),
+                    import_helper.use("AsyncSession"),
                 ),
             ],
             return_type=expr.ExprIdent(f"dict"),
@@ -299,14 +303,13 @@ def make_python_get_by_id_api(
     """Make an endpoint for querying resource by id"""
     app = target_pkg.app
 
-    ServiceNameDep = to_snake_case(f"{collection.name}ServiceDependency")
-
     program = Program()
+    import_helper = ImportHelper(program, GLOBAL_IDENTS)
+
     program.import_("__future__.annotations", True)
     program.import_("litestar.get", True)
     program.import_("litestar.status_codes", True)
     program.import_("litestar.exceptions.HTTPException", True)
-    program.import_("sqlalchemy.orm.Session", True)
     program.import_(
         app.services.path
         + f".{collection.get_pymodule_name()}.{collection.get_service_name()}",
@@ -341,7 +344,7 @@ def make_python_get_by_id_api(
                 ),
                 DeferredVar.simple(
                     "session",
-                    expr.ExprIdent("Session"),
+                    import_helper.use("AsyncSession"),
                 ),
             ],
             return_type=expr.ExprIdent("dict"),
@@ -422,14 +425,13 @@ def make_python_has_api(
     """Make an endpoint for querying resource by id"""
     app = target_pkg.app
 
-    ServiceNameDep = to_snake_case(f"{collection.name}ServiceDependency")
-
     program = Program()
+    import_helper = ImportHelper(program, GLOBAL_IDENTS)
+
     program.import_("__future__.annotations", True)
     program.import_("litestar.head", True)
     program.import_("litestar.status_codes", True)
     program.import_("litestar.exceptions.HTTPException", True)
-    program.import_("sqlalchemy.orm.Session", True)
     program.import_(
         app.services.path
         + f".{collection.get_pymodule_name()}.{collection.get_service_name()}",
@@ -464,7 +466,7 @@ def make_python_has_api(
                 ),
                 DeferredVar.simple(
                     "session",
-                    expr.ExprIdent("Session"),
+                    import_helper.use("AsyncSession"),
                 ),
             ],
             return_type=expr.ExprConstant(None),
@@ -525,9 +527,10 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
     app = target_pkg.app
 
     program = Program()
+    import_helper = ImportHelper(program, GLOBAL_IDENTS)
+
     program.import_("__future__.annotations", True)
     program.import_("litestar.post", True)
-    program.import_("sqlalchemy.orm.Session", True)
     program.import_(
         app.services.path
         + f".{collection.get_pymodule_name()}.{collection.get_service_name()}",
@@ -584,7 +587,7 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
                 ),
                 DeferredVar.simple(
                     "session",
-                    expr.ExprIdent("Session"),
+                    import_helper.use("AsyncSession"),
                 ),
             ],
             return_type=expr.ExprIdent(idprop.datatype.get_python_type().type),
@@ -628,9 +631,10 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
     app = target_pkg.app
 
     program = Program()
+    import_helper = ImportHelper(program, GLOBAL_IDENTS)
+
     program.import_("__future__.annotations", True)
     program.import_("litestar.put", True)
-    program.import_("sqlalchemy.orm.Session", True)
     program.import_(
         app.services.path
         + f".{collection.get_pymodule_name()}.{collection.get_service_name()}",
@@ -692,7 +696,7 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
                 ),
                 DeferredVar.simple(
                     "session",
-                    expr.ExprIdent("Session"),
+                    import_helper.use("AsyncSession"),
                 ),
             ],
             return_type=expr.ExprIdent(id_prop.datatype.get_python_type().type),

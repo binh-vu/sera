@@ -4,13 +4,14 @@ from enum import Enum
 from math import dist
 from typing import Annotated, Any, Generic, NamedTuple, Optional, Sequence, TypeVar
 
-from sqlalchemy import Result, Select, exists, func, select
-from sqlalchemy.orm import Session, load_only
-
+from litestar.exceptions import HTTPException
 from sera.libs.base_orm import BaseORM
 from sera.misc import assert_not_null
 from sera.models import Class
 from sera.typing import FieldName, T, doc
+from sqlalchemy import Result, Select, delete, exists, func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, load_only
 
 
 class QueryOp(str, Enum):
@@ -124,14 +125,16 @@ class BaseService(Generic[ID, R]):
         if self.is_id_auto_increment:
             setattr(record, self.id_prop.name, None)
 
-        session.add(record)
-        session.commit()
+        try:
+            session.add(record)
+            session.flush()
+        except IntegrityError:
+            raise HTTPException(detail="Invalid request", status_code=409)
         return record
 
     def update(self, record: R, session: Session) -> R:
         """Update an existing record."""
         session.execute(record.get_update_query())
-        session.commit()
         return record
 
     def _select(self) -> Select:
@@ -141,3 +144,7 @@ class BaseService(Generic[ID, R]):
     def _process_result(self, result: SqlResult) -> SqlResult:
         """Process the result of a query."""
         return result
+
+    def truncate(self, session: Session) -> None:
+        """Truncate the table."""
+        session.execute(delete(self.orm_cls))
