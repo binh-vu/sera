@@ -4,10 +4,12 @@ from typing import Optional
 
 import orjson
 from msgspec.json import decode, encode
-from sera.typing import UNSET
 from sqlalchemy import LargeBinary, TypeDecorator
 from sqlalchemy import create_engine as sqlalchemy_create_engine
 from sqlalchemy import update
+from sqlalchemy.ext.asyncio import create_async_engine as sqlalchemy_create_async_engine
+
+from sera.typing import UNSET
 
 
 class BaseORM:
@@ -104,11 +106,27 @@ class DictDataclassType(TypeDecorator):
 def create_engine(
     dbconn: str,
     connect_args: Optional[dict] = None,
-    debug: bool = False,
+    echo: bool = False,
 ):
     if dbconn.startswith("sqlite"):
         connect_args = {"check_same_thread": False}
     else:
         connect_args = {}
-    engine = sqlalchemy_create_engine(dbconn, connect_args=connect_args, echo=debug)
+    engine = sqlalchemy_create_engine(dbconn, connect_args=connect_args, echo=echo)
+    return engine
+
+
+def create_async_engine(
+    dbconn: str,
+    connect_args: Optional[dict] = None,
+    echo: bool = False,
+):
+    if dbconn.startswith("sqlite"):
+        connect_args = {"check_same_thread": False}
+    else:
+        connect_args = {}
+
+    engine = sqlalchemy_create_async_engine(
+        dbconn, connect_args=connect_args, echo=echo
+    )
     return engine

@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from codegen.models import DeferredVar, PredefinedFn, Program, expr, stmt
+from codegen.models import DeferredVar, ImportHelper, PredefinedFn, Program, expr, stmt
 from loguru import logger
+
 from sera.misc import assert_not_null, to_snake_case
 from sera.models import App, DataCollection, Module, Package, SystemControlledMode
+
+GLOBAL_IDENTS = {"AsyncSession": "sqlalchemy.ext.asyncio.AsyncSession"}
 
 
 def make_python_api(app: App, collections: Sequence[DataCollection]):
@@ -111,12 +114,13 @@ def make_python_get_api(
     app = target_pkg.app
 
     program = Program()
+    import_helper = ImportHelper(program, GLOBAL_IDENTS)
+
     program.import_("__future__.annotations", True)
     program.import_("typing.Annotated", True)
     program.import_("litestar.get", True)
     program.import_("litestar.Request", True)
     program.import_("litestar.params.Parameter", True)
-    program.import_("sqlalchemy.orm.Session", True)
     program.import_(app.config.path + ".API_DEBUG", True)
     program.import_(
         app.services.path
@@ -190,7 +194,7 @@ def make_python_get_api(
                 ),
                 DeferredVar.simple(
                     "session",
-                    expr.ExprIdent("Session"),
+                    import_helper.use("AsyncSession"),
                 ),
             ],
             return_type=expr.ExprIdent(f"dict"),
@@ -225,35 +229,37 @@ def make_python_get_api(
             ),
             lambda ast102: ast102.assign(
                 DeferredVar.simple("result"),
-                expr.ExprFuncCall(
-                    PredefinedFn.attr_getter(
-                        expr.ExprIdent("service"),
-                        expr.ExprIdent("get"),
-                    ),
-                    [
-                        expr.ExprIdent("query"),
-                        PredefinedFn.keyword_assignment(
-                            "limit", expr.ExprIdent("limit")
+                expr.ExprAwait(
+                    expr.ExprFuncCall(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("service"),
+                            expr.ExprIdent("get"),
                         ),
-                        PredefinedFn.keyword_assignment(
-                            "offset", expr.ExprIdent("offset")
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "unique", expr.ExprIdent("unique")
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "sorted_by", expr.ExprIdent("sorted_by")
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "group_by", expr.ExprIdent("group_by")
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "fields", expr.ExprIdent("fields")
-                        ),
-                        PredefinedFn.keyword_assignment(
-                            "session", expr.ExprIdent("session")
-                        ),
-                    ],
+                        [
+                            expr.ExprIdent("query"),
+                            PredefinedFn.keyword_assignment(
+                                "limit", expr.ExprIdent("limit")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "offset", expr.ExprIdent("offset")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "unique", expr.ExprIdent("unique")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "sorted_by", expr.ExprIdent("sorted_by")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "group_by", expr.ExprIdent("group_by")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "fields", expr.ExprIdent("fields")
+                            ),
+                            PredefinedFn.keyword_assignment(
+                                "session", expr.ExprIdent("session")
+                            ),
+                        ],
+                    )
                 ),
             ),
             lambda ast103: ast103.return_(
@@ -299,14 +305,13 @@ def make_python_get_by_id_api(
     """Make an endpoint for querying resource by id"""
     app = target_pkg.app
 
-    ServiceNameDep = to_snake_case(f"{collection.name}ServiceDependency")
-
     program = Program()
+    import_helper = ImportHelper(program, GLOBAL_IDENTS)
+
     program.import_("__future__.annotations", True)
     program.import_("litestar.get", True)
     program.import_("litestar.status_codes", True)
     program.import_("litestar.exceptions.HTTPException", True)
-    program.import_("sqlalchemy.orm.Session", True)
     program.import_(
         app.services.path
         + f".{collection.get_pymodule_name()}.{collection.get_service_name()}",
@@ -341,7 +346,7 @@ def make_python_get_by_id_api(
                 ),
                 DeferredVar.simple(
                     "session",
-                    expr.ExprIdent("Session"),
+                    import_helper.use("AsyncSession"),
                 ),
             ],
             return_type=expr.ExprIdent("dict"),
@@ -360,12 +365,14 @@ def make_python_get_by_id_api(
             ),
             lambda ast11: ast11.assign(
                 DeferredVar.simple("record"),
-                expr.ExprFuncCall(
-                    expr.ExprIdent("service.get_by_id"),
-                    [
-                        expr.ExprIdent("id"),
-                        expr.ExprIdent("session"),
-                    ],
+                expr.ExprAwait(
+                    expr.ExprFuncCall(
+                        expr.ExprIdent("service.get_by_id"),
+                        [
+                            expr.ExprIdent("id"),
+                            expr.ExprIdent("session"),
+                        ],
+                    )
                 ),
             ),
             lambda ast12: ast12.if_(PredefinedFn.is_null(expr.ExprIdent("record")))(
@@ -422,14 +429,13 @@ def make_python_has_api(
     """Make an endpoint for querying resource by id"""
     app = target_pkg.app
 
-    ServiceNameDep = to_snake_case(f"{collection.name}ServiceDependency")
-
     program = Program()
+    import_helper = ImportHelper(program, GLOBAL_IDENTS)
+
     program.import_("__future__.annotations", True)
     program.import_("litestar.head", True)
     program.import_("litestar.status_codes", True)
     program.import_("litestar.exceptions.HTTPException", True)
-    program.import_("sqlalchemy.orm.Session", True)
     program.import_(
         app.services.path
         + f".{collection.get_pymodule_name()}.{collection.get_service_name()}",
@@ -464,7 +470,7 @@ def make_python_has_api(
                 ),
                 DeferredVar.simple(
                     "session",
-                    expr.ExprIdent("Session"),
+                    import_helper.use("AsyncSession"),
                 ),
             ],
             return_type=expr.ExprConstant(None),
@@ -485,12 +491,14 @@ def make_python_has_api(
             ),
             lambda ast11: ast11.assign(
                 DeferredVar.simple("record_exist"),
-                expr.ExprFuncCall(
-                    expr.ExprIdent("service.has_id"),
-                    [
-                        expr.ExprIdent("id"),
-                        expr.ExprIdent("session"),
-                    ],
+                expr.ExprAwait(
+                    expr.ExprFuncCall(
+                        expr.ExprIdent("service.has_id"),
+                        [
+                            expr.ExprIdent("id"),
+                            expr.ExprIdent("session"),
+                        ],
+                    )
                 ),
             ),
             lambda ast12: ast12.if_(expr.ExprNegation(expr.ExprIdent("record_exist")))(
@@ -525,9 +533,10 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
     app = target_pkg.app
 
     program = Program()
+    import_helper = ImportHelper(program, GLOBAL_IDENTS)
+
     program.import_("__future__.annotations", True)
     program.import_("litestar.post", True)
-    program.import_("sqlalchemy.orm.Session", True)
     program.import_(
         app.services.path
         + f".{collection.get_pymodule_name()}.{collection.get_service_name()}",
@@ -584,7 +593,7 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
                 ),
                 DeferredVar.simple(
                     "session",
-                    expr.ExprIdent("Session"),
+                    import_helper.use("AsyncSession"),
                 ),
             ],
             return_type=expr.ExprIdent(idprop.datatype.get_python_type().type),
@@ -603,13 +612,17 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
             ),
             lambda ast13: ast13.return_(
                 PredefinedFn.attr_getter(
-                    expr.ExprMethodCall(
-                        expr.ExprIdent("service"),
-                        "create",
-                        [
-                            expr.ExprMethodCall(expr.ExprIdent("data"), "to_db", []),
-                            expr.ExprIdent("session"),
-                        ],
+                    expr.ExprAwait(
+                        expr.ExprMethodCall(
+                            expr.ExprIdent("service"),
+                            "create",
+                            [
+                                expr.ExprMethodCall(
+                                    expr.ExprIdent("data"), "to_db", []
+                                ),
+                                expr.ExprIdent("session"),
+                            ],
+                        )
                     ),
                     expr.ExprIdent(idprop.name),
                 )
@@ -628,9 +641,10 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
     app = target_pkg.app
 
     program = Program()
+    import_helper = ImportHelper(program, GLOBAL_IDENTS)
+
     program.import_("__future__.annotations", True)
     program.import_("litestar.put", True)
-    program.import_("sqlalchemy.orm.Session", True)
     program.import_(
         app.services.path
         + f".{collection.get_pymodule_name()}.{collection.get_service_name()}",
@@ -692,7 +706,7 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
                 ),
                 DeferredVar.simple(
                     "session",
-                    expr.ExprIdent("Session"),
+                    import_helper.use("AsyncSession"),
                 ),
             ],
             return_type=expr.ExprIdent(id_prop.datatype.get_python_type().type),
@@ -718,13 +732,17 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
             ),
             lambda ast13: ast13.return_(
                 PredefinedFn.attr_getter(
-                    expr.ExprMethodCall(
-                        expr.ExprIdent("service"),
-                        "update",
-                        [
-                            expr.ExprMethodCall(expr.ExprIdent("data"), "to_db", []),
-                            expr.ExprIdent("session"),
-                        ],
+                    expr.ExprAwait(
+                        expr.ExprMethodCall(
+                            expr.ExprIdent("service"),
+                            "update",
+                            [
+                                expr.ExprMethodCall(
+                                    expr.ExprIdent("data"), "to_db", []
+                                ),
+                                expr.ExprIdent("session"),
+                            ],
+                        )
                     ),
                     expr.ExprIdent(id_prop.name),
                 )

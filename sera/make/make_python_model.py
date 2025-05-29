@@ -11,6 +11,7 @@ from codegen.models import (
     expr,
     stmt,
 )
+
 from sera.misc import (
     assert_isinstance,
     assert_not_null,
@@ -666,8 +667,11 @@ def make_python_relational_model(
         program.import_("__future__.annotations", True)
         program.import_("sera.libs.base_orm.BaseORM", True)
         program.import_("sera.libs.base_orm.create_engine", True)
+        program.import_("sera.libs.base_orm.create_async_engine", True)
         program.import_("sqlalchemy.orm.DeclarativeBase", True)
         program.import_("sqlalchemy.orm.Session", True)
+        program.import_("sqlalchemy.ext.asyncio.AsyncSession", True)
+        program.import_("sqlalchemy.text", True)
 
         # assume configuration for the app at the top level
         program.import_(f"{app.config.path}.DB_CONNECTION", True)
@@ -716,14 +720,22 @@ def make_python_relational_model(
 
         program.root.linebreak()
         program.root.assign(
-            DeferredVar("engine", force_name="engine"),
+            DeferredVar.simple("engine"),
             expr.ExprFuncCall(
                 expr.ExprIdent("create_engine"),
                 [
                     expr.ExprIdent("DB_CONNECTION"),
-                    PredefinedFn.keyword_assignment(
-                        "debug", expr.ExprIdent("DB_DEBUG")
-                    ),
+                    PredefinedFn.keyword_assignment("echo", expr.ExprIdent("DB_DEBUG")),
+                ],
+            ),
+        )
+        program.root.assign(
+            DeferredVar.simple("async_engine"),
+            expr.ExprFuncCall(
+                expr.ExprIdent("create_async_engine"),
+                [
+                    expr.ExprIdent("DB_CONNECTION"),
+                    PredefinedFn.keyword_assignment("echo", expr.ExprIdent("DB_DEBUG")),
                 ],
             ),
         )
@@ -734,17 +746,96 @@ def make_python_relational_model(
         )
 
         program.root.linebreak()
-        program.root.func("async_get_session", [], is_async=True)(
-            lambda ast00: ast00.python_stmt("with Session(engine) as session:")(
-                lambda ast01: ast01.python_stmt("yield session")
+        program.root.func("get_async_session", [], is_async=True)(
+            lambda ast: ast.python_stmt(
+                "async with AsyncSession(async_engine, expire_on_commit=False) as session:"
+            )(
+                lambda ast_l1: ast_l1.try_()(stmt.PythonStatement("yield session")),
+                lambda ast_l1: ast_l1.catch()(
+                    stmt.SingleExprStatement(
+                        expr.ExprAwait(
+                            expr.ExprFuncCall(
+                                PredefinedFn.attr_getter(
+                                    expr.ExprIdent("session"),
+                                    expr.ExprIdent("rollback"),
+                                ),
+                                [],
+                            )
+                        )
+                    ),
+                    stmt.PythonStatement("raise"),
+                ),
+                lambda ast_l1: ast_l1.else_()(
+                    stmt.SingleExprStatement(
+                        expr.ExprAwait(
+                            expr.ExprFuncCall(
+                                PredefinedFn.attr_getter(
+                                    expr.ExprIdent("session"), expr.ExprIdent("execute")
+                                ),
+                                [
+                                    expr.ExprFuncCall(
+                                        expr.ExprIdent("text"),
+                                        [expr.ExprConstant("RESET ROLE;")],
+                                    )
+                                ],
+                            )
+                        )
+                    ),
+                    stmt.SingleExprStatement(
+                        expr.ExprAwait(
+                            expr.ExprFuncCall(
+                                PredefinedFn.attr_getter(
+                                    expr.ExprIdent("session"), expr.ExprIdent("commit")
+                                ),
+                                [],
+                            )
+                        )
+                    ),
+                ),
             )
         )
 
         program.root.linebreak()
         program.root.python_stmt("@contextmanager")
         program.root.func("get_session", [])(
-            lambda ast00: ast00.python_stmt("with Session(engine) as session:")(
-                lambda ast01: ast01.python_stmt("yield session")
+            lambda ast: ast.python_stmt(
+                "with Session(engine, expire_on_commit=False) as session:"
+            )(
+                lambda ast_l1: ast_l1.try_()(stmt.PythonStatement("yield session")),
+                lambda ast_l1: ast_l1.catch()(
+                    stmt.SingleExprStatement(
+                        expr.ExprFuncCall(
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("session"), expr.ExprIdent("rollback")
+                            ),
+                            [],
+                        )
+                    ),
+                    stmt.PythonStatement("raise"),
+                ),
+                lambda ast_l1: ast_l1.else_()(
+                    stmt.SingleExprStatement(
+                        expr.ExprFuncCall(
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("session"), expr.ExprIdent("execute")
+                            ),
+                            [
+                                expr.ExprFuncCall(
+                                    expr.ExprIdent("text"),
+                                    [expr.ExprConstant("RESET ROLE;")],
+                                )
+                            ],
+                        )
+                    ),
+                    stmt.SingleExprStatement(
+                        expr.ExprFuncCall(
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("session"), expr.ExprIdent("commit")
+                            ),
+                            [],
+                        )
+                    ),
+                ),
             )
         )
 

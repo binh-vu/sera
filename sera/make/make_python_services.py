@@ -4,6 +4,7 @@ from typing import Sequence
 
 from codegen.models import DeferredVar, Program, expr, stmt
 from loguru import logger
+
 from sera.misc import assert_not_null
 from sera.models import App, DataCollection, Package
 
@@ -35,13 +36,13 @@ def make_python_service(collection: DataCollection, target_pkg: Package):
         True,
     )
     program.import_(app.config.path + f".schema", True)
-    program.import_("sera.libs.base_service.BaseService", True)
+    program.import_("sera.libs.base_service.BaseAsyncService", True)
 
     program.root(
         stmt.LineBreak(),
         lambda ast00: ast00.class_(
             collection.get_service_name(),
-            [expr.ExprIdent(f"BaseService[{id_type}, {cls.name}]")],
+            [expr.ExprIdent(f"BaseAsyncService[{id_type}, {cls.name}]")],
         )(
             lambda ast01: ast01.func(
                 "__init__",

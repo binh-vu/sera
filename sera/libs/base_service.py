@@ -4,8 +4,11 @@ from enum import Enum
 from math import dist
 from typing import Annotated, Any, Generic, NamedTuple, Optional, Sequence, TypeVar
 
-from sqlalchemy import Result, Select, exists, func, select
-from sqlalchemy.orm import Session, load_only
+from litestar.exceptions import HTTPException
+from sqlalchemy import Result, Select, delete, exists, func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from sera.libs.base_orm import BaseORM
 from sera.misc import assert_not_null
@@ -41,7 +44,7 @@ class QueryResult(NamedTuple, Generic[R]):
     total: int
 
 
-class BaseService(Generic[ID, R]):
+class BaseAsyncService(Generic[ID, R]):
 
     instance = None
 
@@ -51,7 +54,7 @@ class BaseService(Generic[ID, R]):
         self.id_prop = assert_not_null(cls.get_id_property())
 
         self._cls_id_prop = getattr(self.orm_cls, self.id_prop.name)
-        self.is_id_auto_increment = self.id_prop.db.is_auto_increment
+        self.is_id_auto_increment = assert_not_null(self.id_prop.db).is_auto_increment
 
     @classmethod
     def get_instance(cls):
@@ -59,10 +62,10 @@ class BaseService(Generic[ID, R]):
         if cls.instance is None:
             # assume that the subclass overrides the __init__ method
             # so that we don't need to pass the class and orm_cls
-            cls.instance = cls()
+            cls.instance = cls()  # type: ignore[call-arg]
         return cls.instance
 
-    def get(
+    async def get(
         self,
         query: Query,
         limit: int,
@@ -71,7 +74,7 @@ class BaseService(Generic[ID, R]):
         sorted_by: list[str],
         group_by: list[str],
         fields: list[str],
-        session: Session,
+        session: AsyncSession,
     ) -> QueryResult[R]:
         """Retrieving records matched a query.
 
@@ -103,35 +106,37 @@ class BaseService(Generic[ID, R]):
 
         cq = select(func.count()).select_from(q.subquery())
         rq = q.limit(limit).offset(offset)
-        records = self._process_result(session.execute(rq)).scalars().all()
-        total = session.execute(cq).scalar_one()
+        records = self._process_result(await session.execute(rq)).scalars().all()
+        total = (await session.execute(cq)).scalar_one()
         return QueryResult(records, total)
 
-    def get_by_id(self, id: ID, session: Session) -> Optional[R]:
+    async def get_by_id(self, id: ID, session: AsyncSession) -> Optional[R]:
         """Retrieving a record by ID."""
         q = self._select().where(self._cls_id_prop == id)
-        result = self._process_result(session.execute(q)).scalar_one_or_none()
+        result = self._process_result(await session.execute(q)).scalar_one_or_none()
         return result
 
-    def has_id(self, id: ID, session: Session) -> bool:
+    async def has_id(self, id: ID, session: AsyncSession) -> bool:
         """Check whether we have a record with the given ID."""
-        q = exists().where(self._cls_id_prop == id)
-        result = session.query(q).scalar()
+        q = exists().where(self._cls_id_prop == id).select()
+        result = (await session.execute(q)).scalar()
         return bool(result)
 
-    def create(self, record: R, session: Session) -> R:
+    async def create(self, record: R, session: AsyncSession) -> R:
         """Create a new record."""
         if self.is_id_auto_increment:
             setattr(record, self.id_prop.name, None)
 
-        session.add(record)
-        session.commit()
+        try:
+            session.add(record)
+            await session.flush()
+        except IntegrityError:
+            raise HTTPException(detail="Invalid request", status_code=409)
         return record
 
-    def update(self, record: R, session: Session) -> R:
+    async def update(self, record: R, session: AsyncSession) -> R:
         """Update an existing record."""
-        session.execute(record.get_update_query())
-        session.commit()
+        await session.execute(record.get_update_query())
         return record
 
     def _select(self) -> Select:
@@ -141,3 +146,7 @@ class BaseService(Generic[ID, R]):
     def _process_result(self, result: SqlResult) -> SqlResult:
         """Process the result of a query."""
         return result
+
+    async def truncate(self, session: AsyncSession) -> None:
+        """Truncate the table."""
+        await session.execute(delete(self.orm_cls))
