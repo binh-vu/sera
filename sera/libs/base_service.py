@@ -8,7 +8,7 @@ from litestar.exceptions import HTTPException
 from sqlalchemy import Result, Select, delete, exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session, load_only
+from sqlalchemy.orm import load_only
 
 from sera.libs.base_orm import BaseORM
 from sera.misc import assert_not_null
@@ -54,7 +54,7 @@ class BaseAsyncService(Generic[ID, R]):
         self.id_prop = assert_not_null(cls.get_id_property())
 
         self._cls_id_prop = getattr(self.orm_cls, self.id_prop.name)
-        self.is_id_auto_increment = self.id_prop.db.is_auto_increment
+        self.is_id_auto_increment = assert_not_null(self.id_prop.db).is_auto_increment
 
     @classmethod
     def get_instance(cls):
@@ -62,7 +62,7 @@ class BaseAsyncService(Generic[ID, R]):
         if cls.instance is None:
             # assume that the subclass overrides the __init__ method
             # so that we don't need to pass the class and orm_cls
-            cls.instance = cls()
+            cls.instance = cls()  # type: ignore[call-arg]
         return cls.instance
 
     async def get(
@@ -107,7 +107,7 @@ class BaseAsyncService(Generic[ID, R]):
         cq = select(func.count()).select_from(q.subquery())
         rq = q.limit(limit).offset(offset)
         records = self._process_result(await session.execute(rq)).scalars().all()
-        total = await session.execute(cq).scalar_one()
+        total = (await session.execute(cq)).scalar_one()
         return QueryResult(records, total)
 
     async def get_by_id(self, id: ID, session: AsyncSession) -> Optional[R]:
@@ -118,8 +118,8 @@ class BaseAsyncService(Generic[ID, R]):
 
     async def has_id(self, id: ID, session: AsyncSession) -> bool:
         """Check whether we have a record with the given ID."""
-        q = exists().where(self._cls_id_prop == id)
-        result = await session.query(q).scalar()
+        q = exists().where(self._cls_id_prop == id).select()
+        result = (await session.execute(q)).scalar()
         return bool(result)
 
     async def create(self, record: R, session: AsyncSession) -> R:
@@ -128,7 +128,7 @@ class BaseAsyncService(Generic[ID, R]):
             setattr(record, self.id_prop.name, None)
 
         try:
-            await session.add(record)
+            session.add(record)
             await session.flush()
         except IntegrityError:
             raise HTTPException(detail="Invalid request", status_code=409)
@@ -139,11 +139,11 @@ class BaseAsyncService(Generic[ID, R]):
         await session.execute(record.get_update_query())
         return record
 
-    async def _select(self) -> Select:
+    def _select(self) -> Select:
         """Get the select statement for the class."""
         return select(self.orm_cls)
 
-    async def _process_result(self, result: SqlResult) -> SqlResult:
+    def _process_result(self, result: SqlResult) -> SqlResult:
         """Process the result of a query."""
         return result
 

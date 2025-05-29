@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Awaitable, Callable, Generator, Generic, Optional, Sequence, Type
+from typing import Awaitable, Callable, Generic, Sequence
 
 from litestar import Request
 from litestar.connection import ASGIConnection
 from litestar.exceptions import NotAuthorizedException
 from litestar.middleware import AbstractAuthenticationMiddleware, AuthenticationResult
 from litestar.types import ASGIApp, Method, Scopes
-from litestar.types.composite_types import Dependencies
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from sera.typing import T
 
