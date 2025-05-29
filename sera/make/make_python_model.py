@@ -748,7 +748,7 @@ def make_python_relational_model(
         program.root.linebreak()
         program.root.func("get_async_session", [], is_async=True)(
             lambda ast: ast.python_stmt(
-                "async with AsyncSession(async_engine) as session:"
+                "async with AsyncSession(async_engine, expire_on_commit=False) as session:"
             )(
                 lambda ast_l1: ast_l1.try_()(stmt.PythonStatement("yield session")),
                 lambda ast_l1: ast_l1.catch()(
@@ -798,7 +798,9 @@ def make_python_relational_model(
         program.root.linebreak()
         program.root.python_stmt("@contextmanager")
         program.root.func("get_session", [])(
-            lambda ast: ast.python_stmt("with Session(engine) as session:")(
+            lambda ast: ast.python_stmt(
+                "with Session(engine, expire_on_commit=False) as session:"
+            )(
                 lambda ast_l1: ast_l1.try_()(stmt.PythonStatement("yield session")),
                 lambda ast_l1: ast_l1.catch()(
                     stmt.SingleExprStatement(
