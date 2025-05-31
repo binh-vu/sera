@@ -1,59 +1,148 @@
-from typing import Optional
+from pathlib import Path
+from typing import Dict, List, Optional
 
-from sqlalchemy import MetaData, create_engine
-from sqlalchemy.schema import CreateTable
-from supplier.models.db.supplier import Supplier
-from user.models.db.base import Base, engine, get_session
-from user.models.db.group import Group
-from user.models.db.tenant import Tenant
-from user.models.db.user import User
+from sera.models import Cardinality, Class, DataProperty
+from sera.models import (
+    Enum as SeraModelsEnum,  # Alias to avoid conflict with Python's Enum if needed elsewhere
+)
+from sera.models import ObjectProperty, Schema, parse_schema
 
-"""
-Generate SQL schema from SQLAlchemy models.
-"""
+# Direct imports for specific model components
+from sera.models._datatype import DataType
+from sera.models._default import DefaultFactory
+from sera.models._property import (  # ObjectPropDBInfo, # Not directly used in this function's logic beyond prop.db; DataPropDBInfo,   # Not directly used in this function's logic beyond prop.db; SystemControlledMode, # Not used; PropDataAttrs, # Not used
+    ForeignKeyOnDelete,
+    ForeignKeyOnUpdate,
+)
+
+# from sera.models._class import ClassDBMapInfo, Index # Not directly used beyond cls.db
+# from sera.models._enum import EnumValue # Assuming values are strings based on error
+
+# PRISMA_SCALAR_MAP = {
+#     DataType.STRING: "String",
+#     DataType.TEXT: "String",
+#     DataType.INTEGER: "Int",
+#     DataType.BIG_INTEGER: "BigInt",
+#     DataType.FLOAT: "Float",
+#     DataType.BOOLEAN: "Boolean",
+#     DataType.DATETIME: "DateTime",
+#     DataType.DATE: "DateTime",  # Prisma uses DateTime for Date as well
+#     DataType.TIME: "DateTime",  # Prisma uses DateTime for Time
+#     DataType.UUID: "String",  # Prisma typically maps UUID to String with @db.Uuid or relies on db default
+#     DataType.JSON: "Json",
+#     DataType.DECIMAL: "Decimal",
+#     DataType.BYTES: "Bytes",
+# }
 
 
-def export_prisma_schema() -> str:
-    pass
+def get_prisma_field_type(datatype: DataType) -> str:
+    pytype = datatype.get_python_type().type
+    if pytype == "str":
+        return "String"
+    if pytype == "int":
+        return "Int"
+    if pytype == "float":
+        return "Float"
+    if pytype == "bool":
+        return "Boolean"
+    if pytype == "bytes":
+        return "Bytes"
+    if pytype == "dict":
+        return "Json"
+    if pytype == "datetime":
+        return "DateTime"
+    if pytype == "list[str]":
+        return "String[]"
+    if pytype == "list[int]":
+        return "Int[]"
+    if pytype == "list[float]":
+        return "Float[]"
+    if pytype == "list[bool]":
+        return "Boolean[]"
+    if pytype == "list[bytes]":
+        return "Bytes[]"
+    if pytype == "list[dict]":
+        return "Json[]"
+    if pytype == "list[datetime]":
+        return "DateTime[]"
+
+    raise ValueError(f"Unsupported data type for Prisma: {pytype}")
 
 
-def generate_schema_sql(
-    metadata: MetaData, dialect_name: str = "postgresql", echo: bool = False
-) -> None:
-    """
-    Generates and prints the SQL DDL for all tables in the given metadata.
+def to_prisma_model(schema: Schema, cls: Class, lines: list[str]):
+    """Convert a Sera Class to a Prisma model string representation."""
+    lines.append(f"model {cls.name} {{")
 
-    :param metadata: The SQLAlchemy MetaData object containing table definitions.
-    :param dialect_name: The name of the SQL dialect (e.g., 'postgresql', 'mysql', 'sqlite').
-    :param echo: If True, the generated SQL will be printed to stdout.
-                 This is useful for debugging or capturing the output.
-    """
-    engine = create_engine(f"{dialect_name}://", echo=echo)
-    with engine.connect() as connection:
-        for table in metadata.sorted_tables:
-            print(CreateTable(table).compile(connection.engine))
+    if cls.db is None:
+        # This class has no database mapping, we must generate a default key for it
+        lines.append("  _noid Int @id @default(autoincrement())")
+    #     lines.append(f"  @@unique([%s])" % ", ".join(cls.properties.keys()))
+
+    for prop in cls.properties.values():
+        propattrs = ""
+        if isinstance(prop, DataProperty):
+            proptype = get_prisma_field_type(prop.datatype)
+            if prop.is_optional:
+                proptype = f"{proptype}?"
+            if prop.db is not None and prop.db.is_primary_key:
+                propattrs += "@id "
+        else:
+            proptype = "Int"
+
+        lines.append(f"  {prop.name.ljust(30)} {proptype.ljust(10)} {propattrs}")
+
+    lines.append("}\n")
 
 
-def generate_schema_string(metadata: MetaData, dialect_name: str = "postgresql") -> str:
-    """
-    Generates the SQL DDL for all tables in the given metadata and returns it as a string.
+def export_prisma_schema(schema: Schema, outfile: Path):
+    """Export Prisma schema file"""
+    lines = []
 
-    :param metadata: The SQLAlchemy MetaData object containing table definitions.
-    :param dialect_name: The name of the SQL dialect (e.g., 'postgresql', 'mysql', 'sqlite').
-    :return: A string containing the SQL DDL.
-    """
-    engine = create_engine(f"{dialect_name}://")
-    sql_statements = []
-    # The connection is not strictly necessary for DDL generation for some dialects,
-    # but CreateTable().compile() can accept an engine or connection.
-    # Using a dummy engine is sufficient here as we only need dialect-specific compilation.
-    for table in metadata.sorted_tables:
-        sql_statements.append(str(CreateTable(table).compile(engine)).strip() + ";")
-    return "\n\n".join(sql_statements)
+    # Datasource
+    lines.append("datasource db {")
+    lines.append(
+        '  provider = "postgresql"'
+    )  # Defaulting to postgresql as per user context
+    lines.append('  url      = env("DATABASE_URL")')
+    lines.append("}\n")
+
+    # Generator
+    lines.append("generator client {")
+    lines.append('  provider = "prisma-client-py"')
+    lines.append("  recursive_type_depth = 5")
+    lines.append("}\n")
+
+    # Enums
+    if schema.enums:
+        for enum_name, enum_def in schema.enums.items():
+            lines.append(f"enum {enum_name} {{")
+            # Assuming enum_def.values is a list of strings based on previous errors
+            for val_str in enum_def.values:
+                lines.append(f"  {val_str}")
+            lines.append("}\\n")
+
+    # Models
+    for cls in schema.topological_sort():
+        to_prisma_model(schema, cls, lines)
+
+    with outfile.open("w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
 
 
 if __name__ == "__main__":
-    with get_session() as session:
-        for table in [User, Group, Tenant, Supplier]:
-            # for table in Base.metadata.sorted_tables:
-            print(CreateTable(table).compile(session.bind), ";")
+    PROJECT_DIR = Path("/Users/binhvu/workspace/workspace/projects/ridge")
+
+    schema = parse_schema(
+        "ridge",
+        [
+            PROJECT_DIR / "user/schema/user.yml",
+            PROJECT_DIR / "user/schema/tenant.yml",
+            PROJECT_DIR / "kbase/schema/address.yml",
+            PROJECT_DIR / "ftrip/supplier/schema/supplier.yml",
+        ],
+    )
+    # Example usage
+    export_prisma_schema(
+        schema,
+        PROJECT_DIR / "tmp/ridge.prisma",
+    )
