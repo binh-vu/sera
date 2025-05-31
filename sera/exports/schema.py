@@ -1,38 +1,10 @@
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Annotated
 
-from sera.models import Cardinality, Class, DataProperty
-from sera.models import (
-    Enum as SeraModelsEnum,  # Alias to avoid conflict with Python's Enum if needed elsewhere
-)
-from sera.models import ObjectProperty, Schema, parse_schema
+import typer
 
-# Direct imports for specific model components
+from sera.models import Cardinality, Class, DataProperty, Schema, parse_schema
 from sera.models._datatype import DataType
-from sera.models._default import DefaultFactory
-from sera.models._property import (  # ObjectPropDBInfo, # Not directly used in this function's logic beyond prop.db; DataPropDBInfo,   # Not directly used in this function's logic beyond prop.db; SystemControlledMode, # Not used; PropDataAttrs, # Not used
-    ForeignKeyOnDelete,
-    ForeignKeyOnUpdate,
-)
-
-# from sera.models._class import ClassDBMapInfo, Index # Not directly used beyond cls.db
-# from sera.models._enum import EnumValue # Assuming values are strings based on error
-
-# PRISMA_SCALAR_MAP = {
-#     DataType.STRING: "String",
-#     DataType.TEXT: "String",
-#     DataType.INTEGER: "Int",
-#     DataType.BIG_INTEGER: "BigInt",
-#     DataType.FLOAT: "Float",
-#     DataType.BOOLEAN: "Boolean",
-#     DataType.DATETIME: "DateTime",
-#     DataType.DATE: "DateTime",  # Prisma uses DateTime for Date as well
-#     DataType.TIME: "DateTime",  # Prisma uses DateTime for Time
-#     DataType.UUID: "String",  # Prisma typically maps UUID to String with @db.Uuid or relies on db default
-#     DataType.JSON: "Json",
-#     DataType.DECIMAL: "Decimal",
-#     DataType.BYTES: "Bytes",
-# }
 
 
 def get_prisma_field_type(datatype: DataType) -> str:
@@ -75,7 +47,9 @@ def to_prisma_model(schema: Schema, cls: Class, lines: list[str]):
 
     if cls.db is None:
         # This class has no database mapping, we must generate a default key for it
-        lines.append("  _noid Int @id @default(autoincrement())")
+        lines.append(
+            f"  {'id'.ljust(30)} {'Int'.ljust(10)} @id @default(autoincrement())"
+        )
     #     lines.append(f"  @@unique([%s])" % ", ".join(cls.properties.keys()))
 
     for prop in cls.properties.values():
@@ -86,10 +60,32 @@ def to_prisma_model(schema: Schema, cls: Class, lines: list[str]):
                 proptype = f"{proptype}?"
             if prop.db is not None and prop.db.is_primary_key:
                 propattrs += "@id "
-        else:
-            proptype = "Int"
 
-        lines.append(f"  {prop.name.ljust(30)} {proptype.ljust(10)} {propattrs}")
+            lines.append(f"  {prop.name.ljust(30)} {proptype.ljust(10)} {propattrs}")
+            continue
+
+        if prop.cardinality == Cardinality.MANY_TO_MANY:
+            # For many-to-many relationships, we need to handle the join table
+            lines.append(
+                f"  {prop.name.ljust(30)} {(prop.target.name + '[]').ljust(10)}"
+            )
+        else:
+            lines.append(
+                f"  {(prop.name + '_').ljust(30)} {prop.target.name.ljust(10)} @relation(fields: [{prop.name}], references: [id])"
+            )
+            lines.append(f"  {prop.name.ljust(30)} {'Int'.ljust(10)} @unique")
+
+    lines.append("")
+    for upstream_cls, reverse_upstream_prop in schema.get_upstream_classes(cls):
+        if (
+            reverse_upstream_prop.cardinality == Cardinality.MANY_TO_ONE
+            or reverse_upstream_prop.cardinality == Cardinality.MANY_TO_MANY
+        ):
+
+            proptype = f"{upstream_cls.name}[]"
+        else:
+            proptype = upstream_cls.name + "?"
+        lines.append(f"  {upstream_cls.name.lower().ljust(30)} {proptype.ljust(10)}")
 
     lines.append("}\n")
 
@@ -129,20 +125,33 @@ def export_prisma_schema(schema: Schema, outfile: Path):
         f.write("\n".join(lines))
 
 
-if __name__ == "__main__":
-    PROJECT_DIR = Path("/Users/binhvu/workspace/workspace/projects/ridge")
+app = typer.Typer(pretty_exceptions_short=True, pretty_exceptions_enable=False)
 
+
+@app.command()
+def cli(
+    schema_files: Annotated[
+        list[Path],
+        typer.Option(
+            "-s", help="YAML schema files. Multiple files are merged automatically"
+        ),
+    ],
+    outfile: Annotated[
+        Path,
+        typer.Option(
+            "-o", "--output", help="Output file for the Prisma schema", writable=True
+        ),
+    ],
+):
     schema = parse_schema(
-        "ridge",
-        [
-            PROJECT_DIR / "user/schema/user.yml",
-            PROJECT_DIR / "user/schema/tenant.yml",
-            PROJECT_DIR / "kbase/schema/address.yml",
-            PROJECT_DIR / "ftrip/supplier/schema/supplier.yml",
-        ],
+        "sera",
+        schema_files,
     )
-    # Example usage
     export_prisma_schema(
         schema,
-        PROJECT_DIR / "tmp/ridge.prisma",
+        outfile,
     )
+
+
+if __name__ == "__main__":
+    app()
