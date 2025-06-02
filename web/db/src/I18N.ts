@@ -1,4 +1,4 @@
-import { MultiLingualString, isMultiLingualString } from "sera-db";
+import { MultiLingualString, isMultiLingualString } from "./Schema";
 
 type InterpolationArgs<K extends string | number | symbol = string> = Record<K, MultiLingualString | string>;
 
