@@ -7,8 +7,7 @@ from loguru import logger
 
 from sera.misc import assert_not_null, to_snake_case
 from sera.models import App, DataCollection, Module, Package, SystemControlledMode
-
-GLOBAL_IDENTS = {"AsyncSession": "sqlalchemy.ext.asyncio.AsyncSession"}
+from sera.typing import GLOBAL_IDENTS
 
 
 def make_python_api(app: App, collections: Sequence[DataCollection]):
@@ -550,13 +549,14 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
 
     # assuming the collection has only one class
     cls = collection.cls
-    has_restricted_system_controlled_prop = any(
-        prop.data.is_system_controlled == SystemControlledMode.RESTRICTED
+    is_on_create_update_props = any(
+        prop.data.system_controlled is not None
+        and prop.data.system_controlled.is_on_create_value_updated()
         for prop in cls.properties.values()
     )
     idprop = assert_not_null(cls.get_id_property())
 
-    if has_restricted_system_controlled_prop:
+    if is_on_create_update_props:
         program.import_("sera.libs.api_helper.SingleAutoUSCP", True)
 
     func_name = "create"
@@ -579,7 +579,7 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
                             ),
                         )
                     ]
-                    if has_restricted_system_controlled_prop
+                    if is_on_create_update_props
                     else []
                 ),
             )
@@ -661,11 +661,12 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
     id_prop = assert_not_null(cls.get_id_property())
     id_type = id_prop.datatype.get_python_type().type
 
-    has_restricted_system_controlled_prop = any(
-        prop.data.is_system_controlled == SystemControlledMode.RESTRICTED
+    is_on_update_update_props = any(
+        prop.data.system_controlled is not None
+        and prop.data.system_controlled.is_on_update_value_updated()
         for prop in cls.properties.values()
     )
-    if has_restricted_system_controlled_prop:
+    if is_on_update_update_props:
         program.import_("sera.libs.api_helper.SingleAutoUSCP", True)
 
     func_name = "update"
@@ -688,7 +689,7 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
                             ),
                         )
                     ]
-                    if has_restricted_system_controlled_prop
+                    if is_on_update_update_props
                     else []
                 ),
             )

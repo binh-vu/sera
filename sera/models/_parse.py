@@ -5,6 +5,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Sequence
 
+import orjson
 import serde.yaml
 
 from sera.models._class import Class, ClassDBMapInfo, Index
@@ -28,9 +29,11 @@ from sera.models._property import (
     DataProperty,
     ForeignKeyOnDelete,
     ForeignKeyOnUpdate,
+    GetSCPropValueFunc,
     ObjectPropDBInfo,
     ObjectProperty,
     PropDataAttrs,
+    SystemControlledAttrs,
     SystemControlledMode,
 )
 from sera.models._schema import Schema
@@ -134,6 +137,9 @@ def _parse_property(
         ],
         is_system_controlled=SystemControlledMode(
             _data.get("is_system_controlled", SystemControlledMode.NO.value)
+        ),
+        system_controlled=_parse_system_controlled_attrs(
+            _data.get("system_controlled")
         ),
     )
 
@@ -285,4 +291,60 @@ def _parse_default_factory(default_factory: dict | None) -> DefaultFactory | Non
         return None
     return DefaultFactory(
         pyfunc=default_factory["pyfunc"], tsfunc=default_factory["tsfunc"]
+    )
+
+
+def _parse_system_controlled_attrs(
+    attrs: dict | None,
+) -> SystemControlledAttrs | None:
+    if attrs is None:
+        return None
+    if not isinstance(attrs, dict):
+        raise NotImplementedError(attrs)
+
+    if "on_upsert" in attrs:
+        attrs = attrs.copy()
+        attrs.update(
+            {
+                "on_create": attrs["on_upsert"],
+                "on_create_bypass": attrs.get("on_upsert_bypass"),
+                "on_update": attrs["on_upsert"],
+                "on_update_bypass": attrs.get("on_upsert_bypass"),
+            }
+        )
+
+    if "on_create" not in attrs or "on_update" not in attrs:
+        raise ValueError(
+            "System controlled attributes must have 'on_create', 'on_update', or 'on_upsert' must be defined."
+        )
+
+    keys = {}
+    for key in ["on_create", "on_update"]:
+        if attrs[key] == "ignored":
+            keys[key] = "ignored"
+        elif attrs[key].find(":") != -1:
+            func, args = attrs[key].split(":")
+            assert func == "getattr", f"Unsupported function: {func}"
+            args = orjson.loads(args)
+            keys[key] = GetSCPropValueFunc(
+                func=func,
+                args=args,
+            )
+        else:
+            raise ValueError(
+                f"System controlled attribute '{key}' must be 'ignored' or a function call in the format '<funcname>:<args>'."
+            )
+
+        if attrs[key + "_bypass"] is not None:
+            if not isinstance(attrs[key + "_bypass"], str):
+                raise ValueError(
+                    f"System controlled attribute '{key}_bypass' must be a string."
+                )
+            keys[key + "_bypass"] = attrs[key + "_bypass"]
+
+    return SystemControlledAttrs(
+        on_create=keys["on_create"],
+        on_create_bypass=keys.get("on_create_bypass"),
+        on_update=keys["on_update"],
+        on_update_bypass=keys.get("on_update_bypass"),
     )

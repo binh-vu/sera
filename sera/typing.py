@@ -30,3 +30,11 @@ UNSET: Any = msgspec.UNSET
 def is_set(value: Union[T, UnsetType]) -> TypeGuard[T]:
     """Typeguard to check if a value is set (not UNSET)"""
     return value is not UNSET
+
+
+# Global identifiers for codegen
+GLOBAL_IDENTS = {
+    "AsyncSession": "sqlalchemy.ext.asyncio.AsyncSession",
+    "ASGIConnection": "litestar.connection.ASGIConnection",
+    "UNSET": "sera.typing.UNSET",
+}
