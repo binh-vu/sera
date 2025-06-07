@@ -135,9 +135,6 @@ def _parse_property(
         constraints=[
             _parse_constraint(constraint) for constraint in _data.get("constraints", [])
         ],
-        is_system_controlled=SystemControlledMode(
-            _data.get("is_system_controlled", SystemControlledMode.NO.value)
-        ),
         system_controlled=_parse_system_controlled_attrs(
             _data.get("system_controlled")
         ),

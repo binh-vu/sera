@@ -121,9 +121,6 @@ class PropDataAttrs:
     # list of constraints applied to the data model's field
     constraints: list[Constraint] = field(default_factory=list)
 
-    # whether this property is controlled by the system or not
-    is_system_controlled: SystemControlledMode = SystemControlledMode.NO
-
     # if this property is controlled by the system, the attributes for the system-controlled property
     system_controlled: Optional[SystemControlledAttrs] = None
 
