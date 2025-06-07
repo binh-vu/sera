@@ -543,7 +543,7 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
     )
     program.import_(
         app.models.data.path
-        + f".{collection.get_pymodule_name()}.Upsert{collection.name}",
+        + f".{collection.get_pymodule_name()}.Create{collection.name}",
         True,
     )
 
@@ -575,7 +575,7 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
                             "dto",
                             PredefinedFn.item_getter(
                                 expr.ExprIdent("SingleAutoUSCP"),
-                                expr.ExprIdent(f"Upsert{cls.name}"),
+                                expr.ExprIdent(f"Create{cls.name}"),
                             ),
                         )
                     ]
@@ -589,7 +589,7 @@ def make_python_create_api(collection: DataCollection, target_pkg: Package):
             [
                 DeferredVar.simple(
                     "data",
-                    expr.ExprIdent(f"Upsert{cls.name}"),
+                    expr.ExprIdent(f"Create{cls.name}"),
                 ),
                 DeferredVar.simple(
                     "session",
@@ -652,7 +652,7 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
     )
     program.import_(
         app.models.data.path
-        + f".{collection.get_pymodule_name()}.Upsert{collection.name}",
+        + f".{collection.get_pymodule_name()}.Update{collection.name}",
         True,
     )
 
@@ -685,7 +685,7 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
                             "dto",
                             PredefinedFn.item_getter(
                                 expr.ExprIdent("SingleAutoUSCP"),
-                                expr.ExprIdent(f"Upsert{cls.name}"),
+                                expr.ExprIdent(f"Update{cls.name}"),
                             ),
                         )
                     ]
@@ -703,7 +703,7 @@ def make_python_update_api(collection: DataCollection, target_pkg: Package):
                 ),
                 DeferredVar.simple(
                     "data",
-                    expr.ExprIdent(f"Upsert{cls.name}"),
+                    expr.ExprIdent(f"Update{cls.name}"),
                 ),
                 DeferredVar.simple(
                     "session",

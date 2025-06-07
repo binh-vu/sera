@@ -146,6 +146,7 @@ def make_python_data_model(
         program: Program,
         slf: expr.ExprIdent,
         cls: Class,
+        mode: Literal["create", "update"],
         prop: DataProperty | ObjectProperty,
     ):
         value = PredefinedFn.attr_getter(slf, expr.ExprIdent(prop.name))
@@ -196,7 +197,7 @@ def make_python_data_model(
                 prop.datatype.get_python_type().type,
             )(value)
 
-            if prop.data.is_private:
+            if mode == "update" and prop.data.is_private:
                 # if the property is private and it's UNSET, we cannot transform it to the database type
                 # and has to use the UNSET value (the update query will ignore this field)
                 program.import_("sera.typing.UNSET", True)
@@ -327,6 +328,15 @@ def make_python_data_model(
 
             raise NotImplementedError("We haven't handled the by-pass properties yet.")
 
+        func(
+            stmt.AssignStatement(
+                PredefinedFn.attr_getter(
+                    expr.ExprIdent("self"), expr.ExprIdent("_is_scp_updated")
+                ),
+                expr.ExprConstant(True),
+            )
+        )
+
     def make_create(program: Program, cls: Class):
         program.import_("__future__.annotations", True)
         program.import_("msgspec", False)
@@ -382,22 +392,18 @@ def make_python_data_model(
                     else:
                         raise NotImplementedError(prop.data.constraints)
 
-                if prop.data.is_private or (
-                    prop.data.system_controlled is not None
-                    and prop.data.system_controlled.is_on_create_value_updated()
-                ):
-                    program.import_("typing.Union", True)
-                    program.import_("sera.typing.UnsetType", True)
-                    program.import_("sera.typing.UNSET", True)
-                    pytype_type = f"Union[{pytype_type}, UnsetType]"
+                # private property are available for creating, but not for updating.
+                # so we do not need to skip it.
+                # if prop.data.is_private:
+                #     program.import_("typing.Union", True)
+                #     program.import_("sera.typing.UnsetType", True)
+                #     program.import_("sera.typing.UNSET", True)
+                #     pytype_type = f"Union[{pytype_type}, UnsetType]"
 
                 prop_default_value = None
-                if prop.data.is_private or (
-                    prop.data.system_controlled is not None
-                    and prop.data.system_controlled.is_on_create_value_updated()
-                ):
-                    prop_default_value = expr.ExprIdent("UNSET")
-                elif prop.default_value is not None:
+                # if prop.data.is_private:
+                #     prop_default_value = expr.ExprIdent("UNSET")
+                if prop.default_value is not None:
                     prop_default_value = expr.ExprConstant(prop.default_value)
                 elif prop.default_factory is not None:
                     program.import_(prop.default_factory.pyfunc, True)
@@ -438,30 +444,22 @@ def make_python_data_model(
                     pytype = pytype.as_optional_type()
 
                 pytype_type = pytype.type
-                prop_default_value = None
-                if (
-                    prop.data.system_controlled is not None
-                    and prop.data.system_controlled.is_on_create_value_updated()
-                ):
-                    program.import_("typing.Union", True)
-                    program.import_("sera.typing.UnsetType", True)
-                    program.import_("sera.typing.UNSET", True)
-                    pytype_type = f"Union[{pytype_type}, UnsetType]"
-                    prop_default_value = expr.ExprIdent("UNSET")
 
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                cls_ast(
-                    stmt.DefClassVarStatement(
-                        prop.name, pytype_type, prop_default_value
-                    )
-                )
+                cls_ast(stmt.DefClassVarStatement(prop.name, pytype_type))
 
         if is_on_create_value_updated:
             program.import_("typing.Optional", True)
             program.import_("sera.typing.is_set", True)
             cls_ast(
+                stmt.Comment(
+                    "A marker to indicate that the system-controlled properties are updated"
+                ),
+                stmt.DefClassVarStatement(
+                    "_is_scp_updated", "bool", expr.ExprConstant(False)
+                ),
                 stmt.LineBreak(),
                 lambda ast: ast.func(
                     "__post_init__",
@@ -469,20 +467,15 @@ def make_python_data_model(
                         DeferredVar.simple("self"),
                     ],
                 )(
-                    *[
-                        stmt.AssignStatement(
-                            PredefinedFn.attr_getter(
-                                expr.ExprIdent("self"), expr.ExprIdent(prop.name)
-                            ),
-                            expr.ExprIdent("UNSET"),
-                        )
-                        for prop in cls.properties.values()
-                        if prop.data.system_controlled is not None
-                        and prop.data.system_controlled.is_on_create_value_updated()
-                    ]
+                    stmt.AssignStatement(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"), expr.ExprIdent("_is_scp_updated")
+                        ),
+                        expr.ExprConstant(False),
+                    ),
                 ),
                 stmt.LineBreak(),
-                lambda ast: make_uscp_func(cls, "update", ast, ident_manager),
+                lambda ast: make_uscp_func(cls, "create", ast, ident_manager),
             )
 
         cls_ast(
@@ -498,21 +491,9 @@ def make_python_data_model(
             )(
                 (
                     stmt.AssertionStatement(
-                        expr.ExprLogicalAnd(
-                            [
-                                expr.ExprFuncCall(
-                                    expr.ExprIdent("is_set"),
-                                    [
-                                        PredefinedFn.attr_getter(
-                                            expr.ExprIdent("self"),
-                                            expr.ExprIdent(prop.name),
-                                        )
-                                    ],
-                                )
-                                for prop in cls.properties.values()
-                                if prop.data.system_controlled is not None
-                                and prop.data.system_controlled.is_on_create_value_updated()
-                            ]
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"),
+                            expr.ExprIdent("_is_scp_updated"),
                         ),
                         expr.ExprConstant(
                             "The model data must be verified before converting to db model"
@@ -532,7 +513,7 @@ def make_python_data_model(
                                 if prop.data.system_controlled is not None
                                 and prop.data.system_controlled.is_on_create_ignored()
                                 else to_db_type_conversion(
-                                    program, expr.ExprIdent("self"), cls, prop
+                                    program, expr.ExprIdent("self"), cls, "create", prop
                                 )
                             )
                             for prop in cls.properties.values()
@@ -599,20 +580,14 @@ def make_python_data_model(
                     else:
                         raise NotImplementedError(prop.data.constraints)
 
-                if prop.data.is_private or (
-                    prop.data.system_controlled is not None
-                    and prop.data.system_controlled.is_on_update_value_updated()
-                ):
+                if prop.data.is_private:
                     program.import_("typing.Union", True)
                     program.import_("sera.typing.UnsetType", True)
                     program.import_("sera.typing.UNSET", True)
                     pytype_type = f"Union[{pytype_type}, UnsetType]"
 
                 prop_default_value = None
-                if prop.data.is_private or (
-                    prop.data.system_controlled is not None
-                    and prop.data.system_controlled.is_on_update_value_updated()
-                ):
+                if prop.data.is_private:
                     prop_default_value = expr.ExprIdent("UNSET")
                 elif prop.default_value is not None:
                     prop_default_value = expr.ExprConstant(prop.default_value)
@@ -655,30 +630,22 @@ def make_python_data_model(
                     pytype = pytype.as_optional_type()
 
                 pytype_type = pytype.type
-                prop_default_value = None
-                if (
-                    prop.data.system_controlled is not None
-                    and prop.data.system_controlled.is_on_update_value_updated()
-                ):
-                    program.import_("typing.Union", True)
-                    program.import_("sera.typing.UnsetType", True)
-                    program.import_("sera.typing.UNSET", True)
-                    pytype_type = f"Union[{pytype_type}, UnsetType]"
-                    prop_default_value = expr.ExprIdent("UNSET")
 
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                cls_ast(
-                    stmt.DefClassVarStatement(
-                        prop.name, pytype_type, prop_default_value
-                    )
-                )
+                cls_ast(stmt.DefClassVarStatement(prop.name, pytype_type))
 
         if is_on_update_value_updated:
             program.import_("typing.Optional", True)
             program.import_("sera.typing.is_set", True)
             cls_ast(
+                stmt.Comment(
+                    "A marker to indicate that the system-controlled properties are updated"
+                ),
+                stmt.DefClassVarStatement(
+                    "_is_scp_updated", "bool", expr.ExprConstant(False)
+                ),
                 stmt.LineBreak(),
                 lambda ast: ast.func(
                     "__post_init__",
@@ -686,17 +653,12 @@ def make_python_data_model(
                         DeferredVar.simple("self"),
                     ],
                 )(
-                    *[
-                        stmt.AssignStatement(
-                            PredefinedFn.attr_getter(
-                                expr.ExprIdent("self"), expr.ExprIdent(prop.name)
-                            ),
-                            expr.ExprIdent("UNSET"),
-                        )
-                        for prop in cls.properties.values()
-                        if prop.data.system_controlled is not None
-                        and prop.data.system_controlled.is_on_update_value_updated()
-                    ]
+                    stmt.AssignStatement(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"), expr.ExprIdent("_is_scp_updated")
+                        ),
+                        expr.ExprConstant(False),
+                    ),
                 ),
                 stmt.LineBreak(),
                 lambda ast: make_uscp_func(cls, "update", ast, ident_manager),
@@ -749,7 +711,7 @@ def make_python_data_model(
                                 if prop.data.system_controlled is not None
                                 and prop.data.system_controlled.is_on_update_ignored()
                                 else to_db_type_conversion(
-                                    program, expr.ExprIdent("self"), cls, prop
+                                    program, expr.ExprIdent("self"), cls, "update", prop
                                 )
                             )
                             for prop in cls.properties.values()
@@ -901,7 +863,7 @@ def make_python_data_model(
                         PredefinedFn.tuple(
                             [
                                 to_db_type_conversion(
-                                    program, expr.ExprIdent("self"), cls, prop
+                                    program, expr.ExprIdent("self"), cls, "create", prop
                                 )
                                 for prop in cls.properties.values()
                             ]
