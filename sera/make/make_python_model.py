@@ -432,9 +432,9 @@ def make_python_data_model(
                     )
                 else:
                     pytype = PyTypeWithDep(
-                        f"Upsert{prop.target.name}",
+                        f"Create{prop.target.name}",
                         [
-                            f"{target_pkg.module(prop.target.get_pymodule_name()).path}.Upsert{prop.target.name}"
+                            f"{target_pkg.module(prop.target.get_pymodule_name()).path}.Create{prop.target.name}"
                         ],
                     )
 
@@ -618,9 +618,9 @@ def make_python_data_model(
                     )
                 else:
                     pytype = PyTypeWithDep(
-                        f"Upsert{prop.target.name}",
+                        f"Update{prop.target.name}",
                         [
-                            f"{target_pkg.module(prop.target.get_pymodule_name()).path}.Upsert{prop.target.name}"
+                            f"{target_pkg.module(prop.target.get_pymodule_name()).path}.Update{prop.target.name}"
                         ],
                     )
 
