@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Callable, Optional, Sequence
+import sys
+from ast import Not
+from typing import Callable, Literal, Optional, Sequence
 
 from codegen.models import (
     AST,
@@ -28,7 +30,7 @@ from sera.models import (
     Schema,
 )
 from sera.models._property import SystemControlledMode
-from sera.typing import ObjectPath
+from sera.typing import GLOBAL_IDENTS, ObjectPath
 
 
 def make_python_enums(
@@ -144,6 +146,7 @@ def make_python_data_model(
         program: Program,
         slf: expr.ExprIdent,
         cls: Class,
+        mode: Literal["create", "update"],
         prop: DataProperty | ObjectProperty,
     ):
         value = PredefinedFn.attr_getter(slf, expr.ExprIdent(prop.name))
@@ -194,7 +197,7 @@ def make_python_data_model(
                 prop.datatype.get_python_type().type,
             )(value)
 
-            if prop.data.is_private:
+            if mode == "update" and prop.data.is_private:
                 # if the property is private and it's UNSET, we cannot transform it to the database type
                 # and has to use the UNSET value (the update query will ignore this field)
                 program.import_("sera.typing.UNSET", True)
@@ -208,7 +211,133 @@ def make_python_data_model(
                 value = converted_value
         return value
 
-    def make_upsert(program: Program, cls: Class):
+    def make_uscp_func(
+        cls: Class,
+        mode: Literal["create", "update"],
+        ast: AST,
+        ident_manager: ImportHelper,
+    ):
+        func = ast.func(
+            "update_system_controlled_props",
+            [
+                DeferredVar.simple("self"),
+                DeferredVar.simple(
+                    "conn",
+                    ident_manager.use("ASGIConnection"),
+                ),
+            ],
+        )
+
+        assign_user = False
+
+        for prop in cls.properties.values():
+            if prop.data.system_controlled is None:
+                continue
+
+            update_func = None
+            if mode == "create":
+                if prop.data.system_controlled.on_create_bypass is not None:
+                    # by-pass the update function are handled later
+                    continue
+
+                if prop.data.system_controlled.is_on_create_value_updated():
+                    update_func = (
+                        prop.data.system_controlled.get_on_create_update_func()
+                    )
+            else:
+                if prop.data.system_controlled.on_update_bypass is not None:
+                    # by-pass the update function are handled later
+                    continue
+                if prop.data.system_controlled.is_on_update_value_updated():
+                    update_func = (
+                        prop.data.system_controlled.get_on_update_update_func()
+                    )
+
+            if update_func is None:
+                continue
+
+            if update_func.func == "getattr":
+                if update_func.args[0] == "user":
+                    if len(update_func.args) != 2:
+                        raise NotImplementedError(
+                            f"Unsupported update function: {update_func.func} with args {update_func.args}"
+                        )
+                    if not assign_user:
+                        func(
+                            stmt.AssignStatement(
+                                expr.ExprIdent("user"),
+                                PredefinedFn.item_getter(
+                                    PredefinedFn.attr_getter(
+                                        expr.ExprIdent("conn"),
+                                        expr.ExprIdent("scope"),
+                                    ),
+                                    expr.ExprConstant("user"),
+                                ),
+                            )
+                        )
+                        assign_user = True
+                    epr = PredefinedFn.attr_getter(
+                        expr.ExprIdent("user"), expr.ExprIdent(update_func.args[1])
+                    )
+                elif update_func.args[0] == "self":
+                    epr = PredefinedFn.attr_getter(
+                        expr.ExprIdent("self"), expr.ExprIdent(update_func.args[1])
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"Unsupported update function: {update_func.func} with args {update_func.args}"
+                    )
+            else:
+                raise NotImplementedError(update_func.func)
+
+            smt = stmt.AssignStatement(
+                PredefinedFn.attr_getter(
+                    expr.ExprIdent("self"), expr.ExprIdent(prop.name)
+                ),
+                epr,
+            )
+            func(smt)
+
+        # handle the by-pass properties here
+        for prop in cls.properties.values():
+            if prop.data.system_controlled is None:
+                continue
+
+            update_func = None
+            if mode == "create":
+                if prop.data.system_controlled.on_create_bypass is None:
+                    # non by-pass the update function are handled earlier
+                    continue
+
+                if prop.data.system_controlled.is_on_create_value_updated():
+                    update_func = (
+                        prop.data.system_controlled.get_on_create_update_func()
+                    )
+            else:
+                if prop.data.system_controlled.on_update_bypass is None:
+                    # non by-pass the update function are handled earlier
+                    continue
+
+                if prop.data.system_controlled.is_on_update_value_updated():
+                    update_func = (
+                        prop.data.system_controlled.get_on_update_update_func()
+                    )
+
+            if update_func is None:
+                continue
+
+            raise NotImplementedError("We haven't handled the by-pass properties yet.")
+
+        func(
+            stmt.AssignStatement(
+                PredefinedFn.attr_getter(
+                    expr.ExprIdent("self"), expr.ExprIdent("_is_scp_updated")
+                ),
+                expr.ExprConstant(True),
+            )
+        )
+
+    def make_create(program: Program, cls: Class):
         program.import_("__future__.annotations", True)
         program.import_("msgspec", False)
         if cls.db is not None:
@@ -221,52 +350,26 @@ def make_python_data_model(
 
         ident_manager = ImportHelper(
             program,
-            {
-                "UNSET": "sera.typing.UNSET",
-            },
+            GLOBAL_IDENTS,
         )
 
-        # property that normal users cannot set, but super users can
-        has_restricted_system_controlled = any(
-            prop.data.is_system_controlled == SystemControlledMode.RESTRICTED
+        is_on_create_value_updated = any(
+            prop.data.system_controlled is not None
+            and prop.data.system_controlled.is_on_create_value_updated()
             for prop in cls.properties.values()
         )
-        if has_restricted_system_controlled:
-            program.import_("typing.TypedDict", True)
-            program.root(
-                stmt.LineBreak(),
-                lambda ast: ast.class_(
-                    "SystemControlledProps",
-                    [expr.ExprIdent("TypedDict")],
-                )(
-                    *[
-                        stmt.DefClassVarStatement(
-                            prop.name,
-                            (
-                                prop.get_data_model_datatype().get_python_type().type
-                                if isinstance(prop, DataProperty)
-                                else assert_not_null(prop.target.get_id_property())
-                                .get_data_model_datatype()
-                                .get_python_type()
-                                .type
-                            ),
-                        )
-                        for prop in cls.properties.values()
-                        if prop.data.is_system_controlled
-                        == SystemControlledMode.RESTRICTED
-                    ],
-                ),
-            )
-
         program.root.linebreak()
         cls_ast = program.root.class_(
-            "Upsert" + cls.name,
+            "Create" + cls.name,
             [expr.ExprIdent("msgspec.Struct"), expr.ExprIdent("kw_only=True")],
         )
         for prop in cls.properties.values():
-            # a field that is fully controlled by the system (e.g., cached or derived fields)
-            # aren't allowed to be set by the users, so we skip them
-            if prop.data.is_system_controlled == SystemControlledMode.AUTO:
+            # Skip fields that are system-controlled (e.g., cached or derived fields)
+            # and cannot be updated based on information parsed from the request.
+            if (
+                prop.data.system_controlled is not None
+                and prop.data.system_controlled.is_on_create_ignored()
+            ):
                 continue
 
             if isinstance(prop, DataProperty):
@@ -289,20 +392,202 @@ def make_python_data_model(
                     else:
                         raise NotImplementedError(prop.data.constraints)
 
-                if (
-                    prop.data.is_private
-                    or prop.data.is_system_controlled == SystemControlledMode.RESTRICTED
-                ):
+                # private property are available for creating, but not for updating.
+                # so we do not need to skip it.
+                # if prop.data.is_private:
+                #     program.import_("typing.Union", True)
+                #     program.import_("sera.typing.UnsetType", True)
+                #     program.import_("sera.typing.UNSET", True)
+                #     pytype_type = f"Union[{pytype_type}, UnsetType]"
+
+                prop_default_value = None
+                # if prop.data.is_private:
+                #     prop_default_value = expr.ExprIdent("UNSET")
+                if prop.default_value is not None:
+                    prop_default_value = expr.ExprConstant(prop.default_value)
+                elif prop.default_factory is not None:
+                    program.import_(prop.default_factory.pyfunc, True)
+                    prop_default_value = expr.ExprFuncCall(
+                        expr.ExprIdent("msgspec.field"),
+                        [
+                            PredefinedFn.keyword_assignment(
+                                "default_factory",
+                                expr.ExprIdent(prop.default_factory.pyfunc),
+                            )
+                        ],
+                    )
+
+                cls_ast(
+                    stmt.DefClassVarStatement(
+                        prop.name, pytype_type, prop_default_value
+                    )
+                )
+            elif isinstance(prop, ObjectProperty):
+                if prop.target.db is not None:
+                    # if the target class is in the database, we expect the user to pass the foreign key for it.
+                    pytype = (
+                        assert_not_null(prop.target.get_id_property())
+                        .get_data_model_datatype()
+                        .get_python_type()
+                    )
+                else:
+                    pytype = PyTypeWithDep(
+                        f"Create{prop.target.name}",
+                        [
+                            f"{target_pkg.module(prop.target.get_pymodule_name()).path}.Create{prop.target.name}"
+                        ],
+                    )
+
+                if prop.cardinality.is_star_to_many():
+                    pytype = pytype.as_list_type()
+                elif prop.is_optional:
+                    pytype = pytype.as_optional_type()
+
+                pytype_type = pytype.type
+
+                for dep in pytype.deps:
+                    program.import_(dep, True)
+
+                cls_ast(stmt.DefClassVarStatement(prop.name, pytype_type))
+
+        if is_on_create_value_updated:
+            program.import_("typing.Optional", True)
+            program.import_("sera.typing.is_set", True)
+            cls_ast(
+                stmt.Comment(
+                    "A marker to indicate that the system-controlled properties are updated"
+                ),
+                stmt.DefClassVarStatement(
+                    "_is_scp_updated", "bool", expr.ExprConstant(False)
+                ),
+                stmt.LineBreak(),
+                lambda ast: ast.func(
+                    "__post_init__",
+                    [
+                        DeferredVar.simple("self"),
+                    ],
+                )(
+                    stmt.AssignStatement(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"), expr.ExprIdent("_is_scp_updated")
+                        ),
+                        expr.ExprConstant(False),
+                    ),
+                ),
+                stmt.LineBreak(),
+                lambda ast: make_uscp_func(cls, "create", ast, ident_manager),
+            )
+
+        cls_ast(
+            stmt.LineBreak(),
+            lambda ast00: ast00.func(
+                "to_db",
+                [
+                    DeferredVar.simple("self"),
+                ],
+                return_type=expr.ExprIdent(
+                    f"{cls.name}DB" if cls.db is not None else cls.name
+                ),
+            )(
+                (
+                    stmt.AssertionStatement(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"),
+                            expr.ExprIdent("_is_scp_updated"),
+                        ),
+                        expr.ExprConstant(
+                            "The model data must be verified before converting to db model"
+                        ),
+                    )
+                    if is_on_create_value_updated
+                    else None
+                ),
+                lambda ast10: ast10.return_(
+                    expr.ExprFuncCall(
+                        expr.ExprIdent(
+                            f"{cls.name}DB" if cls.db is not None else cls.name
+                        ),
+                        [
+                            (
+                                ident_manager.use("UNSET")
+                                if prop.data.system_controlled is not None
+                                and prop.data.system_controlled.is_on_create_ignored()
+                                else to_db_type_conversion(
+                                    program, expr.ExprIdent("self"), cls, "create", prop
+                                )
+                            )
+                            for prop in cls.properties.values()
+                        ],
+                    )
+                ),
+            ),
+        )
+
+    def make_update(program: Program, cls: Class):
+        program.import_("__future__.annotations", True)
+        program.import_("msgspec", False)
+        if cls.db is not None:
+            # if the class is stored in the database, we need to import the database module
+            program.import_(
+                app.models.db.path + f".{cls.get_pymodule_name()}.{cls.name}",
+                True,
+                alias=f"{cls.name}DB",
+            )
+
+        ident_manager = ImportHelper(
+            program,
+            GLOBAL_IDENTS,
+        )
+
+        # property that normal users cannot set, but super users can
+        is_on_update_value_updated = any(
+            prop.data.system_controlled is not None
+            and prop.data.system_controlled.is_on_update_value_updated()
+            for prop in cls.properties.values()
+        )
+
+        program.root.linebreak()
+        cls_ast = program.root.class_(
+            "Update" + cls.name,
+            [expr.ExprIdent("msgspec.Struct"), expr.ExprIdent("kw_only=True")],
+        )
+        for prop in cls.properties.values():
+            # Skip fields that are system-controlled (e.g., cached or derived fields)
+            # and cannot be updated based on information parsed from the request.
+            if (
+                prop.data.system_controlled is not None
+                and prop.data.system_controlled.is_on_update_ignored()
+            ):
+                continue
+
+            if isinstance(prop, DataProperty):
+                pytype = prop.get_data_model_datatype().get_python_type()
+                if prop.is_optional:
+                    pytype = pytype.as_optional_type()
+
+                for dep in pytype.deps:
+                    program.import_(dep, True)
+
+                pytype_type = pytype.type
+                if len(prop.data.constraints) > 0:
+                    # if the property has constraints, we need to figure out
+                    program.import_("typing.Annotated", True)
+                    if len(prop.data.constraints) == 1:
+                        pytype_type = f"Annotated[%s, %s]" % (
+                            pytype_type,
+                            prop.data.constraints[0].get_msgspec_constraint(),
+                        )
+                    else:
+                        raise NotImplementedError(prop.data.constraints)
+
+                if prop.data.is_private:
                     program.import_("typing.Union", True)
                     program.import_("sera.typing.UnsetType", True)
                     program.import_("sera.typing.UNSET", True)
                     pytype_type = f"Union[{pytype_type}, UnsetType]"
 
                 prop_default_value = None
-                if (
-                    prop.data.is_private
-                    or prop.data.is_system_controlled == SystemControlledMode.RESTRICTED
-                ):
+                if prop.data.is_private:
                     prop_default_value = expr.ExprIdent("UNSET")
                 elif prop.default_value is not None:
                     prop_default_value = expr.ExprConstant(prop.default_value)
@@ -333,9 +618,9 @@ def make_python_data_model(
                     )
                 else:
                     pytype = PyTypeWithDep(
-                        f"Upsert{prop.target.name}",
+                        f"Update{prop.target.name}",
                         [
-                            f"{target_pkg.module(prop.target.get_pymodule_name()).path}.Upsert{prop.target.name}"
+                            f"{target_pkg.module(prop.target.get_pymodule_name()).path}.Update{prop.target.name}"
                         ],
                     )
 
@@ -345,27 +630,22 @@ def make_python_data_model(
                     pytype = pytype.as_optional_type()
 
                 pytype_type = pytype.type
-                prop_default_value = None
-                if prop.data.is_system_controlled == SystemControlledMode.RESTRICTED:
-                    program.import_("typing.Union", True)
-                    program.import_("sera.typing.UnsetType", True)
-                    program.import_("sera.typing.UNSET", True)
-                    pytype_type = f"Union[{pytype_type}, UnsetType]"
-                    prop_default_value = expr.ExprIdent("UNSET")
 
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                cls_ast(
-                    stmt.DefClassVarStatement(
-                        prop.name, pytype_type, prop_default_value
-                    )
-                )
+                cls_ast(stmt.DefClassVarStatement(prop.name, pytype_type))
 
-        if has_restricted_system_controlled:
+        if is_on_update_value_updated:
             program.import_("typing.Optional", True)
             program.import_("sera.typing.is_set", True)
             cls_ast(
+                stmt.Comment(
+                    "A marker to indicate that the system-controlled properties are updated"
+                ),
+                stmt.DefClassVarStatement(
+                    "_is_scp_updated", "bool", expr.ExprConstant(False)
+                ),
                 stmt.LineBreak(),
                 lambda ast: ast.func(
                     "__post_init__",
@@ -373,49 +653,15 @@ def make_python_data_model(
                         DeferredVar.simple("self"),
                     ],
                 )(
-                    *[
-                        stmt.AssignStatement(
-                            PredefinedFn.attr_getter(
-                                expr.ExprIdent("self"), expr.ExprIdent(prop.name)
-                            ),
-                            expr.ExprIdent("UNSET"),
-                        )
-                        for prop in cls.properties.values()
-                        if prop.data.is_system_controlled
-                        == SystemControlledMode.RESTRICTED
-                    ]
-                ),
-                stmt.LineBreak(),
-                lambda ast: ast.func(
-                    "update_system_controlled_props",
-                    [
-                        DeferredVar.simple("self"),
-                        DeferredVar.simple(
-                            "data",
-                            expr.ExprIdent("Optional[SystemControlledProps]"),
+                    stmt.AssignStatement(
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("self"), expr.ExprIdent("_is_scp_updated")
                         ),
-                    ],
-                )(
-                    lambda ast00: ast00.if_(
-                        expr.ExprNegation(
-                            expr.ExprIs(expr.ExprIdent("data"), expr.ExprConstant(None))
-                        ),
-                    )(
-                        *[
-                            stmt.AssignStatement(
-                                PredefinedFn.attr_getter(
-                                    expr.ExprIdent("self"), expr.ExprIdent(prop.name)
-                                ),
-                                PredefinedFn.item_getter(
-                                    expr.ExprIdent("data"), expr.ExprConstant(prop.name)
-                                ),
-                            )
-                            for prop in cls.properties.values()
-                            if prop.data.is_system_controlled
-                            == SystemControlledMode.RESTRICTED
-                        ]
+                        expr.ExprConstant(False),
                     ),
                 ),
+                stmt.LineBreak(),
+                lambda ast: make_uscp_func(cls, "update", ast, ident_manager),
             )
 
         cls_ast(
@@ -443,15 +689,15 @@ def make_python_data_model(
                                     ],
                                 )
                                 for prop in cls.properties.values()
-                                if prop.data.is_system_controlled
-                                == SystemControlledMode.RESTRICTED
+                                if prop.data.system_controlled is not None
+                                and prop.data.system_controlled.is_on_update_value_updated()
                             ]
                         ),
                         expr.ExprConstant(
                             "The model data must be verified before converting to db model"
                         ),
                     )
-                    if has_restricted_system_controlled
+                    if is_on_update_value_updated
                     else None
                 ),
                 lambda ast10: ast10.return_(
@@ -461,12 +707,12 @@ def make_python_data_model(
                         ),
                         [
                             (
-                                to_db_type_conversion(
-                                    program, expr.ExprIdent("self"), cls, prop
+                                ident_manager.use("UNSET")
+                                if prop.data.system_controlled is not None
+                                and prop.data.system_controlled.is_on_update_ignored()
+                                else to_db_type_conversion(
+                                    program, expr.ExprIdent("self"), cls, "update", prop
                                 )
-                                if prop.data.is_system_controlled
-                                != SystemControlledMode.AUTO
-                                else ident_manager.use("UNSET")
                             )
                             for prop in cls.properties.values()
                         ],
@@ -617,7 +863,7 @@ def make_python_data_model(
                         PredefinedFn.tuple(
                             [
                                 to_db_type_conversion(
-                                    program, expr.ExprIdent("self"), cls, prop
+                                    program, expr.ExprIdent("self"), cls, "create", prop
                                 )
                                 for prop in cls.properties.values()
                             ]
@@ -631,7 +877,9 @@ def make_python_data_model(
             continue
 
         program = Program()
-        make_upsert(program, cls)
+        make_create(program, cls)
+        program.root.linebreak()
+        make_update(program, cls)
         program.root.linebreak()
         make_normal(program, cls)
         target_pkg.module(cls.get_pymodule_name()).write(program)

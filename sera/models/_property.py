@@ -70,6 +70,43 @@ class SystemControlledMode(str, Enum):
 
 
 @dataclass(kw_only=True)
+class GetSCPropValueFunc:
+
+    func: Literal["getattr"]
+    args: tuple[str, ...]
+
+
+@dataclass(kw_only=True)
+class SystemControlledAttrs:
+    """Attributes for a system-controlled property."""
+
+    on_create_bypass: Optional[str]
+    on_create: Literal["ignored"] | GetSCPropValueFunc
+    on_update_bypass: Optional[str]
+    on_update: Literal["ignored"] | GetSCPropValueFunc
+
+    def is_on_create_value_updated(self) -> bool:
+        return isinstance(self.on_create, GetSCPropValueFunc)
+
+    def get_on_create_update_func(self) -> GetSCPropValueFunc:
+        assert isinstance(self.on_create, GetSCPropValueFunc)
+        return self.on_create
+
+    def is_on_create_ignored(self) -> bool:
+        return self.on_create == "ignored"
+
+    def is_on_update_ignored(self) -> bool:
+        return self.on_update == "ignored"
+
+    def is_on_update_value_updated(self) -> bool:
+        return isinstance(self.on_update, GetSCPropValueFunc)
+
+    def get_on_update_update_func(self) -> GetSCPropValueFunc:
+        assert isinstance(self.on_update, GetSCPropValueFunc)
+        return self.on_update
+
+
+@dataclass(kw_only=True)
 class PropDataAttrs:
     """Storing other attributes for generating data model (upsert & public) -- this is different from a db model"""
 
@@ -86,6 +123,9 @@ class PropDataAttrs:
 
     # whether this property is controlled by the system or not
     is_system_controlled: SystemControlledMode = SystemControlledMode.NO
+
+    # if this property is controlled by the system, the attributes for the system-controlled property
+    system_controlled: Optional[SystemControlledAttrs] = None
 
 
 @dataclass(kw_only=True)

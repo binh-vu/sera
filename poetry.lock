@@ -182,13 +182,13 @@ colorama = {version = "*", markers = "platform_system == \"Windows\""}
 
 [[package]]
 name = "codegen-2"
-version = "2.11.0"
+version = "2.11.1"
 description = "Meta-programming"
 optional = false
 python-versions = "<4.0,>=3.11"
 files = [
-    {file = "codegen_2-2.11.0-py3-none-any.whl", hash = "sha256:a54269b005ef921f559209509125a58decd29d99b30a3d0068a0c35fae4bab3c"},
-    {file = "codegen_2-2.11.0.tar.gz", hash = "sha256:dbf9afe7d5ba589e8c8636edded6bbd1372a884ff9db8c143996c2a3a2f5e065"},
+    {file = "codegen_2-2.11.1-py3-none-any.whl", hash = "sha256:a427fa09105e50d3a2205f6de4a1cbb9dbc6fbbdbbb305b1bccb4911561fe2de"},
+    {file = "codegen_2-2.11.1.tar.gz", hash = "sha256:0ca0f05cb636fa47f0e4ebd2981fa0385e91a1223a64852f271830e62081963b"},
 ]
 
 [[package]]
@@ -1356,4 +1356,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "4b42d376be00622dd21a95ab2106f1b5117c981bde0b7e6684b13f37fc1ea419"
+content-hash = "b3da144da0e1b66c3169099e01689bc4749c9c89ce92b90e8bde35c5e90dca70"
