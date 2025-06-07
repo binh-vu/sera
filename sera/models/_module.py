@@ -10,6 +10,7 @@ import black.mode
 import isort
 from codegen.models import Program
 from loguru import logger
+
 from sera.misc import File, Formatter
 from sera.typing import Language
 
@@ -62,7 +63,9 @@ class Module:
                         target_versions={black.mode.TargetVersion.PY312},
                     ),
                 )
-                code = isort.code(code, profile="black")
+                code = isort.code(
+                    code, profile="black", known_first_party=[self.package.app.name]
+                )
             except:
                 logger.error("Error writing module {}", self.path)
                 print(">>> Program")
@@ -172,4 +175,5 @@ class App:
     @property
     def name(self) -> str:
         """Get the name of the application"""
+        return self.root.dir.name
         return self.root.dir.name
