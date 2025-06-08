@@ -34,7 +34,6 @@ from sera.models._property import (
     ObjectProperty,
     PropDataAttrs,
     SystemControlledAttrs,
-    SystemControlledMode,
 )
 from sera.models._schema import Schema
 
@@ -94,11 +93,14 @@ def _parse_enum(schema: Schema, enum_name: str, enum: dict) -> Enum:
                 name=k, value=v, description=MultiLingualString.en("")
             )
         else:
-            values[k] = EnumValue(
-                name=k,
-                value=v["value"],
-                description=_parse_multi_lingual_string(v.get("desc", "")),
-            )
+            try:
+                values[k] = EnumValue(
+                    name=k,
+                    value=v["value"],
+                    description=_parse_multi_lingual_string(v.get("desc", "")),
+                )
+            except KeyError as e:
+                raise ValueError(f"Invalid enum value definition for {k}: {v}") from e
     return Enum(name=enum_name, values=values)
 
 

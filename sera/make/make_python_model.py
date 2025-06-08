@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import sys
-from ast import Not
 from typing import Callable, Literal, Optional, Sequence
 
 from codegen.models import (
@@ -29,7 +27,6 @@ from sera.models import (
     PyTypeWithDep,
     Schema,
 )
-from sera.models._property import SystemControlledMode
 from sera.typing import GLOBAL_IDENTS, ObjectPath
 
 
@@ -937,14 +934,12 @@ def make_python_relational_model(
 
             if custom_type.cardinality.is_star_to_many():
                 if custom_type.is_map:
-                    program.import_("typing.Mapping", True)
                     program.import_("sera.libs.base_orm.DictDataclassType", True)
-                    type = f"Mapping[str, {custom_type.target.name}]"
+                    type = f"dict[str, {custom_type.target.name}]"
                     maptype = f"DictDataclassType({custom_type.target.name})"
                 else:
-                    program.import_("typing.Sequence", True)
                     program.import_("sera.libs.base_orm.ListDataclassType", True)
-                    type = f"Sequence[str, {custom_type.target.name}]"
+                    type = f"list[{custom_type.target.name}]"
                     maptype = f"ListDataclassType({custom_type.target.name})"
             else:
                 program.import_("sera.libs.base_orm.DataclassType", True)
@@ -957,7 +952,7 @@ def make_python_relational_model(
 
             type_map.append((expr.ExprIdent(type), expr.ExprIdent(maptype)))
 
-        cls_ast = program.root.class_(
+        program.root.class_(
             "Base", [expr.ExprIdent("DeclarativeBase"), expr.ExprIdent("BaseORM")]
         )(
             stmt.DefClassVarStatement(
@@ -1246,7 +1241,7 @@ def make_python_relational_object_property(
             return
 
         if prop.cardinality.is_star_to_many():
-            raise NotImplementedError()
+            raise NotImplementedError((cls.name, prop.name))
 
         # we store this class in the database
         propname = f"{prop.name}_id"
@@ -1291,7 +1286,13 @@ def make_python_relational_object_property(
         is_import_attr=True,
     )
     propname = prop.name
-    proptype = f"Mapped[{prop.target.name}]"
+    if prop.cardinality.is_star_to_many():
+        if prop.is_map:
+            proptype = f"Mapped[dict[str, {prop.target.name}]]"
+        else:
+            proptype = f"Mapped[list[{prop.target.name}]]"
+    else:
+        proptype = f"Mapped[{prop.target.name}]"
 
     # we have two choices, one is to create a composite class, one is to create a custom field
     if prop.db.is_embedded == "composite":

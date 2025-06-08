@@ -56,19 +56,6 @@ class Cardinality(str, Enum):
         ]
 
 
-class SystemControlledMode(str, Enum):
-    """Indicates if this property is controlled by the system.
-
-    There are two modes:
-    1. The system automatically sets the value, and users cannot modify it.
-    2. Users with special roles are allowed to set the value and other users cannot modify it
-    """
-
-    AUTO = "auto"
-    RESTRICTED = "restricted"
-    NO = "no"
-
-
 @dataclass(kw_only=True)
 class GetSCPropValueFunc:
 

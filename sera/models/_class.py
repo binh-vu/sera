@@ -63,7 +63,7 @@ class Class:
                 return prop
         assert (
             self.db is None
-        ), "This class is stored in the database and thus, must have a primary key"
+        ), f"The class {self.name} is stored in the database and thus, must have a primary key"
         return None
 
     def get_pymodule_name(self) -> str:

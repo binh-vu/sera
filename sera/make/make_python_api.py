@@ -6,7 +6,7 @@ from codegen.models import DeferredVar, ImportHelper, PredefinedFn, Program, exp
 from loguru import logger
 
 from sera.misc import assert_not_null, to_snake_case
-from sera.models import App, DataCollection, Module, Package, SystemControlledMode
+from sera.models import App, DataCollection, Module, Package
 from sera.typing import GLOBAL_IDENTS
 
 

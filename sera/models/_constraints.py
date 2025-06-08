@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 ConstraintName = Literal[
+    "url",
     "phone_number",
     "email",
     "not_empty",
@@ -37,6 +38,8 @@ class Constraint:
             return "msgspec.Meta(ge=0)"
         elif self.name == "positive_number":
             return "msgspec.Meta(gt=0)"
+        elif self.name == "url":
+            return r"msgspec.Meta(pattern=r'^(https?|ftp)://[^\s/$.?#].[^\s]*$')"
 
         raise NotImplementedError()
 
@@ -57,4 +60,5 @@ predefined_constraints: dict[ConstraintName, Constraint] = {
     "password": Constraint("password", ()),
     "whole_number": Constraint("whole_number", ()),
     "positive_number": Constraint("positive_number", ()),
+    "url": Constraint("url", ()),
 }
