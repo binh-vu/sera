@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Literal
 
 from codegen.models import expr
@@ -63,6 +62,10 @@ class PyTypeWithDep:
                 f"Have not handle nested optional yet: {self.type}"
             )
         return PyTypeWithDep(type=f"Optional[{self.type}]", deps=deps)
+
+    def clone(self) -> PyTypeWithDep:
+        """Clone the type with the same dependencies."""
+        return PyTypeWithDep(type=self.type, deps=list(self.deps))
 
 
 @dataclass

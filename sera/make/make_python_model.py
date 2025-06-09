@@ -370,24 +370,23 @@ def make_python_data_model(
                 continue
 
             if isinstance(prop, DataProperty):
-                pytype = prop.get_data_model_datatype().get_python_type()
+                pytype = prop.get_data_model_datatype().get_python_type().clone()
+                if len(prop.data.constraints) > 0:
+                    # if the property has constraints, we need to figure out
+                    program.import_("typing.Annotated", True)
+                    if len(prop.data.constraints) == 1:
+                        pytype.type = "Annotated[%s, %s]" % (
+                            pytype.type,
+                            prop.data.constraints[0].get_msgspec_constraint(),
+                        )
+                    else:
+                        raise NotImplementedError(prop.data.constraints)
+
                 if prop.is_optional:
                     pytype = pytype.as_optional_type()
 
                 for dep in pytype.deps:
                     program.import_(dep, True)
-
-                pytype_type = pytype.type
-                if len(prop.data.constraints) > 0:
-                    # if the property has constraints, we need to figure out
-                    program.import_("typing.Annotated", True)
-                    if len(prop.data.constraints) == 1:
-                        pytype_type = f"Annotated[%s, %s]" % (
-                            pytype_type,
-                            prop.data.constraints[0].get_msgspec_constraint(),
-                        )
-                    else:
-                        raise NotImplementedError(prop.data.constraints)
 
                 # private property are available for creating, but not for updating.
                 # so we do not need to skip it.
@@ -416,7 +415,7 @@ def make_python_data_model(
 
                 cls_ast(
                     stmt.DefClassVarStatement(
-                        prop.name, pytype_type, prop_default_value
+                        prop.name, pytype.type, prop_default_value
                     )
                 )
             elif isinstance(prop, ObjectProperty):
@@ -440,12 +439,10 @@ def make_python_data_model(
                 elif prop.is_optional:
                     pytype = pytype.as_optional_type()
 
-                pytype_type = pytype.type
-
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                cls_ast(stmt.DefClassVarStatement(prop.name, pytype_type))
+                cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
 
         if is_on_create_value_updated:
             program.import_("typing.Optional", True)
@@ -558,30 +555,30 @@ def make_python_data_model(
                 continue
 
             if isinstance(prop, DataProperty):
-                pytype = prop.get_data_model_datatype().get_python_type()
+                pytype = prop.get_data_model_datatype().get_python_type().clone()
+
+                if len(prop.data.constraints) > 0:
+                    # if the property has constraints, we need to figure out
+                    program.import_("typing.Annotated", True)
+                    if len(prop.data.constraints) == 1:
+                        pytype.type = "Annotated[%s, %s]" % (
+                            pytype.type,
+                            prop.data.constraints[0].get_msgspec_constraint(),
+                        )
+                    else:
+                        raise NotImplementedError(prop.data.constraints)
+
                 if prop.is_optional:
                     pytype = pytype.as_optional_type()
 
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                pytype_type = pytype.type
-                if len(prop.data.constraints) > 0:
-                    # if the property has constraints, we need to figure out
-                    program.import_("typing.Annotated", True)
-                    if len(prop.data.constraints) == 1:
-                        pytype_type = f"Annotated[%s, %s]" % (
-                            pytype_type,
-                            prop.data.constraints[0].get_msgspec_constraint(),
-                        )
-                    else:
-                        raise NotImplementedError(prop.data.constraints)
-
                 if prop.data.is_private:
                     program.import_("typing.Union", True)
                     program.import_("sera.typing.UnsetType", True)
                     program.import_("sera.typing.UNSET", True)
-                    pytype_type = f"Union[{pytype_type}, UnsetType]"
+                    pytype.type = f"Union[{pytype.type}, UnsetType]"
 
                 prop_default_value = None
                 if prop.data.is_private:
@@ -602,7 +599,7 @@ def make_python_data_model(
 
                 cls_ast(
                     stmt.DefClassVarStatement(
-                        prop.name, pytype_type, prop_default_value
+                        prop.name, pytype.type, prop_default_value
                     )
                 )
             elif isinstance(prop, ObjectProperty):
@@ -626,12 +623,10 @@ def make_python_data_model(
                 elif prop.is_optional:
                     pytype = pytype.as_optional_type()
 
-                pytype_type = pytype.type
-
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                cls_ast(stmt.DefClassVarStatement(prop.name, pytype_type))
+                cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
 
         if is_on_update_value_updated:
             program.import_("typing.Optional", True)
