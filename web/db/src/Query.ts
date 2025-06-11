@@ -1,3 +1,5 @@
+import { action, makeObservable, observable } from "mobx";
+
 /**
  * For each field, you can either choose to filter by exact value matching (typeof string, number, boolean),
  * or choose to be max of a group (records are grouped by multiple fields in the value (hence value is (keyof R)[])),
@@ -110,5 +112,42 @@ export class QueryProcessor<R> {
     }
 
     return params;
+  }
+}
+
+/// A class that allows to subscribe to query changes
+export class ObservableQuery<R> {
+  public query: Query<R>;
+  private subscribers: ((query: Query<R>) => void)[] = [];
+
+  constructor(query: Query<R>) {
+    this.query = query;
+
+    makeObservable(this, {
+      query: observable,
+      update: action,
+    });
+  }
+
+  /// Update the query and notify all subscribers
+  update(query: Query<R>): void {
+    this.query = query;
+    this.notify(query);
+  }
+
+  /// Subscribe to query changes and return an unsubscribe function
+  /// The callback will be called with the new query whenever it changes
+  subscribe(callback: (query: Query<R>) => void): () => void {
+    this.subscribers.push(callback);
+    return () => {
+      this.subscribers = this.subscribers.filter((cb) => cb !== callback);
+    };
+  }
+
+  /// Notify all subscribers about the query change
+  private notify(query: Query<R>): void {
+    for (const subscriber of this.subscribers) {
+      subscriber(query);
+    }
   }
 }
