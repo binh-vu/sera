@@ -1,4 +1,4 @@
-import { Constraint } from "sera-db";
+import { Constraint } from "./Schema";
 
 import validator from 'validator';
 import memoizeOne from 'memoize-one';
