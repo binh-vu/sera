@@ -23,6 +23,7 @@ from sera.models import (
     Schema,
     TsTypeWithDep,
 )
+from sera.typing import is_set
 
 
 def make_typescript_data_model(schema: Schema, target_pkg: Package):
@@ -336,8 +337,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         f"{cls.name}Id",
                         deps=[f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id"],
                     )
-                else:
-                    # for none id properties, we need to include a type for "invalid" value
+                elif tstype.type not in schema.enums:
+                    # for none id & none enum properties, we need to include a type for "invalid" value
                     tstype = _inject_type_for_invalid_value(tstype)
 
                 if prop.is_optional:
@@ -355,9 +356,15 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     and prop.db.is_auto_increment
                 ):
                     create_propvalue = expr.ExprConstant(-1)
+                elif is_set(prop.data.default_value):
+                    create_propvalue = expr.ExprConstant(prop.data.default_value)
                 else:
                     if tstype.type in idprop_aliases:
                         create_propvalue = idprop_aliases[tstype.type].get_default()
+                    elif tstype.type in schema.enums:
+                        create_propvalue = expr.ExprConstant(
+                            next(iter(schema.enums[tstype.type].values.values())).value
+                        )
                     else:
                         create_propvalue = tstype.get_default()
 
@@ -537,7 +544,6 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         ],
                     )
                     if prop.cardinality.is_star_to_many():
-                        tstype = tstype.as_list_type()
                         create_propvalue = expr.ExprConstant([])
                         update_propvalue = PredefinedFn.map_list(
                             PredefinedFn.attr_getter(
@@ -578,6 +584,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                 ),
                             )
                         )
+
                         if not prop.data.is_private:
                             # private property does not include in the public record
                             to_record_args.append(
@@ -612,11 +619,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                     ),
                                 )
                             )
+
+                        tstype = tstype.as_list_type()
                     else:
-                        if prop.is_optional:
-                            # convert type to optional - for list type, we don't need to do this
-                            # as we will use empty list as no value
-                            tstype = tstype.as_optional_type()
                         create_propvalue = expr.ExprMethodCall(
                             expr.ExprIdent(tstype.type),
                             "create",
@@ -728,6 +733,11 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                         ),
                                     )
                                 )
+
+                        if prop.is_optional:
+                            # convert type to optional - for list type, we don't need to do this
+                            # as we will use empty list as no value
+                            tstype = tstype.as_optional_type()
 
                 for dep in tstype.deps:
                     program.import_(
@@ -1407,16 +1417,13 @@ def make_typescript_enum(schema: Schema, target_pkg: Package):
             stmt.LineBreak(),
             lambda ast: ast.class_like("enum", enum.name)(
                 *[
-                    stmt.DefClassVarStatement(
+                    stmt.DefEnumValueStatement(
                         name=value.name,
-                        type=None,
                         value=expr.ExprConstant(value.value),
                     )
                     for value in enum.values.values()
                 ]
             ),
-            stmt.LineBreak(),
-            stmt.TypescriptStatement("export " + enum.name + ";"),
         )
         pkg.module(enum.get_tsmodule_name()).write(program)
 

@@ -36,6 +36,7 @@ from sera.models._property import (
     SystemControlledAttrs,
 )
 from sera.models._schema import Schema
+from sera.typing import UNSET
 
 
 def parse_schema(name: str, files: Sequence[Path | str]) -> Schema:
@@ -140,6 +141,7 @@ def _parse_property(
         system_controlled=_parse_system_controlled_attrs(
             _data.get("system_controlled")
         ),
+        default_value=UNSET if "default_value" not in _data else _data["default_value"],
     )
 
     assert isinstance(prop, dict), prop
@@ -237,7 +239,9 @@ def _parse_datatype(schema: Schema, datatype: dict | str) -> DataType:
                 sqltype=SQLTypeWithDep(
                     type="String", mapped_pytype="str", deps=["sqlalchemy.String"]
                 ),
-                tstype=TsTypeWithDep(type=enum.name, deps=["@/models/enums"]),
+                tstype=TsTypeWithDep(
+                    type=enum.name, deps=[f"@.models.enums.{enum.name}"]
+                ),
                 is_list=is_list,
             )
 

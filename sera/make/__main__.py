@@ -30,7 +30,7 @@ def cli(
             "--collection",
             help="API collections to generate.",
         ),
-    ],
+    ] = [],
     language: Annotated[
         Language,
         typer.Option("-l", "--language", help="Language of the generated application"),

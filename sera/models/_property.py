@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
+
+from msgspec import UNSET
 
 from sera.models._constraints import Constraint
 from sera.models._datatype import DataType
 from sera.models._default import DefaultFactory
 from sera.models._multi_lingual_string import MultiLingualString
+from sera.typing import UnsetType
 
 if TYPE_CHECKING:
     from sera.models._class import Class
@@ -110,6 +113,9 @@ class PropDataAttrs:
 
     # if this property is controlled by the system, the attributes for the system-controlled property
     system_controlled: Optional[SystemControlledAttrs] = None
+
+    # default value of this property if it is not provided (then optional is false by default)
+    default_value: Any | UnsetType = UNSET
 
 
 @dataclass(kw_only=True)

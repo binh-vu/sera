@@ -82,7 +82,7 @@ class TsTypeWithDep:
             return expr.ExprConstant(0)
         if self.type == "boolean":
             return expr.ExprConstant(False)
-        if self.type == "string | undefined":
+        if self.type.endswith("| undefined"):
             return expr.ExprConstant("undefined")
         if self.type.endswith("| string)") or self.type.endswith("| string"):
             return expr.ExprConstant("")
