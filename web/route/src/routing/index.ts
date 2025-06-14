@@ -26,7 +26,7 @@ export type IRoute<
   U extends Record<string, keyof ArgType>,
   Q extends Record<string, keyof ArgType>,
   C extends PathDefChildren
-> = PathDef<U, Q, C> | { path: PathDef<U, Q, C>; [key: string]: any };
+> = PathDef<U, Q, C> | { path: PathDef<U, Q, C>;[key: string]: any };
 
 /**
  * Find the route that matches with the current location
@@ -44,6 +44,47 @@ export function getActiveRouteName(
 }
 
 /**
+ * Check if the route is a grouped route (i.e., it has children)
+ *
+ * @param route - The route to check
+ * @returns True if the route is grouped, false otherwise
+ */
+function isGroupedRoute<RT extends IRoute<any, any, PathDefChildren>>(
+  route: RT | Record<string, RT>
+): route is Record<string, RT> {
+  return !("path" in route);
+}
+
+/**
+ * Flatten grouped routes into a single level object with keys as "parent_child"
+ *
+ * @param routes - The routes object which may contain nested routes
+ * @returns A flattened version of the routes object
+ */
+export function flattenGroupedRoutes<RT extends IRoute<any, any, PathDefChildren>>(
+  routes: Record<
+    string,
+    RT | Record<string, RT>
+  >
+): Record<string, RT> {
+  const flattened: Record<string, RT> = {};
+
+  for (const key in routes) {
+    const route = routes[key];
+    if (isGroupedRoute(route)) {
+      for (const childKey in route) {
+        const childRoute = route[childKey];
+        flattened[`${key}_${childKey}`] = childRoute;
+      }
+    } else {
+      flattened[key] = route;
+    }
+  }
+
+  return flattened;
+}
+
+/**
  * Update the component of specific routes -- often for applying layout to the component (add headers/footers)
  *
  * @param routes
@@ -56,20 +97,20 @@ export function applyLayout<
   routes: R,
   applyFn:
     | Partial<
-        Record<
-          keyof R,
-          (
-            component: ReactComponent,
-            route: keyof R,
-            routes: R
-          ) => ReactComponent
-        >
+      Record<
+        keyof R,
+        (
+          component: ReactComponent,
+          route: keyof R,
+          routes: R
+        ) => ReactComponent
       >
+    >
     | ((
-        component: ReactComponent,
-        route: keyof R,
-        routes: R
-      ) => ReactComponent),
+      component: ReactComponent,
+      route: keyof R,
+      routes: R
+    ) => ReactComponent),
   ignoredRoutes?: (keyof R)[] | Set<keyof R> | Partial<R>
 ) {
   if (ignoredRoutes === undefined) {
