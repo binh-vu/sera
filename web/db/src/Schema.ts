@@ -2,7 +2,8 @@ import { Record as DBRecord, DraftEmbeddedRecord, DraftRecord } from "./Record";
 import { ValueValidator } from "./validators";
 export type PropertyName = string;
 export type TargetClassName = string;
-export type DataType = "string" | "number" | "boolean" | "string | undefined" | "string[]";
+export type DataType = "string" | "number" | "boolean" | "string | undefined" | "string[]" | "enum";
+export type Enum = { [key: string]: string | number };
 
 export interface MultiLingualString {
   lang2value: { [lang: string]: string };
@@ -52,6 +53,8 @@ export interface ObjectProperty extends Property {
 export interface DataProperty extends Property {
   // data type of the property
   datatype: DataType;
+  // if the property is an enum, this will contain the enum class
+  enumType?: Enum;
 }
 
 type NoStale<T> = T extends { stale: boolean } ? never : T;

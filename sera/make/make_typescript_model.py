@@ -1104,7 +1104,19 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 for dep in tstype.deps:
                     program.import_(dep, True)
                 tsprop = [
-                    (expr.ExprIdent("datatype"), expr.ExprConstant(tstype.type)),
+                    (
+                        expr.ExprIdent("datatype"),
+                        (
+                            expr.ExprConstant(tstype.type)
+                            if tstype.type not in schema.enums
+                            else expr.ExprConstant("enum")
+                        ),
+                    ),
+                    *(
+                        [(expr.ExprIdent("enumType"), expr.ExprIdent(tstype.type))]
+                        if tstype.type in schema.enums
+                        else []
+                    ),
                     (
                         expr.ExprIdent("isRequired"),
                         expr.ExprConstant(
