@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any, Callable, Iterable, Optional, TypeVar
+
+import serde.csv
+from sqlalchemy import Engine, text
+from sqlalchemy.orm import Session
+from tqdm import tqdm
 
 T = TypeVar("T")
 reserved_keywords = {
@@ -102,3 +108,43 @@ def filter_duplication(
             keys.add(k)
             new_lst.append(k)
     return new_lst
+
+
+def load_data(
+    engine: Engine,
+    create_db_and_tables: Callable[[], None],
+    table_files: list[tuple[type, Path]],
+    table_desers: dict[type, Callable[[dict], Any]],
+    verbose: bool = False,
+):
+    """
+    Load data into the database from specified CSV files.
+
+    Args:
+        engine: SQLAlchemy engine to connect to the database.
+        create_db_and_tables: Function to create database and tables.
+        table_files: List of tuples containing the class type and the corresponding CSV file path.
+        table_desers: Dictionary mapping class types to their deserializer functions.
+        verbose: If True, show progress bars during loading.
+    """
+    with Session(engine) as session:
+        create_db_and_tables()
+
+        for tbl, file in tqdm(table_files, disable=not verbose, desc="Loading data"):
+            if file.name.endswith(".csv"):
+                records = serde.csv.deser(file, deser_as_record=True)
+            else:
+                raise ValueError(f"Unsupported file format: {file.name}")
+            deser = table_desers[tbl]
+            records = [deser(row) for row in records]
+            for r in tqdm(records, desc=f"load {tbl.__name__}", disable=not verbose):
+                session.merge(r)
+            session.flush()
+
+            # Reset the sequence for each table
+            session.execute(
+                text(
+                    f"SELECT setval('{tbl.__tablename__}_id_seq', (SELECT MAX(id) FROM \"{tbl.__tablename__}\"));"
+                )
+            )
+        session.commit()
