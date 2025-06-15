@@ -4,6 +4,44 @@ import re
 from typing import Any, Callable, Iterable, Optional, TypeVar
 
 T = TypeVar("T")
+reserved_keywords = {
+    "and",
+    "or",
+    "not",
+    "is",
+    "in",
+    "if",
+    "else",
+    "elif",
+    "for",
+    "while",
+    "def",
+    "class",
+    "return",
+    "yield",
+    "import",
+    "from",
+    "as",
+    "with",
+    "try",
+    "except",
+    "finally",
+    "raise",
+    "assert",
+    "break",
+    "continue",
+    "pass",
+    "del",
+    "global",
+    "nonlocal",
+    "lambda",
+    "async",
+    "await",
+    "True",
+    "False",
+    "None",
+    "self",
+}
 
 
 def to_snake_case(camelcase: str) -> str:
@@ -16,13 +54,21 @@ def to_snake_case(camelcase: str) -> str:
 def to_camel_case(snake: str) -> str:
     """Convert snake_case to camelCase."""
     components = snake.split("_")
-    return components[0] + "".join(x.title() for x in components[1:])
+    out = components[0] + "".join(x.title() for x in components[1:])
+    # handle a corner case where the _ is added to the end of the string to avoid reserved keywords
+    if snake.endswith("_") and snake[:-1] in reserved_keywords:
+        out += "_"
+    return out
 
 
 def to_pascal_case(snake: str) -> str:
     """Convert snake_case to PascalCase."""
     components = snake.split("_")
-    return "".join(x.title() for x in components)
+    out = "".join(x.title() for x in components)
+    # handle a corner case where the _ is added to the end of the string to avoid reserved keywords
+    if snake.endswith("_") and snake[:-1] in reserved_keywords:
+        out += "_"
+    return out
 
 
 def assert_isinstance(x: Any, cls: type[T]) -> T:
