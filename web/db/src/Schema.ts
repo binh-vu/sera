@@ -18,7 +18,8 @@ export type Constraint =
   | "not_empty"
   | "url"
   | "username"
-  | "password";
+  | "password"
+  | "positive_number";
 
 export interface Property {
   // name of the property

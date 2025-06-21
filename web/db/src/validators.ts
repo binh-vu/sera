@@ -81,6 +81,7 @@ export function constraintToValidator(constraint: Constraint): ValueValidator {
     case "url": return validateURL;
     case "phone_number": return validatePhoneNumber;
     case "username": return validateUsername;
+    case "positive_number": return validatePositiveNumber;
     default: throw new Error(`Not Implemented Error: ${constraint}`);
   }
 }
@@ -206,5 +207,23 @@ export function validateUsername(value: any): ValidationResult {
   return {
     isValid,
     errorMessage: isValid ? undefined : new DynamicMultiLingualString("validator.username"),
+  };
+}
+
+/**
+ * Validates whether a given value is a positive number.
+ * A positive number is any number greater than 0.
+ * 
+ * @param value - The value to validate as a positive number
+ * @returns A ValidationResult object containing:
+ *   - isValid: boolean indicating if the value is a positive number
+ *   - errorMessage: undefined if valid, otherwise a DynamicMultiLingualString with the error key
+ */
+export function validatePositiveNumber(value: any): ValidationResult {
+  const num = Number(value);
+  const isValid = !isNaN(num) && isFinite(num) && num > 0;
+  return {
+    isValid,
+    errorMessage: isValid ? undefined : new DynamicMultiLingualString("validator.positive_number"),
   };
 }
