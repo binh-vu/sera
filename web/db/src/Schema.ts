@@ -95,7 +95,7 @@ export interface Schema<
   allProperties: Record<ST["allProperties"], DataProperty | ObjectProperty>;
   validators: Record<ST["allProperties"], ValueValidator>;
   normalizers: Partial<Record<ST["allProperties"], ValueNormalizer<any>>>;
-  primaryKey: keyof ST["cls"];
+  primaryKey: ST["publicProperties"] & ST["allProperties"];
 }
 
 export type GenericEmbeddedRecord<DR> = {
