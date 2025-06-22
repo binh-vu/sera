@@ -10,7 +10,7 @@ export class DB {
   }
 
   /// Get a table by its table class (UserTable)
-  get<T extends Table<any, any, any>>(Table: { new (...args: any[]): T }): T {
+  get<T extends Table<any, any, any>>(Table: { new(...args: any[]): T }): T {
     return this.cls2table[Table.name] as any;
   }
 

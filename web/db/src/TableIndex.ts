@@ -14,26 +14,66 @@ export interface Index<M extends Record<Key>> {
   clear(): void;
 }
 
+/**
+ * A unique index implementation that maps a single foreign key field to a primary key.
+ * This index ensures one-to-one mapping between foreign key values and record IDs.
+ * 
+ * @template F - The type of the foreign key field value
+ * @template K - The type of the primary key field value  
+ * @template M - The record type that extends Record<Key>
+ * 
+ * @example
+ * ```typescript
+ * // Create an index on the 'userId' foreign key field
+ * const userIndex = new SingleKeyUniqueIndex<string, number, UserRecord>('userId');
+ * 
+ * // Add a record to the index
+ * userIndex.add({ id: 1, userId: 'user123', name: 'John' });
+ * ```
+ */
 export class SingleKeyUniqueIndex<
   F extends Key,
   K extends Key,
   M extends Record<Key>
-> implements Index<M>
-{
-  public index: Map<F, K> = new Map();
+> implements Index<M> {
+
+  public index: Map<F, K | null> = new Map();
 
   protected fkField: keyof M;
   protected idField: keyof M;
 
-  constructor(field: keyof M, idField?: keyof M) {
+  constructor(field: keyof M, idField: keyof M = "id") {
     this.fkField = field;
-    this.idField = idField || "id";
+    this.idField = idField;
+
     makeObservable(this, {
       index: observable,
       add: action,
       remove: action,
       clear: action,
     });
+  }
+
+  /**
+   * Check if the index contains a given foreign key (including NULL -- meaning there is no record with the foreign key).
+   */
+  public has(key: F): boolean {
+    return this.index.has(key);
+  }
+
+  /**
+   * Get the primary key associated with a given foreign key.
+   * Returns null if the foreign key has been created but has no associated record.
+   */
+  public get(key: F): K | null | undefined {
+    return this.index.get(key);
+  }
+
+  /**
+   * Sets a value in the index for the specified key.
+   */
+  public set(key: F, value: K | null) {
+    this.index.set(key, value);
   }
 
   public add(record: M) {
@@ -55,8 +95,7 @@ export class SingleKeyUniqueIndex<
  * An index (fk1) => rid[]
  */
 export class SingleKeyIndex<F extends Key, K extends Key, M extends Record<Key>>
-  implements Index<M>
-{
+  implements Index<M> {
   public index: Map<F, Set<K>> = new Map();
 
   protected fkField: keyof M;
@@ -71,6 +110,28 @@ export class SingleKeyIndex<F extends Key, K extends Key, M extends Record<Key>>
       remove: action,
       clear: action,
     });
+  }
+
+  /**
+   * Check if the index contains a given foreign key (including NULL -- meaning there is no record with the foreign key).
+   */
+  public has(key: F): boolean {
+    return this.index.has(key);
+  }
+
+  /**
+   * Get the primary key associated with a given foreign key.
+   * Returns null if the foreign key has been created but has no associated record.
+   */
+  public get(key: F): Set<K> | undefined {
+    return this.index.get(key);
+  }
+
+  /**
+   * Sets a value in the index for the specified key.
+   */
+  public set(key: F, value: Set<K>) {
+    this.index.set(key, value);
   }
 
   public add(record: M) {
@@ -101,8 +162,7 @@ export class PairKeysIndex<
   F2 extends Key,
   K extends Key,
   M extends Record<Key>
-> implements Index<M>
-{
+> implements Index<M> {
   public index: Map<F1, Map<F2, Set<K>>> = new Map();
 
   protected fkField1: keyof M;
@@ -165,8 +225,7 @@ export class PairKeysUniqueIndex<
   F2 extends Key,
   K extends Key,
   M extends Record<Key>
-> implements Index<M>
-{
+> implements Index<M> {
   public index: Map<F1, Map<F2, K>> = new Map();
 
   protected fkField1: keyof M;
@@ -224,8 +283,7 @@ export class TripleKeysIndex<
   F3 extends Key,
   K extends Key,
   M extends Record<Key>
-> implements Index<M>
-{
+> implements Index<M> {
   public index: Map<F1, Map<F2, Map<F3, Set<K>>>> = new Map();
 
   protected fkField1: keyof M;

@@ -1,6 +1,6 @@
 import axios from "axios";
 import { action, makeObservable, observable, runInAction } from "mobx";
-import { Index } from "./TableIndex";
+import { Index, SingleKeyIndex, SingleKeyUniqueIndex } from "./TableIndex";
 import { Query, QueryConditions, QueryProcessor } from "./Query";
 import { Record as DBRecord, DraftRecord, RecordClass } from "./Record";
 import { DB } from "./DB";
@@ -29,6 +29,12 @@ export class Table<
 
   /// storing index, has to make it public to make it observable, but you should treat it as protected
   indices: Index<R>[] = [];
+
+  /// storing index for unique foreign keys
+  uniqueForeignKeyIndices: Map<keyof R, SingleKeyUniqueIndex<string | number, ID, R>> = new Map();
+
+  /// storing index for non-unique foreign keys
+  nonUniqueForeignKeyIndices: Map<keyof R, SingleKeyIndex<string | number, ID, R>> = new Map();
 
   // whether to reload the entity if the store already has an entity
   public refetch: boolean = true;
@@ -59,7 +65,7 @@ export class Table<
   }) {
     this.cls = cls;
     this.remoteURL = remoteURL;
-    this.indices = indices || [];
+    this.indices = indices;
     this.queryProcessor = queryProcessor;
     this.refetch = refetch;
     this.db = db;
@@ -70,6 +76,9 @@ export class Table<
       records: observable,
       draftRecords: observable,
       version: observable,
+      indices: observable,
+      uniqueForeignKeyIndices: observable,
+      nonUniqueForeignKeyIndices: observable,
       set: action,
       remove: action,
       setDraft: action,
@@ -79,6 +88,8 @@ export class Table<
       fetchOne: action,
       fetchById: action,
       fetchByIds: action,
+      fetchByUniqueForeignKey: action,
+      fetchByNonUniqueForeignKey: action,
       remoteSize: action,
       clear: action,
     });
@@ -216,12 +227,18 @@ export class Table<
     }
 
     const results: Record<ID, R> = {} as Record<ID, R>;
-    for (const id of ids) {
-      const record = this.get(id);
-      if (record !== null && record !== undefined) {
-        results[id] = record;
+    runInAction(() => {
+      for (const id of ids) {
+        const record = this.get(id);
+        if (record !== null && record !== undefined) {
+          results[id] = record;
+        } else {
+          // If the record does not exist, we will store it as a null record
+          // so that we can track that the record was requested
+          this.records.set(id, null);
+        }
       }
-    }
+    });
     return results;
   }
 
@@ -237,16 +254,18 @@ export class Table<
   async fetchById(id: ID, force: boolean = false): Promise<R | undefined> {
     if (!force && !this.refetch && this.has(id)) {
       const record = this.records.get(id);
-      if (record === null) return Promise.resolve(undefined);
-      return Promise.resolve(record);
+      if (record === null) return undefined;
+      return record;
     }
 
     try {
       let resp = await this.createFetchByIdRequest(id);
 
       runInAction(() => {
+        // If the record does not exist, we will get a 404 error
         this.db.populateData(resp.data);
       });
+
       return this.records.get(id)!;
     } catch (error: unknown) {
       // If the record does not exist, 404 is returned
@@ -256,13 +275,103 @@ export class Table<
         error.response.status === 404
       ) {
         runInAction(() => {
-          this.remove(id);
+          if (!this.remove(id)) {
+            // If the record does not exist, means that the id was never in the store, we 
+            // should store it as a null record
+            this.records.set(id, null);
+          }
         });
         return undefined;
       }
 
       throw error;
     }
+  }
+
+  /**
+   * Fetch a record by an unique foreign key.
+   */
+  async fetchByUniqueForeignKey(
+    foreignKey: keyof R,
+    foreignKeyValue: string | number,
+    force: boolean = false
+  ): Promise<R | undefined> {
+    // Check if we already have the record in our unique foreign key index
+    const uniqueIndex = this.uniqueForeignKeyIndices.get(foreignKey)!;
+    if (uniqueIndex.has(foreignKeyValue) && !force && !this.refetch) {
+      const recordId = uniqueIndex.get(foreignKeyValue);
+      if (recordId === null || recordId === undefined) {
+        return undefined; // The foreign key exists but has no associated record
+      }
+      return this.get(recordId)!;
+    }
+
+    // Fetch from remote
+    const conditions: QueryConditions<R> = {};
+    conditions[foreignKey] = foreignKeyValue;
+
+    const result = await this.fetchOne(conditions);
+    if (result === undefined) {
+      runInAction(() => {
+        uniqueIndex.set(foreignKeyValue, null);
+      });
+    }
+    return result;
+  }
+
+  /**
+   * Fetches multiple records from the table by a non-unique foreign key value.
+   * 
+   * @param foreignKey - The foreign key field name to search by
+   * @param foreignKeyValue - The value to match against the foreign key field
+   * @param force - Whether to force a fresh fetch from the database, bypassing any cache. Defaults to false
+   * @returns A promise that resolves to an array of records matching the foreign key criteria
+   * 
+   * @example
+   * ```typescript
+   * // Fetch all orders for a specific customer
+   * const orders = await orderTable.fetchByNonUniqueForeignKey('customerId', 123);
+   * 
+   * // Force a fresh fetch from database
+   * const orders = await orderTable.fetchByNonUniqueForeignKey('customerId', 123, true);
+   * ```
+   */
+  async fetchByNonUniqueForeignKey(
+    foreignKey: keyof R,
+    foreignKeyValue: string | number,
+    force: boolean = false
+  ): Promise<R[]> {
+    // Check if we already have the records in our non-unique foreign key index
+    const nonUniqueIndex = this.nonUniqueForeignKeyIndices.get(foreignKey)!;
+    if (nonUniqueIndex.has(foreignKeyValue) && !force && !this.refetch) {
+      const recordIds = nonUniqueIndex.get(foreignKeyValue)!;
+      const records: R[] = [];
+      for (const recordId of recordIds) {
+        records.push(this.get(recordId)!);
+      }
+      return records;
+    }
+
+    // Fetch from remote
+    const conditions: QueryConditions<R> = {};
+    conditions[foreignKey] = foreignKeyValue;
+
+    const result = await this.fetch({
+      offset: 0,
+      limit: 10000, // Use a reasonable default limit
+      conditions,
+    });
+
+    // If no records are found, we will store an empty set in the index
+    // because the indexing function won't be called if there are no records
+    if (result.records.length === 0) {
+      runInAction(() => {
+        nonUniqueIndex.set(foreignKeyValue, new Set());
+      });
+      return [];
+    }
+
+    return result.records;
   }
 
   /**
@@ -273,36 +382,10 @@ export class Table<
   }
 
   /**
-   * Test if we have a draft record
-   */
-  public hasDraft(id: ID): boolean {
-    return this.draftRecords.has(id);
-  }
-
-  /**
    * Get a local copy of a record
    */
   public get(id: ID): R | null | undefined {
     return this.records.get(id);
-  }
-
-  /**
-   * Remove a record from the table
-   */
-  public remove(id: ID) {
-    const m = this.records.get(id);
-    if (m !== null && m !== undefined) {
-      this.records.delete(id);
-      this.deindex(m);
-      this.version++;
-    }
-  }
-
-  /**
-   * Get a draft record
-   */
-  public getDraft(id: ID): DR | undefined {
-    return this.draftRecords.get(id);
   }
 
   /**
@@ -335,15 +418,6 @@ export class Table<
   }
 
   /**
-   * Save a draft record to the table
-   *
-   * @param m the draft record
-   */
-  public setDraft(m: DR) {
-    this.draftRecords.set(m.id, m);
-  }
-
-  /**
    * Save multiple records to the table
    *
    */
@@ -357,6 +431,136 @@ export class Table<
       this.index(m);
       this.version++;
     }
+  }
+
+  /**
+   * Remove a record from the table.
+   * 
+   * Return true if the record was removed, false if the record does not exist.
+   */
+  public remove(id: ID): boolean {
+    const m = this.records.get(id);
+    if (m !== null && m !== undefined) {
+      this.records.delete(id);
+      this.deindex(m);
+      this.version++;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Test if we have a draft record
+   */
+  public hasDraft(id: ID): boolean {
+    return this.draftRecords.has(id);
+  }
+
+  /**
+   * Get a draft record
+   */
+  public getDraft(id: ID): DR | undefined {
+    return this.draftRecords.get(id);
+  }
+
+  /**
+   * Save a draft record to the table
+   *
+   * @param m the draft record
+   */
+  public setDraft(m: DR) {
+    this.draftRecords.set(m.id, m);
+  }
+
+  /**
+   * Retrieves a record by its unique foreign key value.
+   * 
+   * @param foreignKey - The foreign key field name to search by
+   * @param foreignKeyValue - The value of the foreign key to match
+   * @returns The record matching the foreign key value, or undefined if not found
+   * 
+   * @example
+   * ```typescript
+   * const user = table.getByUniqueForeignKey('userId', 123);
+   * if (user) {
+   *   console.log('Found user:', user);
+   * }
+   * ```
+   */
+  public getByUniqueForeignKey(
+    foreignKey: keyof R,
+    foreignKeyValue: string | number
+  ): R | null | undefined {
+    const uniqueIndex = this.uniqueForeignKeyIndices.get(foreignKey)!;
+    const recordId = uniqueIndex.get(foreignKeyValue);
+    if (recordId !== null && recordId !== undefined) {
+      return this.get(recordId)!;
+    }
+    return recordId;
+  }
+
+  /**
+   * Test if a record exists with the given unique foreign key value.
+   *
+   * @param foreignKey - The foreign key field name to search by
+   * @param foreignKeyValue - The value of the foreign key to match
+   * @returns True if the record exists, false otherwise
+   */
+  public hasUniqueForeignKey(
+    foreignKey: keyof R,
+    foreignKeyValue: string | number
+  ): boolean {
+    const uniqueIndex = this.uniqueForeignKeyIndices.get(foreignKey)!;
+    return uniqueIndex.has(foreignKeyValue);
+  }
+
+  /**
+   * Retrieves all records that match a specific foreign key value from a non-unique foreign key index.
+   * 
+   * @param foreignKey - The foreign key field name to search by
+   * @param foreignKeyValue - The value to match against the foreign key field
+   * @returns An array of records matching the foreign key criteria, or undefined if no records match
+   * 
+   * @example
+   * ```typescript
+   * // Get all orders for a specific customer
+   * const customerOrders = orderTable.getByNonUniqueForeignKey('customerId', 123);
+   * ```
+   */
+  public getByNonUniqueForeignKey(
+    foreignKey: keyof R,
+    foreignKeyValue: string | number
+  ): R[] | undefined {
+    const nonUniqueIndex = this.nonUniqueForeignKeyIndices.get(foreignKey)!;
+    const recordIds = nonUniqueIndex.get(foreignKeyValue);
+
+    const records: R[] = [];
+    if (recordIds !== undefined) {
+      for (const recordId of recordIds) {
+        const record = this.get(recordId);
+        if (record !== null && record !== undefined) {
+          records.push(record);
+        }
+      }
+    } else {
+      return recordIds
+    }
+    return records;
+  }
+
+  /**
+   * Checks if a record exists in the table with the specified non-unique foreign key value.
+   * 
+   * @param foreignKey - The foreign key column name to check against
+   * @param foreignKeyValue - The value to search for in the foreign key column
+   * @returns True if at least one record exists with the specified foreign key value, false otherwise
+   */
+  public hasByNonUniqueForeignKey(
+    foreignKey: keyof R,
+    foreignKeyValue: string | number
+  ): boolean {
+    const nonUniqueIndex = this.nonUniqueForeignKeyIndices.get(foreignKey)!;
+    return nonUniqueIndex.has(foreignKeyValue);
   }
 
   /**
