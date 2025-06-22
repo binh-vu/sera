@@ -76,6 +76,7 @@ export class Table<
       batchSet: action,
       upsert: action,
       fetch: action,
+      fetchOne: action,
       fetchById: action,
       fetchByIds: action,
       remoteSize: action,
@@ -139,6 +140,12 @@ export class Table<
 
   /** Fetch records by query */
   async fetch(query: Query<R>): Promise<FetchResult<R>> {
+    if (query.fields !== undefined) {
+      throw new Error(
+        "Fetching specific fields is not supported in Table.fetch"
+      );
+    }
+
     let resp = await axios.get(`${this.remoteURL}`, {
       params: this.queryProcessor.prepare(query),
     });
@@ -151,6 +158,12 @@ export class Table<
       records: output[this.name],
       total: resp.data.total,
     };
+  }
+
+  /** Fetch one record by query */
+  async fetchOne(conditions: QueryConditions<R>): Promise<R | undefined> {
+    const result = await this.fetch({ conditions, limit: 1, offset: 0 });
+    return result.records[0];
   }
 
   /**
