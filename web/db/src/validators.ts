@@ -5,6 +5,7 @@ import memoizeOne from 'memoize-one';
 
 import { DynamicMultiLingualString, I18NStore } from "./I18N";
 import validatorTranslations from "./assets/i18n/validators.json";
+
 I18NStore.getInstance().registerTranslations(validatorTranslations)
 
 export interface ValidationResult {

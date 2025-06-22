@@ -3,6 +3,7 @@ from sera.misc._utils import (
     assert_isinstance,
     assert_not_null,
     filter_duplication,
+    identity,
     load_data,
     to_camel_case,
     to_pascal_case,
@@ -20,4 +21,5 @@ __all__ = [
     "Formatter",
     "File",
     "load_data",
+    "identity",
 ]

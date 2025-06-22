@@ -148,3 +148,8 @@ def load_data(
                 )
             )
         session.commit()
+
+
+def identity(x: T) -> T:
+    """Identity function that returns the input unchanged."""
+    return x

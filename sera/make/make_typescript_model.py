@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
-from codegen.models import AST, PredefinedFn, Program, expr, stmt
+from codegen.models import AST, ImportHelper, PredefinedFn, Program, expr, stmt
 from codegen.models.var import DeferredVar
 from loguru import logger
 
 from sera.misc import (
     assert_isinstance,
     assert_not_null,
+    identity,
     to_camel_case,
     to_pascal_case,
     to_snake_case,
@@ -24,6 +25,11 @@ from sera.models import (
     TsTypeWithDep,
 )
 from sera.typing import is_set
+
+TS_GLOBAL_IDENTS = {
+    "normalizers.normalizeNumber": "sera-db.normalizers",
+    "normalizers.normalizeOptionalNumber": "sera-db.normalizers",
+}
 
 
 def make_typescript_data_model(schema: Schema, target_pkg: Package):
@@ -259,6 +265,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         program.import_("mobx.action", True)
         program.import_("sera-db.validators", True)
 
+        import_helper = ImportHelper(program, TS_GLOBAL_IDENTS)
+
         program.root(
             stmt.LineBreak(),
             stmt.TypescriptStatement(
@@ -331,12 +339,15 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
 
             if isinstance(prop, DataProperty):
                 tstype = prop.get_data_model_datatype().get_typescript_type()
+                original_tstype = tstype
+
                 if idprop is not None and prop.name == idprop.name:
                     # use id type alias
                     tstype = TsTypeWithDep(
                         f"{cls.name}Id",
                         deps=[f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id"],
                     )
+                    original_tstype = tstype
                 elif tstype.type not in schema.enums:
                     # for none id & none enum properties, we need to include a type for "invalid" value
                     tstype = _inject_type_for_invalid_value(tstype)
@@ -344,6 +355,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 if prop.is_optional:
                     # convert type to optional
                     tstype = tstype.as_optional_type()
+                    original_tstype = original_tstype.as_optional_type()
 
                 for dep in tstype.deps:
                     program.import_(dep, True)
@@ -400,6 +412,11 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         expr.ExprIdent("record"), expr.ExprIdent(propname)
                     )
 
+                if original_tstype.type != tstype.type:
+                    norm_func = get_norm_func(original_tstype, import_helper)
+                else:
+                    norm_func = identity
+
                 ser_args.append(
                     (
                         expr.ExprIdent(prop.name),
@@ -420,14 +437,18 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                     ),
                                     expr.ExprIdent("isValid"),
                                 ),
-                                PredefinedFn.attr_getter(
-                                    expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                norm_func(
+                                    PredefinedFn.attr_getter(
+                                        expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                    )
                                 ),
                                 expr.ExprIdent("undefined"),
                             )
                             if prop.is_optional
-                            else PredefinedFn.attr_getter(
-                                expr.ExprIdent("this"), expr.ExprIdent(propname)
+                            else norm_func(
+                                PredefinedFn.attr_getter(
+                                    expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                )
                             )
                         ),
                     )
@@ -455,14 +476,19 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                         ),
                                         expr.ExprIdent("isValid"),
                                     ),
-                                    PredefinedFn.attr_getter(
-                                        expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                    norm_func(
+                                        PredefinedFn.attr_getter(
+                                            expr.ExprIdent("this"),
+                                            expr.ExprIdent(propname),
+                                        )
                                     ),
                                     expr.ExprIdent("undefined"),
                                 )
                                 if prop.is_optional
-                                else PredefinedFn.attr_getter(
-                                    expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                else norm_func(
+                                    PredefinedFn.attr_getter(
+                                        expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                    )
                                 )
                             ),
                         )
@@ -1086,6 +1112,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
 
         program = Program()
         prop_defs: list[tuple[DataProperty | ObjectProperty, expr.Expr, expr.Expr]] = []
+        prop_normalizers: list[tuple[expr.Expr, expr.Expr]] = []
+
+        import_helper = ImportHelper(program, TS_GLOBAL_IDENTS)
 
         for prop in cls.properties.values():
             # we must include private properties that are needed during upsert for our forms.
@@ -1126,6 +1155,11 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         ),
                     ),
                 ]
+
+                norm_func = get_normalizer(tstype, import_helper)
+                if norm_func is not None:
+                    # we have a normalizer for this type
+                    prop_normalizers.append((expr.ExprIdent(propname), norm_func))
             else:
                 assert isinstance(prop, ObjectProperty)
                 if prop.target.db is not None:
@@ -1340,6 +1374,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                             expr.ExprIdent("validators"),
                             expr.ExprIdent(f"draft{cls.name}Validators"),
                         ),
+                        (
+                            expr.ExprIdent("normalizers"),
+                            PredefinedFn.dict(prop_normalizers),
+                        ),
                     ]
                     + (
                         [
@@ -1500,3 +1538,35 @@ def _inject_type_for_invalid_value(tstype: TsTypeWithDep) -> TsTypeWithDep:
         return tstype
 
     raise NotImplementedError(tstype.type)
+
+
+def get_normalizer(
+    tstype: TsTypeWithDep, import_helper: ImportHelper
+) -> Optional[expr.ExprIdent]:
+    if tstype.type == "number":
+        return import_helper.use("normalizers.normalizeNumber")
+    if tstype.type == "number | undefined":
+        return import_helper.use("normalizers.normalizeOptionalNumber")
+
+    assert "number" not in tstype.type, tstype.type
+    return None
+
+
+def get_norm_func(
+    tstype: TsTypeWithDep, import_helper: ImportHelper
+) -> Callable[[expr.Expr], expr.Expr]:
+    """
+    Get the normalizer function for the given TypeScript type.
+    If no normalizer is available, return None.
+    """
+    norm_func = get_normalizer(tstype, import_helper)
+    if norm_func is not None:
+
+        def modify_expr(value: expr.Expr) -> expr.Expr:
+            return expr.ExprFuncCall(
+                norm_func,
+                [value],
+            )
+
+        return modify_expr
+    return identity  # Return the value as is if no normalizer is available

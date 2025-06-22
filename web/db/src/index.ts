@@ -5,6 +5,7 @@ export * from "./Record";
 export * from "./TableIndex";
 export * from "./Schema";
 export * as validators from "./validators";
+export * as normalizers from "./normalizers";
 export { DynamicMultiLingualString, I18NStore } from "./I18N";
 
 /**

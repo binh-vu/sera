@@ -1,3 +1,4 @@
+import { ValueNormalizer } from "./normalizers";
 import { Record as DBRecord, DraftEmbeddedRecord, DraftRecord } from "./Record";
 import { ValueValidator } from "./validators";
 export type PropertyName = string;
@@ -80,7 +81,7 @@ export type SchemaType<
 };
 
 export interface Schema<
-  ID,
+  ID extends string | number,
   R extends GenericRecord<ID, DR>,
   DR extends DraftRecord<ID>,
   PF extends keyof R,
@@ -93,7 +94,8 @@ export interface Schema<
   >;
   allProperties: Record<ST["allProperties"], DataProperty | ObjectProperty>;
   validators: Record<ST["allProperties"], ValueValidator>;
-  primaryKey?: keyof ST["cls"];
+  normalizers: Partial<Record<ST["allProperties"], ValueNormalizer<any>>>;
+  primaryKey: keyof ST["cls"];
 }
 
 export type GenericEmbeddedRecord<DR> = {
@@ -112,6 +114,7 @@ export interface EmbeddedSchema<
   >;
   allProperties: Record<F, DataProperty | ObjectProperty>;
   validators: Record<F, ValueValidator>;
+  normalizers: Partial<Record<F, ValueNormalizer<any>>>;
 }
 
 /**
