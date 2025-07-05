@@ -1079,12 +1079,10 @@ def make_python_relational_model(
 
         target_pkg.module("base").write(program)
 
-    custom_types: list[ObjectProperty] = []
-
-    for cls in schema.topological_sort():
+    def make_orm(cls: Class):
         if cls.db is None or cls.name in reference_classes:
             # skip classes that are not stored in the database
-            continue
+            return
 
         program = Program()
         program.import_("__future__.annotations", True)
@@ -1092,6 +1090,11 @@ def make_python_relational_model(
         program.import_("sqlalchemy.orm.mapped_column", True)
         program.import_("sqlalchemy.orm.Mapped", True)
         program.import_(f"{target_pkg.path}.base.Base", True)
+
+        ident_manager = ImportHelper(
+            program,
+            GLOBAL_IDENTS,
+        )
 
         index_stmts = []
         if len(cls.db.indices) > 0:
@@ -1159,6 +1162,32 @@ def make_python_relational_model(
                     proptype = f"Mapped[{sqltype.mapped_pytype}]"
 
                 propvalargs: list[expr.Expr] = [expr.ExprIdent(sqltype.type)]
+                if prop.db.foreign_key is not None:
+                    assert (
+                        prop.db.foreign_key.db is not None
+                    ), f"Foreign key {prop.db.foreign_key.name} must have a database mapping"
+                    foreign_key_idprop = prop.db.foreign_key.get_id_property()
+                    assert (
+                        foreign_key_idprop is not None
+                    ), f"Foreign key {prop.db.foreign_key.name} must have an id property"
+                    propvalargs.append(
+                        expr.ExprFuncCall(
+                            ident_manager.use("ForeignKey"),
+                            [
+                                expr.ExprConstant(
+                                    f"{prop.db.foreign_key.db.table_name}.{foreign_key_idprop.name}"
+                                ),
+                                PredefinedFn.keyword_assignment(
+                                    "ondelete",
+                                    expr.ExprConstant("CASCADE"),
+                                ),
+                                PredefinedFn.keyword_assignment(
+                                    "onupdate",
+                                    expr.ExprConstant("CASCADE"),
+                                ),
+                            ],
+                        )
+                    )
                 if prop.db.is_primary_key:
                     propvalargs.append(
                         PredefinedFn.keyword_assignment(
@@ -1207,6 +1236,11 @@ def make_python_relational_model(
                 )
 
         target_pkg.module(cls.get_pymodule_name()).write(program)
+
+    custom_types: list[ObjectProperty] = []
+
+    for cls in schema.topological_sort():
+        make_orm(cls)
 
     # make a base class that implements the mapping for custom types
     custom_types = filter_duplication(

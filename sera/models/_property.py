@@ -150,6 +150,12 @@ class DataPropDBInfo:
     is_unique: bool = False
     # whether this property is indexed or not
     is_indexed: bool = False
+    # this is used in conjunction with is_primary_key = True for the case of
+    # extending a table with frequently updated properties. The value for the `foreign_key`
+    # will be a target class. The cardinality is one-to-one, on target class deletion,
+    # this class will be deleted as well (because it's an extended table of the target class).
+    # on source (this class) deletion, the target class will not be deleted.
+    foreign_key: Optional[Class] = None
 
 
 @dataclass(kw_only=True)

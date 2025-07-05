@@ -37,4 +37,5 @@ GLOBAL_IDENTS = {
     "AsyncSession": "sqlalchemy.ext.asyncio.AsyncSession",
     "ASGIConnection": "litestar.connection.ASGIConnection",
     "UNSET": "sera.typing.UNSET",
+    "ForeignKey": "sqlalchemy.ForeignKey",
 }

@@ -54,6 +54,20 @@ def export_tbls(schema: Schema, outfile: Path):
                             "columns": [prop.name],
                         }
                     )
+
+                    if prop.db.foreign_key is not None:
+                        idprop = assert_not_null(prop.db.foreign_key.get_id_property())
+                        out["relations"].append(
+                            {
+                                "table": cls.name,
+                                "columns": [prop.name],
+                                "cardinality": "zero_or_one",
+                                "parent_table": prop.db.foreign_key.name,
+                                "parent_columns": [idprop_name],
+                                "parent_cardinality": "zero_or_one",
+                                "def": f"FOREIGN KEY ({prop.name}) REFERENCES {prop.db.foreign_key.name}({idprop_name})",
+                            }
+                        )
             else:
                 if prop.cardinality == Cardinality.MANY_TO_MANY:
                     # For many-to-many relationships, we need to create a join table
