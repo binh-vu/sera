@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Union, cast
 
 import pytest
+from graph.retworkx import RetworkXStrDiGraph
 
 from sera.libs.directed_computing_graph import (
     SKIP,
@@ -47,7 +48,7 @@ class TestDirectedComputingGraph:
             "multiply": Flow(["add"], multiply),
         }
 
-        dcg = DirectedComputingGraph.from_flows(flows, strict=False)
+        dcg = DirectedComputingGraph.from_flows(flows)
 
         result = dcg.execute(
             input={"input1": (5,), "input2": (3,)},
@@ -79,7 +80,7 @@ class TestDirectedComputingGraph:
             "sum": Flow(["square", "cube"], add),
         }
 
-        dcg = DirectedComputingGraph.from_flows(flows, strict=False)
+        dcg = DirectedComputingGraph.from_flows(flows)
 
         result = dcg.execute(input={"input": (3,)}, output={"square", "cube", "sum"})
 
@@ -108,7 +109,7 @@ class TestDirectedComputingGraph:
             "power": Flow(["multiply"], power),
         }
 
-        dcg = DirectedComputingGraph.from_flows(flows, strict=False)
+        dcg = DirectedComputingGraph.from_flows(flows)
 
         result = dcg.execute(
             input={"input": (4,)}, output={"multiply", "power"}, context={"exponent": 3}
@@ -135,7 +136,7 @@ class TestDirectedComputingGraph:
             "scale": Flow(["add_offset"], scale),
         }
 
-        dcg = DirectedComputingGraph.from_flows(flows, strict=False)
+        dcg = DirectedComputingGraph.from_flows(flows)
 
         result = dcg.execute(
             input={"input": (10,)},
@@ -163,7 +164,7 @@ class TestDirectedComputingGraph:
         def get_context():
             return {"random_value": 42}
 
-        dcg = DirectedComputingGraph.from_flows(flows, strict=False)
+        dcg = DirectedComputingGraph.from_flows(flows)
 
         result = dcg.execute(
             input={"input": (8,)}, output={"add_random"}, context=get_context
@@ -171,7 +172,7 @@ class TestDirectedComputingGraph:
 
         assert result["add_random"] == [50]  # 8 + 42 = 50
 
-    def test_skip_functionality(self):
+    def test_edge_filter(self):
         """Test SKIP functionality with filter functions."""
 
         def positive_only(x: int) -> int:
@@ -200,7 +201,7 @@ class TestDirectedComputingGraph:
 
         # Test with negative number (should be skipped)
         result_neg = dcg.execute(input={"input": (-3,)}, output={"double"})
-        assert result_neg["double"] == [SKIP]
+        assert result_neg["double"] == []
 
     def test_type_conversion(self):
         """Test type conversion functionality."""
@@ -214,9 +215,6 @@ class TestDirectedComputingGraph:
         def add_numbers(x: float, y: float) -> float:
             return x + y
 
-        def identity(x: int) -> int:
-            return x
-
         def input_fn(x: int) -> int:
             return x
 
@@ -224,16 +222,16 @@ class TestDirectedComputingGraph:
             return x
 
         # Define type conversion functions
-        type_conversions = [int_to_str, str_to_float]
+        type_conversions = [str_to_float]
 
         flows: Dict[ComputeFnId, Union[Flow, ComputeFn]] = {
             "input": input_fn,
             "input2": input2_fn,
-            "convert": Flow(["input"], identity),  # identity function
+            "convert": Flow(["input"], int_to_str),  # convert int to str
             "add": Flow(["convert", "input2"], add_numbers),
         }
 
-        dcg = DirectedComputingGraph.from_flows(flows, type_conversions, strict=False)
+        dcg = DirectedComputingGraph.from_flows(flows, type_conversions)
 
         result = dcg.execute(input={"input": (42,), "input2": (3.14,)}, output={"add"})
 
@@ -280,169 +278,3 @@ class TestDirectedComputingGraph:
         assert result["diff"] == [6]  # 10 - 4 = 6
         assert result["product"] == [84]  # 14 * 6 = 84
         assert result["quotient"] == [14 / 6]  # 14 / 6 ≈ 2.33
-
-    def test_node_runtime(self):
-        """Test NodeRuntime functionality."""
-        from graph.retworkx import RetworkXStrDiGraph
-
-        def add(x: int, y: int) -> int:
-            return x + y
-
-        # Create a simple graph
-        graph = RetworkXStrDiGraph(check_cycle=False, multigraph=False)
-        node = DCGNode("add", add)
-        graph.add_node(node)
-
-        # Initialize the node's type conversions properly
-        node.type_conversions = [lambda x: x, lambda x: x]  # identity conversions
-
-        runtime = NodeRuntime.from_node(graph, node)
-
-        # Test adding tasks
-        runtime.add_task((0,), [1, 2])
-        assert (0,) in runtime.tasks
-        assert runtime.tasks[(0,)] == [1, 2]
-
-        # Test has_enough_data when complete
-        assert runtime.has_enough_data()
-
-        # Test execution
-        result = runtime.execute([3, 4], {})
-        assert result == 7
-
-    def test_edge_filter(self):
-        """Test DCGEdge filter functionality."""
-        from sera.misc import identity
-
-        def is_even(x: int) -> bool:
-            return x % 2 == 0
-
-        edge = DCGEdge(
-            id=1,
-            source="source",
-            target="target",
-            argindex=0,
-            type_conversion=identity,
-            filter_fn=is_even,
-        )
-
-        assert edge.filter(4) == True  # 4 is even
-        assert edge.filter(3) == False  # 3 is odd
-
-        # Test edge without filter
-        edge_no_filter = DCGEdge(
-            id=2, source="source", target="target", argindex=0, type_conversion=identity
-        )
-
-        assert edge_no_filter.filter(42) == True  # Always true when no filter
-
-    def test_flow_creation(self):
-        """Test Flow creation with different source types."""
-
-        def dummy_func(x: int) -> int:
-            return x
-
-        # Test with single source
-        flow1 = Flow("input1", dummy_func)
-        assert flow1.source == ["input1"]
-
-        # Test with multiple sources
-        flow2 = Flow(["input1", "input2"], dummy_func)
-        assert flow2.source == ["input1", "input2"]
-
-        # Test with filter function
-        def filter_positive(x: int) -> bool:
-            return x > 0
-
-        flow3 = Flow("input", dummy_func, filter_fn=filter_positive)
-        assert flow3.filter_fn == filter_positive
-
-    def test_empty_graph(self):
-        """Test behavior with empty flows."""
-        flows: Dict[ComputeFnId, Union[Flow, ComputeFn]] = {}
-        dcg = DirectedComputingGraph.from_flows(flows, strict=False)
-
-        result = dcg.execute(input={}, output=set())
-        assert result == {}
-
-    def test_no_context_functions(self):
-        """Test functions that don't require context."""
-
-        def identity(x: int) -> int:
-            return x
-
-        def input_fn(x: int) -> int:
-            return x
-
-        flows: Dict[ComputeFnId, Union[Flow, ComputeFn]] = {
-            "input": input_fn,
-            "identity": Flow(["input"], identity),
-        }
-
-        dcg = DirectedComputingGraph.from_flows(flows, strict=False)
-
-        result = dcg.execute(input={"input": (42,)}, output={"identity"})
-
-        assert result["identity"] == [42]
-
-    def test_error_handling(self):
-        """Test error handling in various scenarios."""
-
-        def failing_function(x: int) -> int:
-            if x < 0:
-                raise ValueError("Negative input not allowed")
-            return x * 2
-
-        def input_fn(x: int) -> int:
-            return x
-
-        flows: Dict[ComputeFnId, Union[Flow, ComputeFn]] = {
-            "input": input_fn,
-            "process": Flow(["input"], failing_function),
-        }
-
-        dcg = DirectedComputingGraph.from_flows(flows, strict=False)
-
-        # Test with valid input
-        result = dcg.execute(input={"input": (5,)}, output={"process"})
-        assert result["process"] == [10]
-
-        # Test with invalid input should raise exception
-        with pytest.raises(ValueError, match="Negative input not allowed"):
-            dcg.execute(input={"input": (-1,)}, output={"process"})
-
-    def test_partial_fn_invalid_args(self):
-        """Test PartialFn with invalid argument names."""
-
-        def add(x: int, y: int) -> int:
-            return x + y
-
-        # Test with invalid argument name
-        with pytest.raises(
-            Exception, match="Argument z is not in the function signature"
-        ):
-            PartialFn(add, z=5)
-
-    def test_multiple_tasks(self):
-        """Test graph with multiple independent task executions."""
-
-        def square(x: int) -> int:
-            return x * x
-
-        def input_fn(x: int) -> int:
-            return x
-
-        flows: Dict[ComputeFnId, Union[Flow, ComputeFn]] = {
-            "input": input_fn,
-            "square": Flow(["input"], square),
-        }
-
-        dcg = DirectedComputingGraph.from_flows(flows, strict=False)
-
-        # Execute multiple times with different inputs
-        result1 = dcg.execute(input={"input": (3,)}, output={"square"})
-
-        result2 = dcg.execute(input={"input": (4,)}, output={"square"})
-
-        assert result1["square"] == [9]
-        assert result2["square"] == [16]

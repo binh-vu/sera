@@ -25,6 +25,11 @@ class DCGEdge(BaseEdge[NodeId, int]):
         self.filter_fn = filter_fn
 
     def filter(self, value: Any) -> bool:
+        """Filter the value passing through this edge.
+
+        Returns:
+            True if the value should flow through this edge, False to block it.
+        """
         if self.filter_fn is not None:
             return self.filter_fn(value)
         return True

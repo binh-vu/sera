@@ -206,9 +206,26 @@ class DirectedComputingGraph:
 
         # we execute the computing nodes
         # when it's finished, we put the outgoing edges into a stack.
-        runtimes: dict[NodeId, NodeRuntime] = {
-            u.id: NodeRuntime.from_node(self.graph, u) for u in self.graph.iter_nodes()
-        }
+        runtimes: dict[NodeId, NodeRuntime] = {}
+
+        for u in self.graph.iter_nodes():
+            if u.id in input:
+                # user provided input should supersede the context
+                n_provided_args = len(input[u.id])
+                n_consumed_context = n_provided_args - len(u.required_args)
+            else:
+                n_consumed_context = 0
+
+            node_context = tuple(
+                (
+                    context[name]
+                    if name in context
+                    else u.required_context_default_args[name]
+                )
+                for name in u.required_context[n_consumed_context:]
+            )
+
+            runtimes[u.id] = NodeRuntime.from_node(self.graph, u, node_context)
         stack: list[NodeId] = []
 
         for id, args in input.items():
@@ -238,7 +255,7 @@ class DirectedComputingGraph:
                 if any(arg is SKIP for arg in task):
                     task_output = SKIP
                 else:
-                    task_output = runtime.execute(task, context)
+                    task_output = runtime.execute(task)
 
                 for outedge, succ in successors:
                     runtimes[succ.id].add_task_args(
@@ -246,12 +263,12 @@ class DirectedComputingGraph:
                         id,
                         (
                             SKIP
-                            if task_output is SKIP or outedge.filter(task_output)
+                            if task_output is SKIP or not outedge.filter(task_output)
                             else task_output
                         ),
                     )
 
-                if id in output:
+                if id in output and task_output is not SKIP:
                     return_output[id].append(task_output)
 
             # retrieve the outgoing nodes and push them into the stack
@@ -265,6 +282,7 @@ class DirectedComputingGraph:
 class NodeRuntime:
     id: NodeId
     tasks: dict[TaskKey, TaskArgs]
+    context: Sequence[Any]
 
     graph: RetworkXStrDiGraph[int, DCGNode, DCGEdge]
     node: DCGNode
@@ -274,11 +292,14 @@ class NodeRuntime:
 
     @staticmethod
     def from_node(
-        graph: RetworkXStrDiGraph[int, DCGNode, DCGEdge], node: DCGNode
+        graph: RetworkXStrDiGraph[int, DCGNode, DCGEdge],
+        node: DCGNode,
+        context: Sequence[Any],
     ) -> NodeRuntime:
         return NodeRuntime(
             id=node.id,
             tasks={},
+            context=context,
             graph=graph,
             node=node,
             indegree=graph.in_degree(node.id),
@@ -333,7 +354,7 @@ class NodeRuntime:
             all(arg is not UNSET for arg in args) for args in self.tasks.values()
         )
 
-    def execute(self, task: TaskArgs, context: dict) -> Any:
+    def execute(self, task: TaskArgs) -> Any:
         """
         Execute a task with the given context.
 
@@ -342,7 +363,7 @@ class NodeRuntime:
             context (dict): The context in which to execute the task.
         """
         norm_args = (self.node.type_conversions[i](a) for i, a in enumerate(task))
-        return self.node.func(*norm_args, **context)
+        return self.node.func(*norm_args, *self.context)
 
 
 class ArgValueType(Enum):
