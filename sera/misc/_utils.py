@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, TypeVar
+from typing import Any, Callable, Iterable, Optional, Type, TypeVar
 
 import serde.csv
 from sqlalchemy import Engine, text
@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 from tqdm import tqdm
 
 T = TypeVar("T")
+
+TYPE_ALIASES = {"typing.List": "list", "typing.Dict": "dict", "typing.Set": "set"}
+
 reserved_keywords = {
     "and",
     "or",
@@ -153,3 +156,24 @@ def load_data(
 def identity(x: T) -> T:
     """Identity function that returns the input unchanged."""
     return x
+
+
+def get_classpath(type: Type | Callable) -> str:
+    if type.__module__ == "builtins":
+        return type.__qualname__
+
+    if hasattr(type, "__qualname__"):
+        return type.__module__ + "." + type.__qualname__
+
+    # typically a class from the typing module
+    if hasattr(type, "_name") and type._name is not None:
+        path = type.__module__ + "." + type._name
+        if path in TYPE_ALIASES:
+            path = TYPE_ALIASES[path]
+    elif hasattr(type, "__origin__") and hasattr(type.__origin__, "_name"):
+        # found one case which is typing.Union
+        path = type.__module__ + "." + type.__origin__._name
+    else:
+        raise NotImplementedError(type)
+
+    return path

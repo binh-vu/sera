@@ -4,7 +4,7 @@ import inspect
 from dataclasses import dataclass
 from typing import Any, Callable, get_args, get_origin, get_type_hints
 
-from libactor.misc._misc import get_classpath
+from sera.misc import get_classpath
 
 
 @dataclass
