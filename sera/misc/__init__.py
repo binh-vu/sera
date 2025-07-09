@@ -3,6 +3,7 @@ from sera.misc._utils import (
     assert_isinstance,
     assert_not_null,
     filter_duplication,
+    get_classpath,
     identity,
     load_data,
     to_camel_case,
@@ -22,4 +23,5 @@ __all__ = [
     "File",
     "load_data",
     "identity",
+    "get_classpath",
 ]
