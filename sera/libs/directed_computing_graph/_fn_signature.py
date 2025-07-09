@@ -13,6 +13,7 @@ class FnSignature:
     argnames: list[str]
     argtypes: list[type]
     default_args: dict[str, Any]  # Added this field to store default values
+    is_async: bool = False
 
     @staticmethod
     def parse(func: Callable) -> FnSignature:
@@ -32,6 +33,7 @@ class FnSignature:
                 argnames,
                 [sig[arg] for arg in argnames],
                 defaults,  # Add the default values to the signature
+                is_async=inspect.iscoroutinefunction(func),
             )
         except:
             print("Cannot figure out the signature of", func)

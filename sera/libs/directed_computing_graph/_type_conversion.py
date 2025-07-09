@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import collections.abc
+import inspect
 from locale import normalize
 from types import UnionType
 from typing import (
@@ -46,6 +47,9 @@ class TypeConversion:
         self.compose_type_conversion: dict[type, ComposeTypeConversion] = {}
 
         for fn in type_casts:
+            assert not inspect.iscoroutinefunction(
+                fn
+            ), "Async conversion functions are not supported"
             sig = get_type_hints(fn)
             if len(sig) == 2:
                 fn = cast(UnitTypeConversion, fn)

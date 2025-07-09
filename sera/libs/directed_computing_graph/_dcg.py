@@ -377,7 +377,10 @@ class DirectedComputingGraph:
                 if any(arg is SKIP for arg in task):
                     task_output = SKIP
                 else:
-                    task_output = await runtime.execute(task)
+                    if runtime.node.signature.is_async:
+                        task_output = await runtime.execute(task)
+                    else:
+                        task_output = runtime.execute(task)
 
                 for outedge, succ in successors:
                     runtimes[succ.id].add_task_args(

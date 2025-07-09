@@ -209,7 +209,7 @@ class TestDirectedComputingGraphAsyncExecution:
         async def int_to_str(x: int) -> str:
             return str(x)
 
-        async def str_to_float(x: str) -> float:
+        def str_to_float(x: str) -> float:
             return float(x)
 
         async def add_numbers(x: float, y: float) -> float:
@@ -281,3 +281,37 @@ class TestDirectedComputingGraphAsyncExecution:
         assert result["diff"] == [6]  # 10 - 4 = 6
         assert result["product"] == [84]  # 14 * 6 = 84
         assert result["quotient"] == [14 / 6]  # 14 / 6 ≈ 2.33
+
+    @pytest.mark.asyncio
+    async def test_mixed_async_sync_function(self):
+        """Test basic computation with simple functions."""
+
+        def add(x: int, y: int) -> int:
+            return x + y
+
+        async def multiply(x: int, factor: int) -> int:
+            return x * factor
+
+        # Input functions that just return their input
+        async def input1_fn(x: int) -> int:
+            return x
+
+        async def input2_fn(x: int) -> int:
+            return x
+
+        flows: Dict[ComputeFnId, Union[Flow, ComputeFn]] = {
+            "input1": input1_fn,
+            "input2": input2_fn,
+            "add": Flow(["input1", "input2"], add),
+            "multiply": Flow(["add"], multiply),
+        }
+
+        dcg = DirectedComputingGraph.from_flows(flows)
+
+        result = await dcg.execute_async(
+            input={"input1": (5,), "input2": (3,)},
+            output={"multiply"},
+            context={"factor": 2},
+        )
+
+        assert result["multiply"] == [16]  # (5 + 3) * 2 = 16
