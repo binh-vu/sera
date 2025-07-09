@@ -1,14 +1,30 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 from dataclasses import dataclass
 from enum import Enum
-from typing import Annotated, Any, Callable, MutableSequence, Optional, Sequence
+from typing import (
+    Annotated,
+    Any,
+    Awaitable,
+    Callable,
+    MutableSequence,
+    Optional,
+    Sequence,
+)
 
 from graph.retworkx import RetworkXStrDiGraph
 
 from sera.libs.directed_computing_graph._edge import DCGEdge
 from sera.libs.directed_computing_graph._flow import Flow
-from sera.libs.directed_computing_graph._node import ComputeFn, ComputeFnId, DCGNode
+from sera.libs.directed_computing_graph._node import (
+    ComputeFn,
+    ComputeFnId,
+    DCGNode,
+    NodeId,
+)
+from sera.libs.directed_computing_graph._runtime import SKIP, NodeRuntime
 from sera.libs.directed_computing_graph._type_conversion import (
     ComposeTypeConversion,
     TypeConversion,
@@ -19,7 +35,6 @@ from sera.libs.directed_computing_graph._type_conversion import (
 )
 from sera.misc import identity
 
-NodeId = Annotated[str, "NodeId"]
 TaskKey = Annotated[tuple, "TaskKey"]
 TaskArgs = Annotated[MutableSequence, "TaskArgs"]
 
@@ -184,9 +199,10 @@ class DirectedComputingGraph:
         """
         Execute the directed computing graph with the given input and output specifications.
 
-        :param input: A dictionary mapping function identifiers to their input arguments.
-        :param output: A set of function identifiers that should be executed.
-        :param context: An optional context that can be a dictionary of functions or a single function.
+        Args:
+            input: A dictionary mapping function identifiers to their input arguments.
+            output: A set of function identifiers that should be executed.
+            context: An optional context that can be a dictionary of functions or a single function.
         """
         assert all(
             isinstance(v, tuple) for v in input.values()
@@ -277,99 +293,108 @@ class DirectedComputingGraph:
 
         return return_output
 
+    async def execute_async(
+        self,
+        input: dict[ComputeFnId, tuple],
+        output: set[str],
+        context: Optional[
+            dict[str, Callable | Any] | Callable[[], dict[str, Any]]
+        ] = None,
+    ):
+        """
+        Asynchronously execute the directed computing graph with the given input and output specifications.
+        This method handles both synchronous and asynchronous functions.
 
-@dataclass
-class NodeRuntime:
-    id: NodeId
-    tasks: dict[TaskKey, TaskArgs]
-    context: Sequence[Any]
+        Args:
+            input: A dictionary mapping function identifiers to their input arguments.
+            output: A set of function identifiers that should be executed.
+            context: An optional context that can be a dictionary of functions or a single function.
+        """
+        assert all(
+            isinstance(v, tuple) for v in input.values()
+        ), "Input must be a tuple"
 
-    graph: RetworkXStrDiGraph[int, DCGNode, DCGEdge]
-    node: DCGNode
-    indegree: int
-    # This is a mapping from parent node id to the index of the argument in the task.
-    parent2argindex: dict[str, int]
+        if context is None:
+            context = {}
+        elif isinstance(context, Callable):
+            context = context()
+        else:
+            context = {k: v() if callable(v) else v for k, v in context.items()}
 
-    @staticmethod
-    def from_node(
-        graph: RetworkXStrDiGraph[int, DCGNode, DCGEdge],
-        node: DCGNode,
-        context: Sequence[Any],
-    ) -> NodeRuntime:
-        return NodeRuntime(
-            id=node.id,
-            tasks={},
-            context=context,
-            graph=graph,
-            node=node,
-            indegree=graph.in_degree(node.id),
-            parent2argindex={
-                edge.source: i
-                # Map parent node ID to argument index based on sorted in-edge order
-                for i, edge in enumerate(
-                    sorted(graph.in_edges(node.id), key=lambda e: e.id)
+        # This is a quick reactive algorithm, we may be able to do it better.
+        # The idea is when all inputs of a function is available, we can execute a function.
+        # We assume that the memory is large enough to hold all the functions and their inputs
+        # in the memory.
+
+        # we execute the computing nodes
+        # when it's finished, we put the outgoing edges into a stack.
+        runtimes: dict[NodeId, NodeRuntime] = {}
+
+        for u in self.graph.iter_nodes():
+            if u.id in input:
+                # user provided input should supersede the context
+                n_provided_args = len(input[u.id])
+                n_consumed_context = n_provided_args - len(u.required_args)
+            else:
+                n_consumed_context = 0
+
+            node_context = tuple(
+                (
+                    context[name]
+                    if name in context
+                    else u.required_context_default_args[name]
                 )
-            },
-        )
+                for name in u.required_context[n_consumed_context:]
+            )
 
-    def add_task(self, key: TaskKey, args: TaskArgs) -> NodeRuntime:
-        """
-        Add a task to the node runtime.
+            runtimes[u.id] = NodeRuntime.from_node(self.graph, u, node_context)
+        stack: list[NodeId] = []
 
-        Args:
-            key: The key identifying the task.
-            args: The arguments for the task.
-        Returns:
-            NodeRuntime: The updated node runtime with the new task added.
-        """
-        self.tasks[key] = args
-        return self
+        for id, args in input.items():
+            runtimes[id].add_task((0,), list(args))
+            stack.append(id)
 
-    def add_task_args(
-        self, key: TaskKey, parent_node: NodeId, argvalue: Any
-    ) -> NodeRuntime:
-        """
-        Add an argument to an existing task.
+        return_output = {id: [] for id in output}
 
-        Args:
-            key: The key identifying the task.
-            parent_node: Identifier of the parent node from which the argument is coming.
-            argvalue: The value of the argument to add.
-        Returns:
-            NodeRuntime: The updated node runtime with the new argument added to the task.
-        """
-        if key not in self.tasks:
-            self.tasks[key] = [UNSET] * self.indegree
-        self.tasks[key][self.parent2argindex[parent_node]] = argvalue
-        return self
+        while len(stack) > 0:
+            # pop the one from the stack and execute it.
+            id = stack.pop()
+            runtime = runtimes[id]
 
-    def has_enough_data(self) -> bool:
-        """
-        Check if the node has enough data to execute its tasks.
+            # if there is enough data for the node, we can execute it.
+            # if it is not, we just skip it and it will be added back to the stack by one of its parents.
+            # so we don't miss it.
+            if not runtime.has_enough_data():
+                continue
 
-        Returns:
-            bool: True if the node has enough data, False otherwise.
-        """
-        return all(
-            all(arg is not UNSET for arg in args) for args in self.tasks.values()
-        )
+            outedges = self.graph.out_edges(id)
+            successors: Sequence[tuple[DCGEdge, DCGNode]] = [
+                (edge, self.graph.get_node(edge.target)) for edge in outedges
+            ]
 
-    def execute(self, task: TaskArgs) -> Any:
-        """
-        Execute a task with the given context.
+            # run the tasks and pass the output to the successors
+            for task_id, task in runtime.tasks.items():
+                if any(arg is SKIP for arg in task):
+                    task_output = SKIP
+                else:
+                    task_output = await runtime.execute(task)
 
-        Args:
-            task (TaskArgs): The arguments for the task.
-            context (dict): The context in which to execute the task.
-        """
-        norm_args = (self.node.type_conversions[i](a) for i, a in enumerate(task))
-        return self.node.func(*norm_args, *self.context)
+                for outedge, succ in successors:
+                    runtimes[succ.id].add_task_args(
+                        task_id,
+                        id,
+                        (
+                            SKIP
+                            if task_output is SKIP or not outedge.filter(task_output)
+                            else task_output
+                        ),
+                    )
 
+                if id in output and task_output is not SKIP:
+                    return_output[id].append(task_output)
 
-class ArgValueType(Enum):
-    UNSET = "UNSET"
-    SKIP = "SKIP"
+            # retrieve the outgoing nodes and push them into the stack
+            for outedge, succ in successors:
+                stack.append(succ.id)
 
-
-UNSET = ArgValueType.UNSET
-SKIP = ArgValueType.SKIP
+        return return_output
