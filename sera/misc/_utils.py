@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Optional, Type, TypeVar
 
 import serde.csv
+import serde.json
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 from tqdm import tqdm
@@ -116,7 +117,7 @@ def filter_duplication(
 def load_data(
     engine: Engine,
     create_db_and_tables: Callable[[], None],
-    table_files: list[tuple[type, Path]],
+    table_files: list[tuple[type, Path | list[dict]]],
     table_desers: dict[type, Callable[[dict], Any]],
     verbose: bool = False,
 ):
@@ -134,10 +135,16 @@ def load_data(
         create_db_and_tables()
 
         for tbl, file in tqdm(table_files, disable=not verbose, desc="Loading data"):
-            if file.name.endswith(".csv"):
-                records = serde.csv.deser(file, deser_as_record=True)
+            if isinstance(file, Path):
+                if file.name.endswith(".csv"):
+                    records = serde.csv.deser(file, deser_as_record=True)
+                elif file.name.endswith(".json"):
+                    records = serde.json.deser(file)
+                else:
+                    raise ValueError(f"Unsupported file format: {file.name}")
             else:
-                raise ValueError(f"Unsupported file format: {file.name}")
+                records = file
+
             deser = table_desers[tbl]
             records = [deser(row) for row in records]
             for r in tqdm(records, desc=f"load {tbl.__name__}", disable=not verbose):
