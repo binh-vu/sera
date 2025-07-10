@@ -17,17 +17,46 @@ from sera.typing import FieldName, T, doc
 
 
 class QueryOp(str, Enum):
-    lt = "<"
-    lte = "<="
-    gt = ">"
-    gte = ">="
-    eq = "="
-    ne = "!="
+    lt = "lt"
+    lte = "lte"
+    gt = "gt"
+    gte = "gte"
+    eq = "eq"
+    ne = "ne"
     # select records where values are in the given list
     in_ = "in"
-    not_in = "not in"
+    not_in = "not_in"
     # for full text search
     fuzzy = "fuzzy"
+
+
+# This is a helper function to apply query operations to a SQLAlchemy Select statement.
+def _apply_query_operation(q: Select, orm_field, op: QueryOp, value) -> Select:
+    """Apply a single query operation to the select statement."""
+    if op == QueryOp.eq:
+        return q.where(orm_field == value)
+    elif op == QueryOp.ne:
+        return q.where(orm_field != value)
+    elif op == QueryOp.lt:
+        return q.where(orm_field < value)
+    elif op == QueryOp.lte:
+        return q.where(orm_field <= value)
+    elif op == QueryOp.gt:
+        return q.where(orm_field > value)
+    elif op == QueryOp.gte:
+        return q.where(orm_field >= value)
+    elif op == QueryOp.in_:
+        if not isinstance(value, (list, tuple, set)):
+            value = [value]
+        return q.where(orm_field.in_(value))
+    elif op == QueryOp.not_in:
+        if not isinstance(value, (list, tuple, set)):
+            value = [value]
+        return q.where(~orm_field.in_(value))
+    elif op == QueryOp.fuzzy:
+        return q.where(orm_field.like(f"%{value}%"))
+    else:
+        raise ValueError(f"Unsupported query operation: {op}")
 
 
 Query = Annotated[
@@ -88,6 +117,14 @@ class BaseAsyncService(Generic[ID, R]):
             fields: list of field names to include in the results -- empty means all fields
         """
         q = self._select()
+
+        # Not handle nested fields in query
+        if query:
+            for field, ops in query.items():
+                orm_field = getattr(self.orm_cls, field)
+                for op, value in ops.items():
+                    q = _apply_query_operation(q, orm_field, QueryOp(op), value)
+
         if fields:
             q = q.options(
                 load_only(*[getattr(self.orm_cls, field) for field in fields])

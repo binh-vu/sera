@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Collection, Generic, cast
+from typing import Any, Callable, Collection, Generic, cast
 
 from litestar import Request, status_codes
 from litestar.connection import ASGIConnection
@@ -19,12 +19,14 @@ from sera.libs.middlewares.uscp import STATE_SYSTEM_CONTROLLED_PROP_KEY
 from sera.typing import T
 
 # for parsing field names and operations from query string
-FIELD_REG = re.compile(r"(?P<name>[a-zA-Z_0-9]+)(?:\[(?P<op>[a-zA-Z0-9]+)\])?")
+FIELD_REG = re.compile(r"(?P<name>[a-zA-Z_0-9]+)(?:\[(?P<op>[a-zA-Z0-9_]+)\])?")
 QUERY_OPS = {op.value for op in QueryOp}
 KEYWORDS = {"field", "limit", "offset", "unique", "sorted_by", "group_by"}
 
 
-def parse_query(request: Request, fields: set[str], debug: bool) -> Query:
+def parse_query(
+    request: Request, fields: dict[str, Callable[[str], Any]], debug: bool
+) -> Query:
     """Parse query for retrieving records that match a query.
 
     If a field name collides with a keyword, you can add `_` to the field name.
@@ -56,25 +58,51 @@ def parse_query(request: Request, fields: set[str], debug: bool) -> Query:
                 continue
 
             # Process based on operation or default to equality check
-            if not operation:
-                operation = QueryOp.eq
-            else:
-                if operation not in QUERY_OPS:
+            try:
+                if not operation:
+                    # Default to equality operation
+                    converted_value = fields[field_name](v)
+                    operation = QueryOp.eq
+                else:
+                    # Validate operation
+                    if operation not in QUERY_OPS:
+                        raise HTTPException(
+                            status_code=status_codes.HTTP_400_BAD_REQUEST,
+                            detail=f"Invalid operation: {operation}",
+                        )
+
+                    # Convert value based on operation type
+                    if operation in ("in", "not_in"):
+                        # For IN and NOT_IN operations, split the value by comma
+                        if isinstance(v, str) and "," in v:
+                            converted_value = [
+                                fields[field_name](item.strip())
+                                for item in v.split(",")
+                            ]
+                        else:
+                            converted_value = [fields[field_name](v)]
+                    else:
+                        # For other operations, convert the value directly
+                        converted_value = fields[field_name](v)
+
+                    operation = QueryOp(operation)
+                query[field_name] = {operation: converted_value}
+
+            except (ValueError, TypeError) as e:
+                if debug:
                     raise HTTPException(
                         status_code=status_codes.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid operation: {operation}",
+                        detail=f"Invalid value for field {field_name}: {v}. Error: {str(e)}",
                     )
-                operation = QueryOp(operation)
-            query[field_name] = {operation: v}
+                continue
         else:
             # Invalid field name format
             if debug:
                 raise HTTPException(
                     status_code=status_codes.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid field name: {k}",
+                    detail=f"Invalid query parameter format: {k}",
                 )
             continue
-
     return query
 
 
