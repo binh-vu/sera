@@ -720,6 +720,12 @@ def make_python_data_model(
 
         program.import_("__future__.annotations", True)
         program.import_("msgspec", False)
+
+        ident_manager = ImportHelper(
+            program,
+            GLOBAL_IDENTS,
+        )
+
         if cls.db is not None:
             # if the class is stored in the database, we need to import the database module
             program.import_(
@@ -824,7 +830,9 @@ def make_python_data_model(
                 lambda ast: ast.func(
                     "as_composite",
                     vars=as_composite_args,
-                    return_type=expr.ExprIdent(f"Optional[{cls.name}]"),
+                    return_type=PredefinedFn.item_getter(
+                        ident_manager.use("Optional"), expr.ExprIdent(cls.name)
+                    ),
                     comment="Create an embedded instance from the embedded columns in the database table. If all properties of this embedded class are None (indicating that the parent field is None), then this function will return None.",
                 )(
                     lambda ast_l1: ast_l1.if_(

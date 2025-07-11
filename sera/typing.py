@@ -38,4 +38,5 @@ GLOBAL_IDENTS = {
     "ASGIConnection": "litestar.connection.ASGIConnection",
     "UNSET": "sera.typing.UNSET",
     "ForeignKey": "sqlalchemy.ForeignKey",
+    "Optional": "typing.Optional",
 }
