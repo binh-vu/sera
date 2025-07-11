@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, Type, TypeVar
+from typing import Any, Callable, Iterable, Optional, Sequence, Type, TypedDict, TypeVar
 
 import serde.csv
 import serde.json
@@ -114,11 +115,19 @@ def filter_duplication(
     return new_lst
 
 
+class LoadTableDataArgs(TypedDict, total=False):
+    table: type
+    tables: Sequence[type]
+    file: Path
+    files: Sequence[Path]
+    file_deser: Callable[[Path], list[dict]]
+    record_deser: Callable[[dict], Any | list[Any]]
+
+
 def load_data(
     engine: Engine,
     create_db_and_tables: Callable[[], None],
-    table_files: list[tuple[type, Path | list[dict]]],
-    table_desers: dict[type, Callable[[dict], Any]],
+    table_data: Sequence[LoadTableDataArgs],
     verbose: bool = False,
 ):
     """
@@ -134,29 +143,59 @@ def load_data(
     with Session(engine) as session:
         create_db_and_tables()
 
-        for tbl, file in tqdm(table_files, disable=not verbose, desc="Loading data"):
-            if isinstance(file, Path):
-                if file.name.endswith(".csv"):
-                    records = serde.csv.deser(file, deser_as_record=True)
-                elif file.name.endswith(".json"):
-                    records = serde.json.deser(file)
-                else:
-                    raise ValueError(f"Unsupported file format: {file.name}")
+        for args in tqdm(table_data, disable=not verbose, desc="Loading data"):
+            if "table" in args:
+                tbls = [args["table"]]
+            elif "tables" in args:
+                tbls = args["tables"]
             else:
-                records = file
+                raise ValueError("Either 'table' or 'tables' must be provided in args.")
 
-            deser = table_desers[tbl]
-            records = [deser(row) for row in records]
-            for r in tqdm(records, desc=f"load {tbl.__name__}", disable=not verbose):
-                session.merge(r)
+            if "file" in args:
+                assert isinstance(args["file"], Path), "File must be a Path object."
+                files = [args["file"]]
+            elif "files" in args:
+                assert all(
+                    isinstance(f, Path) for f in args["files"]
+                ), "Files must be Path objects."
+                files = args["files"]
+            else:
+                raise ValueError("Either 'file' or 'files' must be provided in args.")
+
+            raw_records = []
+            if "file_deser" not in args:
+                for file in files:
+                    if file.name.endswith(".csv"):
+                        raw_records.extend(serde.csv.deser(file, deser_as_record=True))
+                    elif file.name.endswith(".json"):
+                        raw_records.extend(serde.json.deser(file))
+                    else:
+                        raise ValueError(f"Unsupported file format: {file.name}")
+            else:
+                for file in files:
+                    raw_records.extend(args["file_deser"](file))
+
+            deser = args["record_deser"]
+            records = [deser(row) for row in raw_records]
+            for r in tqdm(
+                records,
+                desc=f"load {', '.join(tbl.__name__ for tbl in tbls)}",
+                disable=not verbose,
+            ):
+                if isinstance(r, Sequence):
+                    for x in r:
+                        session.merge(x)
+                else:
+                    session.merge(r)
             session.flush()
 
             # Reset the sequence for each table
-            session.execute(
-                text(
-                    f"SELECT setval('{tbl.__tablename__}_id_seq', (SELECT MAX(id) FROM \"{tbl.__tablename__}\"));"
+            for tbl in tbls:
+                session.execute(
+                    text(
+                        f"SELECT setval('{tbl.__tablename__}_id_seq', (SELECT MAX(id) FROM \"{tbl.__tablename__}\"));"
+                    )
                 )
-            )
         session.commit()
 
 

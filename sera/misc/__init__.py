@@ -1,5 +1,6 @@
 from sera.misc._formatter import File, Formatter
 from sera.misc._utils import (
+    LoadTableDataArgs,
     assert_isinstance,
     assert_not_null,
     filter_duplication,
@@ -24,4 +25,5 @@ __all__ = [
     "load_data",
     "identity",
     "get_classpath",
+    "LoadTableDataArgs",
 ]
