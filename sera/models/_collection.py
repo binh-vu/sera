@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sera.models._class import Class
-from sera.models._property import DataProperty
+from sera.models._property import DataProperty, ObjectProperty
 
 
 @dataclass
@@ -35,7 +35,17 @@ class DataCollection:
             ):
                 # This property is not indexed, so we skip it
                 continue
-            field_names.add(prop.name)
+            if isinstance(prop, ObjectProperty) and prop.target.db is None:
+                # TODO: Implement this! This property is an embedded object property, we need to figure out
+                # which necessary properties are queryable and add them to the field names
+                continue
+            if isinstance(prop, ObjectProperty) and prop.target.db is not None:
+                # This property is an object property stored in the database, "_id" is added to the property name
+                propname = prop.name + "_id"
+            else:
+                # This property is a data property or an object property not stored in the database, so we use its name
+                propname = prop.name
+            field_names.add(propname)
         return field_names
 
     def get_service_name(self):

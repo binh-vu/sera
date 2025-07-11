@@ -146,7 +146,11 @@ def make_python_data_model(
         mode: Literal["create", "update"],
         prop: DataProperty | ObjectProperty,
     ):
-        value = PredefinedFn.attr_getter(slf, expr.ExprIdent(prop.name))
+        if isinstance(prop, ObjectProperty) and prop.target.db is not None:
+            propname = prop.name + "_id"
+        else:
+            propname = prop.name
+        value = PredefinedFn.attr_getter(slf, expr.ExprIdent(propname))
         if isinstance(prop, ObjectProperty):
             if (
                 prop.target.db is not None
@@ -421,12 +425,14 @@ def make_python_data_model(
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
                     # if the target class is in the database, we expect the user to pass the foreign key for it.
+                    propname = prop.name + "_id"
                     pytype = (
                         assert_not_null(prop.target.get_id_property())
                         .get_data_model_datatype()
                         .get_python_type()
                     )
                 else:
+                    propname = prop.name
                     pytype = PyTypeWithDep(
                         f"Create{prop.target.name}",
                         [
@@ -442,7 +448,7 @@ def make_python_data_model(
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
+                cls_ast(stmt.DefClassVarStatement(propname, pytype.type))
 
         if is_on_create_value_updated:
             program.import_("typing.Optional", True)
@@ -604,13 +610,16 @@ def make_python_data_model(
                 )
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
+                    propname = prop.name + "_id"
                     # if the target class is in the database, we expect the user to pass the foreign key for it.
                     pytype = (
                         assert_not_null(prop.target.get_id_property())
                         .get_data_model_datatype()
                         .get_python_type()
                     )
+
                 else:
+                    propname = prop.name
                     pytype = PyTypeWithDep(
                         f"Update{prop.target.name}",
                         [
@@ -626,7 +635,7 @@ def make_python_data_model(
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
+                cls_ast(stmt.DefClassVarStatement(propname, pytype.type))
 
         if is_on_update_value_updated:
             program.import_("typing.Optional", True)

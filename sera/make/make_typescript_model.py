@@ -98,6 +98,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 assert isinstance(prop, ObjectProperty)
                 if prop.target.db is not None:
                     # this class is stored in the database, we store the id instead
+                    propname = propname + "Id"
                     tstype = TsTypeWithDep(
                         f"{prop.target.name}Id",
                         [
@@ -113,7 +114,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         (
                             expr.ExprIdent(propname),
                             PredefinedFn.attr_getter(
-                                expr.ExprIdent("data"), expr.ExprIdent(prop.name)
+                                expr.ExprIdent("data"),
+                                expr.ExprIdent(prop.name + "_id"),
                             ),
                         )
                     )
@@ -300,6 +302,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             #     continue
 
             propname = to_camel_case(prop.name)
+            if isinstance(prop, ObjectProperty) and prop.target.db is not None:
+                propname = propname + "Id"
             prop2tsname[prop.name] = propname
 
             def _update_field_func(
@@ -544,7 +548,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     )
                     ser_args.append(
                         (
-                            expr.ExprIdent(prop.name),
+                            expr.ExprIdent(prop.name + "_id"),
                             PredefinedFn.attr_getter(
                                 expr.ExprIdent("this"), expr.ExprIdent(propname)
                             ),
@@ -784,7 +788,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     )
                 )
 
-                # TODO: fix me!
+                # TODO: fix me! fix me what?? next time give more context.
                 prop_validators.append(
                     (
                         expr.ExprIdent(propname),
@@ -1079,12 +1083,18 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
 
         query_args = []
         for prop in cls.properties.values():
-            propname = to_camel_case(prop.name)
-            if propname != prop.name:
+            pypropname = prop.name
+            tspropname = to_camel_case(prop.name)
+
+            if isinstance(prop, ObjectProperty) and prop.target.db is not None:
+                tspropname = tspropname + "Id"
+                pypropname = prop.name + "_id"
+
+            if tspropname != pypropname:
                 query_args.append(
                     (
-                        expr.ExprIdent(propname),
-                        expr.ExprConstant(prop.name),
+                        expr.ExprIdent(tspropname),
+                        expr.ExprConstant(pypropname),
                     )
                 )
 
