@@ -191,6 +191,18 @@ def load_data(
 
             # Reset the sequence for each table
             for tbl in tbls:
+                # Check if the table has an auto-incrementing primary key
+                if not hasattr(tbl, "__table__") or not tbl.__table__.primary_key:
+                    continue
+
+                pk_columns = tbl.__table__.primary_key.columns
+                has_foreign_key = any(len(col.foreign_keys) > 0 for col in pk_columns)
+                has_auto_increment = any(
+                    col.autoincrement and col.type.python_type in (int,)
+                    for col in pk_columns
+                )
+                if has_foreign_key or not has_auto_increment:
+                    continue
                 session.execute(
                     text(
                         f"SELECT setval('{tbl.__tablename__}_id_seq', (SELECT MAX(id) FROM \"{tbl.__tablename__}\"));"
