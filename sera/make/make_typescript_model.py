@@ -1161,7 +1161,13 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             # if prop.data.is_private:
             #     # skip private fields as this is for APIs exchange
             #     continue
-            propname = to_camel_case(prop.name)
+            tspropname = to_camel_case(prop.name)
+            pypropname = prop.name
+            if isinstance(prop, ObjectProperty) and prop.target.db is not None:
+                # this is a database object, we append id to the property name
+                tspropname = tspropname + "Id"
+                pypropname = prop.name + "_id"
+
             tsprop = {}
 
             if isinstance(prop, DataProperty):
@@ -1199,7 +1205,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 norm_func = get_normalizer(tstype, import_helper)
                 if norm_func is not None:
                     # we have a normalizer for this type
-                    prop_normalizers.append((expr.ExprIdent(propname), norm_func))
+                    prop_normalizers.append((expr.ExprIdent(tspropname), norm_func))
             else:
                 assert isinstance(prop, ObjectProperty)
                 if prop.target.db is not None:
@@ -1254,11 +1260,11 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             prop_defs.append(
                 (
                     prop,
-                    expr.ExprIdent(propname),
+                    expr.ExprIdent(tspropname),
                     PredefinedFn.dict(
                         [
-                            (expr.ExprIdent("name"), expr.ExprConstant(prop.name)),
-                            (expr.ExprIdent("tsName"), expr.ExprConstant(propname)),
+                            (expr.ExprIdent("name"), expr.ExprConstant(pypropname)),
+                            (expr.ExprIdent("tsName"), expr.ExprConstant(tspropname)),
                             (
                                 expr.ExprIdent("updateFuncName"),
                                 expr.ExprConstant(f"update{to_pascal_case(prop.name)}"),
@@ -1328,7 +1334,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                 " | ".join(
                                     [
                                         expr.ExprConstant(
-                                            to_camel_case(prop.name)
+                                            to_camel_case(prop.name) + "Id"
+                                            if isinstance(prop, ObjectProperty)
+                                            and prop.target.db is not None
+                                            else to_camel_case(prop.name)
                                         ).to_typescript()
                                         for prop in cls.properties.values()
                                         if not prop.data.is_private
