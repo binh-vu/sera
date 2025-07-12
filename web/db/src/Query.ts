@@ -106,8 +106,32 @@ export class QueryProcessor<R> {
         if (typeof opOrVal === "object") {
           params[`${serverField}[${opOrVal.op}]`] = opOrVal.value;
         } else {
-          params[field] = opOrVal;
+          params[serverField] = opOrVal;
         }
+      }
+    }
+
+    return params;
+  }
+
+  prepareConditions(
+    conditions: QueryConditions<R>
+  ): object {
+    const params: any = {};
+    const it: [keyof R, QueryOp][] = Object.entries(conditions) as any;
+
+    for (let [field, opOrVal] of it) {
+      let serverField: string =
+        this.renameField[field as keyof R] || (field as string);
+
+      if (KEYWORDS.has(serverField)) {
+        serverField = `_${serverField}`;
+      }
+
+      if (typeof opOrVal === "object") {
+        params[`${serverField}[${opOrVal.op}]`] = opOrVal.value;
+      } else {
+        params[serverField] = opOrVal;
       }
     }
 

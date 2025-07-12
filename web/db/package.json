@@ -1,7 +1,7 @@
 {
   "name": "sera-db",
   "private": false,
-  "version": "1.9.0",
+  "version": "1.9.2",
   "type": "module",
   "files": [
     "dist"
