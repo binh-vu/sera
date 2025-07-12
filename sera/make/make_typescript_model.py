@@ -50,6 +50,66 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         # the original object, then it's okay.
         return value
 
+    def get_normal_deser_args(
+        prop: DataProperty | ObjectProperty,
+    ) -> expr.Expr:
+        """Extract the value from the data record from the server response to set to the class property in the client."""
+        handle_optional = lambda value: expr.ExprTernary(
+            expr.ExprNotEqual(value, expr.ExprConstant(None)),
+            value,
+            expr.ExprConstant("undefined"),
+        )
+
+        if isinstance(prop, DataProperty):
+            value = PredefinedFn.attr_getter(
+                expr.ExprIdent("data"), expr.ExprIdent(prop.name)
+            )
+            if prop.is_optional:
+                value = handle_optional(value)
+            return value
+
+        assert isinstance(prop, ObjectProperty)
+        if prop.target.db is not None:
+            value = PredefinedFn.attr_getter(
+                expr.ExprIdent("data"), expr.ExprIdent(prop.name + "_id")
+            )
+            if prop.is_optional:
+                value = handle_optional(value)
+            return value
+        else:
+            if prop.cardinality.is_star_to_many():
+                # optional type for a list is simply an empty list, we don't need to check for None
+                value = PredefinedFn.map_list(
+                    PredefinedFn.attr_getter(
+                        expr.ExprIdent("data"),
+                        expr.ExprIdent(prop.name),
+                    ),
+                    lambda item: expr.ExprMethodCall(
+                        expr.ExprIdent(
+                            assert_isinstance(prop, ObjectProperty).target.name
+                        ),
+                        "deser",
+                        [item],
+                    ),
+                )
+                return value
+            else:
+                value = expr.ExprFuncCall(
+                    PredefinedFn.attr_getter(
+                        expr.ExprIdent(prop.target.name),
+                        expr.ExprIdent("deser"),
+                    ),
+                    [
+                        PredefinedFn.attr_getter(
+                            expr.ExprIdent("data"),
+                            expr.ExprIdent(prop.name),
+                        )
+                    ],
+                )
+                if prop.is_optional:
+                    value = handle_optional(value)
+                return value
+
     def make_normal(cls: Class, pkg: Package):
         """Make a data model for the normal Python data model"""
         if not cls.is_public:
@@ -89,9 +149,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 deser_args.append(
                     (
                         expr.ExprIdent(propname),
-                        PredefinedFn.attr_getter(
-                            expr.ExprIdent("data"), expr.ExprIdent(prop.name)
-                        ),
+                        get_normal_deser_args(prop),
                     )
                 )
             else:
@@ -113,10 +171,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     deser_args.append(
                         (
                             expr.ExprIdent(propname),
-                            PredefinedFn.attr_getter(
-                                expr.ExprIdent("data"),
-                                expr.ExprIdent(prop.name + "_id"),
-                            ),
+                            get_normal_deser_args(prop),
                         )
                     )
                 else:
@@ -132,21 +187,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         deser_args.append(
                             (
                                 expr.ExprIdent(propname),
-                                PredefinedFn.map_list(
-                                    PredefinedFn.attr_getter(
-                                        expr.ExprIdent("data"),
-                                        expr.ExprIdent(prop.name),
-                                    ),
-                                    lambda item: expr.ExprMethodCall(
-                                        expr.ExprIdent(
-                                            assert_isinstance(
-                                                prop, ObjectProperty
-                                            ).target.name
-                                        ),
-                                        "deser",
-                                        [item],
-                                    ),
-                                ),
+                                get_normal_deser_args(prop),
                             )
                         )
                     else:
@@ -156,18 +197,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         deser_args.append(
                             (
                                 expr.ExprIdent(propname),
-                                expr.ExprFuncCall(
-                                    PredefinedFn.attr_getter(
-                                        expr.ExprIdent(prop.target.name),
-                                        expr.ExprIdent("deser"),
-                                    ),
-                                    [
-                                        PredefinedFn.attr_getter(
-                                            expr.ExprIdent("data"),
-                                            expr.ExprIdent(prop.name),
-                                        )
-                                    ],
-                                ),
+                                get_normal_deser_args(prop),
                             )
                         )
 
