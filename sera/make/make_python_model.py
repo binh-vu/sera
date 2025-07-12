@@ -749,6 +749,7 @@ def make_python_data_model(
                 # skip private fields as this is for APIs exchange
                 continue
 
+            propname = prop.name
             if isinstance(prop, DataProperty):
                 pytype = prop.get_data_model_datatype().get_python_type()
                 if prop.is_optional:
@@ -760,6 +761,7 @@ def make_python_data_model(
                 cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
+                    propname = prop.name + "_id"
                     pytype = (
                         assert_not_null(prop.target.get_id_property())
                         .get_data_model_datatype()
@@ -781,7 +783,7 @@ def make_python_data_model(
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
+                cls_ast(stmt.DefClassVarStatement(propname, pytype.type))
 
         cls_ast(
             stmt.LineBreak(),
