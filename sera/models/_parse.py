@@ -238,7 +238,12 @@ def _parse_datatype(schema: Schema, datatype: dict | str) -> DataType:
                     ],
                 ),
                 sqltype=SQLTypeWithDep(
-                    type="String", mapped_pytype="str", deps=["sqlalchemy.String"]
+                    type=f"Enum({enum.name})",
+                    mapped_pytype=enum.name,
+                    deps=[
+                        "sqlalchemy.Enum",
+                        f"{schema.name}.models.enums.{enum.get_pymodule_name()}.{enum.name}",
+                    ],
                 ),
                 tstype=TsTypeWithDep(
                     type=enum.name, deps=[f"@.models.enums.{enum.name}"]
