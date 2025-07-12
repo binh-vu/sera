@@ -67,6 +67,18 @@ class PyTypeWithDep:
         """Clone the type with the same dependencies."""
         return PyTypeWithDep(type=self.type, deps=list(self.deps))
 
+    def get_string_conversion_func(self) -> tuple[str, str]:
+        if self.type == "str":
+            return ("identity", "sera.misc.identity")
+        if self.type == "int":
+            return ("TypeConversion.to_int", "sera.libs.api_helper.TypeConversion")
+        if self.type == "float":
+            return ("TypeConversion.to_float", "sera.libs.api_helper.TypeConversion")
+        if self.type == "bool":
+            return ("TypeConversion.to_bool", "sera.libs.api_helper.TypeConversion")
+        else:
+            raise NotImplementedError()
+
 
 @dataclass
 class TsTypeWithDep:

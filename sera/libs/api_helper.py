@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Collection, Generic, cast
+from typing import Callable, Collection, Generic, TypeVar, cast
 
 from litestar import Request, status_codes
 from litestar.connection import ASGIConnection
@@ -19,12 +19,30 @@ from sera.libs.middlewares.uscp import STATE_SYSTEM_CONTROLLED_PROP_KEY
 from sera.typing import T
 
 # for parsing field names and operations from query string
-FIELD_REG = re.compile(r"(?P<name>[a-zA-Z_0-9]+)(?:\[(?P<op>[a-zA-Z0-9]+)\])?")
+FIELD_REG = re.compile(r"(?P<name>[a-zA-Z_0-9]+)(?:\[(?P<op>[a-zA-Z_0-9]+)\])?")
 QUERY_OPS = {op.value for op in QueryOp}
 KEYWORDS = {"field", "limit", "offset", "unique", "sorted_by", "group_by"}
 
 
-def parse_query(request: Request, fields: set[str], debug: bool) -> Query:
+class TypeConversion:
+
+    to_int = int
+    to_float = float
+
+    @staticmethod
+    def to_bool(value: str) -> bool:
+        if value == "1":
+            return True
+        elif value == "0":
+            return False
+        raise ValueError(f"Invalid boolean value: {value}")
+
+
+def parse_query(
+    request: Request,
+    fields: dict[str, Callable[[str], str | int | bool | float]],
+    debug: bool,
+) -> Query:
     """Parse query for retrieving records that match a query.
 
     If a field name collides with a keyword, you can add `_` to the field name.
@@ -56,6 +74,7 @@ def parse_query(request: Request, fields: set[str], debug: bool) -> Query:
                 continue
 
             # Process based on operation or default to equality check
+            # TODO: validate if the operation is allowed for the field
             if not operation:
                 operation = QueryOp.eq
             else:
@@ -65,6 +84,21 @@ def parse_query(request: Request, fields: set[str], debug: bool) -> Query:
                         detail=f"Invalid operation: {operation}",
                     )
                 operation = QueryOp(operation)
+
+            try:
+                norm_func = fields[field_name]
+                if isinstance(v, list):
+                    v = [norm_func(x) for x in v]
+                else:
+                    v = norm_func(v)
+            except ValueError:
+                if debug:
+                    raise HTTPException(
+                        status_code=status_codes.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid value for field {field_name}: {v}",
+                    )
+                continue
+
             query[field_name] = {operation: v}
         else:
             # Invalid field name format
@@ -78,7 +112,10 @@ def parse_query(request: Request, fields: set[str], debug: bool) -> Query:
     return query
 
 
-class SingleAutoUSCP(MsgspecDTO[T], Generic[T]):
+S = TypeVar("S", bound=Struct)
+
+
+class SingleAutoUSCP(MsgspecDTO[S], Generic[S]):
     """Auto Update System Controlled Property DTO"""
 
     @classmethod

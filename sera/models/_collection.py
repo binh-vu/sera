@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from codegen.models import ImportHelper
+
 from sera.models._class import Class
 from sera.models._property import DataProperty, ObjectProperty
 
@@ -21,9 +23,9 @@ class DataCollection:
         """Get the python module name of this collection as if there is a python module created to store this collection only."""
         return self.cls.get_pymodule_name()
 
-    def get_queryable_fields(self) -> set[str]:
+    def get_queryable_fields(self) -> list[tuple[str, tuple[str, str]]]:
         """Get the fields of this collection that can be used in a queries."""
-        field_names = set()
+        output = []
         for prop in self.cls.properties.values():
             if prop.db is None or prop.data.is_private:
                 # This property is not stored in the database or it's private, so we skip it
@@ -45,8 +47,19 @@ class DataCollection:
             else:
                 # This property is a data property or an object property not stored in the database, so we use its name
                 propname = prop.name
-            field_names.add(propname)
-        return field_names
+
+            if isinstance(prop, DataProperty):
+                convert_func = prop.datatype.pytype.get_string_conversion_func()
+            else:
+                assert isinstance(prop, ObjectProperty) and prop.target.db is not None
+                target_idprop = prop.target.get_id_property()
+                assert target_idprop is not None
+                convert_func = (
+                    target_idprop.datatype.pytype.get_string_conversion_func()
+                )
+
+            output.append((propname, convert_func))
+        return output
 
     def get_service_name(self):
         return f"{self.name}Service"

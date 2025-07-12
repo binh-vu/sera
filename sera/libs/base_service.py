@@ -17,15 +17,15 @@ from sera.typing import FieldName, T, doc
 
 
 class QueryOp(str, Enum):
-    lt = "<"
-    lte = "<="
-    gt = ">"
-    gte = ">="
-    eq = "="
-    ne = "!="
+    lt = "lt"
+    lte = "lte"
+    gt = "gt"
+    gte = "gte"
+    eq = "eq"
+    ne = "ne"
     # select records where values are in the given list
     in_ = "in"
-    not_in = "not in"
+    not_in = "not_in"
     # for full text search
     fuzzy = "fuzzy"
 
@@ -94,15 +94,41 @@ class BaseAsyncService(Generic[ID, R]):
             )
         if unique:
             q = q.distinct()
-        if sorted_by:
-            for field in sorted_by:
-                if field.startswith("-"):
-                    q = q.order_by(getattr(self.orm_cls, field[1:]).desc())
+        for field in sorted_by:
+            if field.startswith("-"):
+                q = q.order_by(getattr(self.orm_cls, field[1:]).desc())
+            else:
+                q = q.order_by(getattr(self.orm_cls, field))
+        for field in group_by:
+            q = q.group_by(getattr(self.orm_cls, field))
+
+        for field, conditions in query.items():
+            for op, value in conditions.items():
+                # TODO: check if the operation is valid for the field.
+                if op == QueryOp.eq:
+                    q = q.where(getattr(self.orm_cls, field) == value)
+                elif op == QueryOp.ne:
+                    q = q.where(getattr(self.orm_cls, field) != value)
+                elif op == QueryOp.lt:
+                    q = q.where(getattr(self.orm_cls, field) < value)
+                elif op == QueryOp.lte:
+                    q = q.where(getattr(self.orm_cls, field) <= value)
+                elif op == QueryOp.gt:
+                    q = q.where(getattr(self.orm_cls, field) > value)
+                elif op == QueryOp.gte:
+                    q = q.where(getattr(self.orm_cls, field) >= value)
+                elif op == QueryOp.in_:
+                    q = q.where(getattr(self.orm_cls, field).in_(value))
+                elif op == QueryOp.not_in:
+                    q = q.where(~getattr(self.orm_cls, field).in_(value))
                 else:
-                    q = q.order_by(getattr(self.orm_cls, field))
-        if group_by:
-            for field in group_by:
-                q = q.group_by(getattr(self.orm_cls, field))
+                    assert op == QueryOp.fuzzy
+                    # Assuming fuzzy search is implemented as a full-text search
+                    q = q.where(
+                        func.to_tsvector(getattr(self.orm_cls, field)).match(value)
+                    )
+
+        print(">>>", q)
 
         cq = select(func.count()).select_from(q.subquery())
         rq = q.limit(limit).offset(offset)

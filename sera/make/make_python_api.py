@@ -4,6 +4,7 @@ from typing import Sequence
 
 from codegen.models import DeferredVar, ImportHelper, PredefinedFn, Program, expr, stmt
 from loguru import logger
+from msgspec import convert
 
 from sera.misc import assert_not_null, to_snake_case
 from sera.models import App, DataCollection, Module, Package
@@ -134,11 +135,21 @@ def make_python_get_api(
 
     func_name = "get_"
 
+    queryable_fields = []
+    for propname, (
+        convert_func,
+        convert_func_import,
+    ) in collection.get_queryable_fields():
+        program.import_(convert_func_import, True)
+        queryable_fields.append(
+            (expr.ExprConstant(propname), expr.ExprIdent(convert_func))
+        )
+
     program.root(
         stmt.LineBreak(),
         lambda ast00: ast00.assign(
             DeferredVar.simple("QUERYABLE_FIELDS"),
-            expr.ExprConstant(collection.get_queryable_fields()),
+            PredefinedFn.dict(queryable_fields),
         ),
         stmt.PythonDecoratorStatement(
             expr.ExprFuncCall(
