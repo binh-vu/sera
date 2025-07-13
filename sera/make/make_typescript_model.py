@@ -159,9 +159,13 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     propname = propname + "Id"
                     tstype = TsTypeWithDep(
                         f"{prop.target.name}Id",
-                        [
-                            f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}Id"
-                        ],
+                        (
+                            [
+                                f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}Id"
+                            ]
+                            if prop.target.name != cls.name
+                            else []
+                        ),
                     )
                     if prop.cardinality.is_star_to_many():
                         tstype = tstype.as_list_type()
