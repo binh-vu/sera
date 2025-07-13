@@ -1296,6 +1296,10 @@ def make_python_relational_object_property(
         idprop = prop.target.get_id_property()
         assert idprop is not None
         idprop_pytype = idprop.datatype.get_sqlalchemy_type()
+
+        if prop.is_optional:
+            idprop_pytype = idprop_pytype.as_optional_type()
+
         for dep in idprop_pytype.deps:
             program.import_(dep, True)
 

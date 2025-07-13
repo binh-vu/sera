@@ -134,6 +134,23 @@ class SQLTypeWithDep:
             mapped_pytype=f"list[{self.mapped_pytype}]",
         )
 
+    def as_optional_type(self) -> SQLTypeWithDep:
+        """Convert the type to an optional type."""
+        if "typing.Optional" not in self.deps:
+            deps = self.deps + ["typing.Optional"]
+        else:
+            deps = self.deps
+
+        if "Optional[" in self.mapped_pytype:
+            raise NotImplementedError(
+                f"Have not handle nested optional yet: {self.mapped_pytype}"
+            )
+        return SQLTypeWithDep(
+            type=self.type,
+            mapped_pytype=f"Optional[{self.mapped_pytype}]",
+            deps=deps,
+        )
+
 
 @dataclass
 class DataType:
