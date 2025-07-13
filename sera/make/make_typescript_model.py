@@ -408,8 +408,13 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     if tstype.type in idprop_aliases:
                         create_propvalue = idprop_aliases[tstype.type].get_default()
                     elif tstype.type in schema.enums:
-                        create_propvalue = expr.ExprConstant(
-                            next(iter(schema.enums[tstype.type].values.values())).value
+                        enum_value = next(
+                            iter(schema.enums[tstype.type].values.values())
+                        ).value
+                        # TODO: handle enum value integer
+                        assert isinstance(enum_value, str)
+                        create_propvalue = expr.ExprIdent(
+                            tstype.type + "." + enum_value
                         )
                     else:
                         create_propvalue = tstype.get_default()
