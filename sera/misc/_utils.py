@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import inspect
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional, Sequence, Type, TypedDict, TypeVar
@@ -120,8 +122,38 @@ class LoadTableDataArgs(TypedDict, total=False):
     tables: Sequence[type]
     file: Path
     files: Sequence[Path]
-    file_deser: Callable[[Path], list[dict]]
-    record_deser: Callable[[dict], Any | list[Any]]
+    file_deser: Callable[[Path], list[Any]]
+    record_deser: (
+        Callable[[dict], Any | list[Any]]
+        | Callable[[dict, RelTableIndex], Any | list[Any]]
+    )
+    table_unique_index: dict[type, list[str]]
+
+
+class RelTableIndex:
+    """An index of relational tables to find a record by its unique property."""
+
+    def __init__(self, cls2index: Optional[dict[str, list[str]]] = None):
+        self.table2rows: dict[str, dict[str, Any]] = defaultdict(dict)
+        self.table2uniqindex2id: dict[str, dict[str, int]] = defaultdict(dict)
+        self.cls2index = cls2index or {}
+
+    def set_index(self, clsname: str, props: list[str]):
+        """Set the unique index for a class."""
+        self.cls2index[clsname] = props
+
+    def add(self, record: Any):
+        clsname = record.__class__.__name__
+        self.table2rows[clsname][record.id] = record
+        if clsname in self.cls2index:
+            for prop in self.cls2index[clsname]:
+                self.table2uniqindex2id[clsname][getattr(record, prop)] = record.id
+
+    def get_record(self, clsname: str, uniq_prop: str) -> Optional[Any]:
+        tbl = self.table2uniqindex2id[clsname]
+        if uniq_prop not in tbl:
+            return None
+        return self.table2rows[clsname][tbl[uniq_prop]]
 
 
 def load_data(
@@ -143,6 +175,8 @@ def load_data(
     with Session(engine) as session:
         create_db_and_tables()
 
+        reltable_index = RelTableIndex()
+
         for args in tqdm(table_data, disable=not verbose, desc="Loading data"):
             if "table" in args:
                 tbls = [args["table"]]
@@ -162,6 +196,12 @@ def load_data(
             else:
                 raise ValueError("Either 'file' or 'files' must be provided in args.")
 
+            if "table_unique_index" in args:
+                for tbl in tbls:
+                    reltable_index.set_index(
+                        tbl.__name__, args["table_unique_index"].get(tbl, [])
+                    )
+
             raw_records = []
             if "file_deser" not in args:
                 for file in files:
@@ -175,8 +215,17 @@ def load_data(
                 for file in files:
                     raw_records.extend(args["file_deser"](file))
 
+            assert "record_deser" in args
             deser = args["record_deser"]
-            records = [deser(row) for row in raw_records]
+
+            sig = inspect.signature(deser)
+            param_count = len(sig.parameters)
+            if param_count == 1:
+                records = [deser(row) for row in raw_records]
+            else:
+                assert param_count == 2
+                records = [deser(row, reltable_index) for row in raw_records]
+
             for r in tqdm(
                 records,
                 desc=f"load {', '.join(tbl.__name__ for tbl in tbls)}",
@@ -185,8 +234,11 @@ def load_data(
                 if isinstance(r, Sequence):
                     for x in r:
                         session.merge(x)
+                        reltable_index.add(x)
                 else:
                     session.merge(r)
+                    reltable_index.add(r)
+
             session.flush()
 
             # Reset the sequence for each table
