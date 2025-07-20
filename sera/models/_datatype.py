@@ -85,6 +85,9 @@ class PyTypeWithDep:
 @dataclass
 class TsTypeWithDep:
     type: str
+    # the specific type of the value, to provide more details for the type because typescript use
+    # number for both int and float, date for both date and datetime.
+    spectype: str
     deps: list[str] = field(default_factory=list)
 
     def get_default(self) -> expr.ExprConstant:
@@ -112,16 +115,24 @@ class TsTypeWithDep:
         if not all(c.isalnum() or c == "_" for c in self.type.strip()):
             # Type contains special chars like | or spaces, wrap in parentheses
             list_type = f"({self.type})[]"
+            list_spectype = f"({self.spectype})[]"
         else:
             list_type = f"{self.type}[]"
-        return TsTypeWithDep(type=list_type, deps=self.deps)
+            list_spectype = f"{self.spectype}[]"
+        return TsTypeWithDep(type=list_type, spectype=list_spectype, deps=self.deps)
 
     def as_optional_type(self) -> TsTypeWithDep:
         if "undefined" in self.type:
             raise NotImplementedError(
                 f"Have not handle nested optional yet: {self.type}"
             )
-        return TsTypeWithDep(type=f"{self.type} | undefined", deps=self.deps)
+        return TsTypeWithDep(
+            type=f"{self.type} | undefined",
+            # not changing the spectype because we convert to optional when the value is missing
+            # spectype is used to tell the main type of the value when it is present.
+            spectype=self.spectype,
+            deps=self.deps,
+        )
 
     def get_json_deser_func(self, value: expr.Expr) -> expr.Expr:
         """Get the typescript expression to convert the value from json format to the correct type."""
@@ -188,9 +199,6 @@ class SQLTypeWithDep:
 
 @dataclass
 class DataType:
-    type: Literal[
-        "string", "integer", "date", "datetime", "float", "boolean", "bytes", "dict"
-    ]
     pytype: PyTypeWithDep
     sqltype: SQLTypeWithDep
     tstype: TsTypeWithDep
@@ -218,79 +226,71 @@ class DataType:
 
 predefined_datatypes = {
     "string": DataType(
-        type="string",
         pytype=PyTypeWithDep(type="str"),
         sqltype=SQLTypeWithDep(
             type="String", mapped_pytype="str", deps=["sqlalchemy.String"]
         ),
-        tstype=TsTypeWithDep(type="string"),
+        tstype=TsTypeWithDep(type="string", spectype="string"),
         is_list=False,
     ),
     "integer": DataType(
-        type="integer",
         pytype=PyTypeWithDep(type="int"),
         sqltype=SQLTypeWithDep(
             type="Integer", mapped_pytype="int", deps=["sqlalchemy.Integer"]
         ),
-        tstype=TsTypeWithDep(type="number"),
+        tstype=TsTypeWithDep(type="number", spectype="integer"),
         is_list=False,
     ),
     "date": DataType(
-        type="date",
         pytype=PyTypeWithDep(type="date", deps=["datetime.date"]),
         sqltype=SQLTypeWithDep(
             type="Date",
             mapped_pytype="date",
             deps=["sqlalchemy.Date", "datetime.date"],
         ),
-        tstype=TsTypeWithDep(type="Date"),
+        tstype=TsTypeWithDep(type="Date", spectype="date"),
         is_list=False,
     ),
     "datetime": DataType(
-        type="datetime",
         pytype=PyTypeWithDep(type="datetime", deps=["datetime.datetime"]),
         sqltype=SQLTypeWithDep(
             type="DateTime",
             mapped_pytype="datetime",
             deps=["sqlalchemy.DateTime", "datetime.datetime"],
         ),
-        tstype=TsTypeWithDep(type="Date"),
+        tstype=TsTypeWithDep(type="Date", spectype="datetime"),
         is_list=False,
     ),
     "float": DataType(
-        type="float",
         pytype=PyTypeWithDep(type="float"),
         sqltype=SQLTypeWithDep(
             type="Float", mapped_pytype="float", deps=["sqlalchemy.Float"]
         ),
-        tstype=TsTypeWithDep(type="number"),
+        tstype=TsTypeWithDep(type="number", spectype="float"),
         is_list=False,
     ),
     "boolean": DataType(
-        type="boolean",
         pytype=PyTypeWithDep(type="bool"),
         sqltype=SQLTypeWithDep(
             type="Boolean", mapped_pytype="bool", deps=["sqlalchemy.Boolean"]
         ),
-        tstype=TsTypeWithDep(type="boolean"),
+        tstype=TsTypeWithDep(type="boolean", spectype="boolean"),
         is_list=False,
     ),
     "bytes": DataType(
-        type="bytes",
         pytype=PyTypeWithDep(type="bytes"),
         sqltype=SQLTypeWithDep(
             type="LargeBinary", mapped_pytype="bytes", deps=["sqlalchemy.LargeBinary"]
         ),
-        tstype=TsTypeWithDep(type="string"),
+        tstype=TsTypeWithDep(type="string", spectype="bytes"),
         is_list=False,
     ),
     "dict": DataType(
-        type="dict",
         pytype=PyTypeWithDep(type="dict"),
         sqltype=SQLTypeWithDep(
             type="JSON", mapped_pytype="dict", deps=["sqlalchemy.JSON"]
         ),
-        tstype=TsTypeWithDep(type="string"),
+        tstype=TsTypeWithDep(type="string", spectype="dict"),
         is_list=False,
     ),
 }
@@ -302,5 +302,5 @@ predefined_sql_datatypes = {
     ),
 }
 predefined_ts_datatypes = {
-    "string": TsTypeWithDep(type="string"),
+    "string": TsTypeWithDep(type="string", spectype="string"),
 }

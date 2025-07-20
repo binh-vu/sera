@@ -150,7 +150,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
 
                 if idprop is not None and prop.name == idprop.name:
                     # use id type alias
-                    tstype = TsTypeWithDep(f"{cls.name}Id")
+                    tstype = TsTypeWithDep(
+                        type=f"{cls.name}Id", spectype=tstype.spectype
+                    )
 
                 if prop.is_optional:
                     # convert type to optional
@@ -168,8 +170,12 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     # this class is stored in the database, we store the id instead
                     propname = propname + "Id"
                     tstype = TsTypeWithDep(
-                        f"{prop.target.name}Id",
-                        (
+                        type=f"{prop.target.name}Id",
+                        spectype=assert_not_null(prop.target.get_id_property())
+                        .get_data_model_datatype()
+                        .get_typescript_type()
+                        .spectype,
+                        deps=(
                             [
                                 f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}Id"
                             ]
@@ -191,8 +197,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 else:
                     # we are going to store the whole object
                     tstype = TsTypeWithDep(
-                        prop.target.name,
-                        [
+                        type=prop.target.name,
+                        spectype=prop.target.name,
+                        deps=[
                             f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}"
                         ],
                     )
@@ -392,7 +399,8 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 if idprop is not None and prop.name == idprop.name:
                     # use id type alias
                     tstype = TsTypeWithDep(
-                        f"{cls.name}Id",
+                        type=f"{cls.name}Id",
+                        spectype=tstype.spectype,
                         deps=[f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id"],
                     )
                 elif tstype.type not in schema.enums:
@@ -572,8 +580,12 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 if prop.target.db is not None:
                     # this class is stored in the database, we store the id instead
                     tstype = TsTypeWithDep(
-                        f"{prop.target.name}Id",
-                        [
+                        type=f"{prop.target.name}Id",
+                        spectype=assert_not_null(prop.target.get_id_property())
+                        .get_data_model_datatype()
+                        .get_typescript_type()
+                        .spectype,
+                        deps=[
                             f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}Id"
                         ],
                     )
@@ -624,8 +636,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 else:
                     # we are going to store the whole object
                     tstype = TsTypeWithDep(
-                        f"Draft{prop.target.name}",
-                        [
+                        type=f"Draft{prop.target.name}",
+                        spectype=f"Draft{prop.target.name}",
+                        deps=[
                             f"@.models.{prop.target.get_tsmodule_name()}.Draft{prop.target.name}.Draft{prop.target.name}"
                         ],
                     )
@@ -1208,7 +1221,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     (
                         expr.ExprIdent("datatype"),
                         (
-                            expr.ExprConstant(tstype.type)
+                            expr.ExprConstant(tstype.spectype)
                             if tstype.type not in schema.enums
                             else expr.ExprConstant("enum")
                         ),
@@ -1244,8 +1257,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 else:
                     # we are going to store the whole object
                     tstype = TsTypeWithDep(
-                        prop.target.name,
-                        [
+                        type=prop.target.name,
+                        spectype=prop.target.name,
+                        deps=[
                             f"@.models.{prop.target.get_tsmodule_name()}.{prop.target.name}.{prop.target.name}"
                         ],
                     )
@@ -1266,7 +1280,9 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                     (
                         expr.ExprIdent("datatype"),
                         expr.ExprConstant(
-                            tstype.type if prop.target.db is not None else "undefined"
+                            tstype.spectype
+                            if prop.target.db is not None
+                            else "undefined"
                         ),
                     ),
                     (

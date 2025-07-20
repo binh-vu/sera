@@ -246,7 +246,9 @@ def _parse_datatype(schema: Schema, datatype: dict | str) -> DataType:
                     ],
                 ),
                 tstype=TsTypeWithDep(
-                    type=enum.name, deps=[f"@.models.enums.{enum.name}"]
+                    type=enum.name,
+                    spectype=enum.name,
+                    deps=[f"@.models.enums.{enum.name}"],
                 ),
                 is_list=is_list,
             )
