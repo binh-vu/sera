@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Callable, Literal
 
 from codegen.models import expr
+
+from sera.misc import identity
 
 PyDataType = Literal["str", "int", "datetime", "float", "bool", "bytes", "dict"]
 TypescriptDataType = Literal["string", "number", "boolean"]
@@ -94,6 +96,8 @@ class TsTypeWithDep:
             return expr.ExprConstant(0)
         if self.type == "boolean":
             return expr.ExprConstant(False)
+        if self.type == "Date":
+            return expr.ExprConstant("new Date()")
         if self.type.endswith("| undefined"):
             return expr.ExprConstant("undefined")
         if self.type.endswith("| string)") or self.type.endswith("| string"):
@@ -118,6 +122,36 @@ class TsTypeWithDep:
                 f"Have not handle nested optional yet: {self.type}"
             )
         return TsTypeWithDep(type=f"{self.type} | undefined", deps=self.deps)
+
+    def get_json_deser_func(self, value: expr.Expr) -> expr.Expr:
+        """Get the typescript expression to convert the value from json format to the correct type."""
+        if self.type in {"string", "number", "boolean", "string[]"}:
+            return value
+        if self.type == "Date":
+            return expr.ExprRawTypescript(f"new Date({value.to_typescript()})")
+        if any(x.startswith("@.models.enum") for x in self.deps):
+            # enum type, we don't need to do anything as we use strings for enums
+            return value
+        raise ValueError(f"Unknown type: {self.type}")
+
+    def get_json_ser_func(self, value: expr.Expr) -> expr.Expr:
+        """Get the typescript expression to convert the value to json format."""
+        if self.type in {
+            "string",
+            "number",
+            "boolean",
+            "string[]",
+            "number | undefined",
+            "boolean | undefined",
+            "string | undefined",
+        }:
+            return value
+        if self.type == "Date":
+            return expr.ExprRawTypescript(f"{value.to_typescript()}.toISOString()")
+        if any(x.startswith("@.models.enum") for x in self.deps):
+            # enum type, we don't need to do anything as we use strings for enums
+            return value
+        raise ValueError(f"Unknown type: {self.type}")
 
 
 @dataclass
@@ -154,6 +188,9 @@ class SQLTypeWithDep:
 
 @dataclass
 class DataType:
+    type: Literal[
+        "string", "integer", "date", "datetime", "float", "boolean", "bytes", "dict"
+    ]
     pytype: PyTypeWithDep
     sqltype: SQLTypeWithDep
     tstype: TsTypeWithDep
@@ -181,6 +218,7 @@ class DataType:
 
 predefined_datatypes = {
     "string": DataType(
+        type="string",
         pytype=PyTypeWithDep(type="str"),
         sqltype=SQLTypeWithDep(
             type="String", mapped_pytype="str", deps=["sqlalchemy.String"]
@@ -189,6 +227,7 @@ predefined_datatypes = {
         is_list=False,
     ),
     "integer": DataType(
+        type="integer",
         pytype=PyTypeWithDep(type="int"),
         sqltype=SQLTypeWithDep(
             type="Integer", mapped_pytype="int", deps=["sqlalchemy.Integer"]
@@ -197,26 +236,29 @@ predefined_datatypes = {
         is_list=False,
     ),
     "date": DataType(
+        type="date",
         pytype=PyTypeWithDep(type="date", deps=["datetime.date"]),
         sqltype=SQLTypeWithDep(
             type="Date",
             mapped_pytype="date",
             deps=["sqlalchemy.Date", "datetime.date"],
         ),
-        tstype=TsTypeWithDep(type="string"),
+        tstype=TsTypeWithDep(type="Date"),
         is_list=False,
     ),
     "datetime": DataType(
+        type="datetime",
         pytype=PyTypeWithDep(type="datetime", deps=["datetime.datetime"]),
         sqltype=SQLTypeWithDep(
             type="DateTime",
             mapped_pytype="datetime",
             deps=["sqlalchemy.DateTime", "datetime.datetime"],
         ),
-        tstype=TsTypeWithDep(type="string"),
+        tstype=TsTypeWithDep(type="Date"),
         is_list=False,
     ),
     "float": DataType(
+        type="float",
         pytype=PyTypeWithDep(type="float"),
         sqltype=SQLTypeWithDep(
             type="Float", mapped_pytype="float", deps=["sqlalchemy.Float"]
@@ -225,6 +267,7 @@ predefined_datatypes = {
         is_list=False,
     ),
     "boolean": DataType(
+        type="boolean",
         pytype=PyTypeWithDep(type="bool"),
         sqltype=SQLTypeWithDep(
             type="Boolean", mapped_pytype="bool", deps=["sqlalchemy.Boolean"]
@@ -233,6 +276,7 @@ predefined_datatypes = {
         is_list=False,
     ),
     "bytes": DataType(
+        type="bytes",
         pytype=PyTypeWithDep(type="bytes"),
         sqltype=SQLTypeWithDep(
             type="LargeBinary", mapped_pytype="bytes", deps=["sqlalchemy.LargeBinary"]
@@ -241,6 +285,7 @@ predefined_datatypes = {
         is_list=False,
     ),
     "dict": DataType(
+        type="dict",
         pytype=PyTypeWithDep(type="dict"),
         sqltype=SQLTypeWithDep(
             type="JSON", mapped_pytype="dict", deps=["sqlalchemy.JSON"]

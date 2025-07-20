@@ -29,6 +29,8 @@ from sera.typing import is_set
 TS_GLOBAL_IDENTS = {
     "normalizers.normalizeNumber": "sera-db.normalizers",
     "normalizers.normalizeOptionalNumber": "sera-db.normalizers",
+    "normalizers.normalizeDate": "sera-db.normalizers",
+    "normalizers.normalizeOptionalDate": "sera-db.normalizers",
 }
 
 
@@ -66,6 +68,14 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
             )
             if prop.is_optional:
                 value = handle_optional(value)
+                value.true_expr = (
+                    prop.datatype.get_typescript_type().get_json_deser_func(
+                        value.true_expr
+                    )
+                )
+            else:
+                value = prop.datatype.get_typescript_type().get_json_deser_func(value)
+
             return value
 
         assert isinstance(prop, ObjectProperty)
@@ -385,7 +395,6 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         f"{cls.name}Id",
                         deps=[f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}Id"],
                     )
-                    original_tstype = tstype
                 elif tstype.type not in schema.enums:
                     # for none id & none enum properties, we need to include a type for "invalid" value
                     tstype = _inject_type_for_invalid_value(tstype)
@@ -455,7 +464,10 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         expr.ExprIdent("record"), expr.ExprIdent(propname)
                     )
 
-                if original_tstype.type != tstype.type:
+                if (
+                    original_tstype.type != tstype.type
+                    and tstype.type != f"{cls.name}Id"
+                ):
                     norm_func = get_norm_func(original_tstype, import_helper)
                 else:
                     norm_func = identity
@@ -480,17 +492,22 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                                     ),
                                     expr.ExprIdent("isValid"),
                                 ),
-                                norm_func(
-                                    PredefinedFn.attr_getter(
-                                        expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                original_tstype.get_json_ser_func(
+                                    norm_func(
+                                        PredefinedFn.attr_getter(
+                                            expr.ExprIdent("this"),
+                                            expr.ExprIdent(propname),
+                                        )
                                     )
                                 ),
                                 expr.ExprIdent("undefined"),
                             )
                             if prop.is_optional
-                            else norm_func(
-                                PredefinedFn.attr_getter(
-                                    expr.ExprIdent("this"), expr.ExprIdent(propname)
+                            else original_tstype.get_json_ser_func(
+                                norm_func(
+                                    PredefinedFn.attr_getter(
+                                        expr.ExprIdent("this"), expr.ExprIdent(propname)
+                                    )
                                 )
                             )
                         ),
@@ -1605,6 +1622,10 @@ def get_normalizer(
         return import_helper.use("normalizers.normalizeNumber")
     if tstype.type == "number | undefined":
         return import_helper.use("normalizers.normalizeOptionalNumber")
+    if tstype.type == "Date":
+        return import_helper.use("normalizers.normalizeDate")
+    if tstype.type == "Date | undefined":
+        return import_helper.use("normalizers.normalizeOptionalDate")
 
     assert "number" not in tstype.type, tstype.type
     return None

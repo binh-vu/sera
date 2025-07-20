@@ -47,3 +47,35 @@ export function normalizeOptionalNumber(value: string | number | undefined): num
   }
   return normalizeNumber(value);
 }
+
+/**
+ * Normalizes a string or Date value to a Date object.
+ * 
+ * @param value - The string or Date value to normalize
+ * @returns The normalized Date object
+ * @throws {Error} When the value cannot be converted to a valid Date
+ * 
+ * @example
+ * ```typescript
+ * normalizeDate("2023-10-01") // returns new Date("2023-10-01")
+ * normalizeDate(new Date("2023-10-01")) // returns new Date("2023-10-01")
+ * normalizeDate("invalid date") // throws Error: "Invalid date value"
+ * ```
+ */
+export function normalizeDate(value: string | Date): Date {
+  const date = new Date(value);
+  if (isNaN(date.getTime())) {
+    throw new Error("Invalid date value");
+  }
+  return date;
+}
+
+/**
+ * Normalizes a string, undefined, or Date value to a Date object or undefined.
+ */
+export function normalizeOptionalDate(value: string | Date | undefined): Date | undefined {
+  if (value === undefined || (typeof value === "string" && value.trim() === "")) {
+    return undefined;
+  }
+  return normalizeDate(value);
+}
