@@ -3,7 +3,7 @@ import { Record as DBRecord, DraftEmbeddedRecord, DraftRecord } from "./Record";
 import { ValueValidator } from "./validators";
 export type PropertyName = string;
 export type TargetClassName = string;
-export type DataType = "string" | "integer" | "float" | "boolean" | "date" | "datetime" | "string[]" | "enum";
+export type DataType = "string" | "integer" | "float" | "boolean" | "date" | "datetime" | "string[]" | "enum" | "dict";
 export type Enum = { [key: string]: string | number };
 
 export interface MultiLingualString {
