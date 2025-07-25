@@ -28,6 +28,6 @@ export default defineConfig({
           "react-router": "react-router",
         },
       },
-    },
+    }
   },
 });
