@@ -5,6 +5,7 @@ export interface Record<ID> {
 export interface EmbeddedRecord { }
 
 export type RecordClass<R> = { new(...args: any[]): R } & {
+  className: string;
   deser(data: any): R;
 };
 

@@ -267,6 +267,17 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                 )(*prop_constructor_assigns),
                 stmt.LineBreak(),
                 lambda ast12: ast12.func(
+                    "className",
+                    [],
+                    expr.ExprIdent("string"),
+                    is_static=True,
+                    modifiers=["get"],
+                    comment="Name of the class in the Schema",
+                )(
+                    stmt.ReturnStatement(expr.ExprConstant(cls.name)),
+                ),
+                stmt.LineBreak(),
+                lambda ast12: ast12.func(
                     "deser",
                     [
                         DeferredVar.simple("data", expr.ExprIdent("any")),

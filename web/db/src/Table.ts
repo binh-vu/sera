@@ -95,8 +95,9 @@ export class Table<
     });
   }
 
+  // Return name of the class
   get name(): string {
-    return this.cls.name;
+    return this.cls.className;
   }
 
   /**
