@@ -15,7 +15,7 @@ from litestar.typing import FieldDefinition
 from msgspec import Struct
 
 from sera.libs.base_service import Query, QueryOp
-from sera.libs.middlewares.uscp import STATE_SYSTEM_CONTROLLED_PROP_KEY
+from sera.libs.middlewares.uscp import SKIP_UPDATE_SYSTEM_CONTROLLED_PROPS_KEY
 from sera.typing import T
 
 # for parsing field names and operations from query string
@@ -136,9 +136,10 @@ class SingleAutoUSCP(MsgspecDTO[S], Generic[S]):
             "data_backend"
         ]  # pyright: ignore
         obj = backend.populate_data_from_raw(value, self.asgi_connection)
-        obj.update_system_controlled_props(
-            self.asgi_connection.scope["state"][STATE_SYSTEM_CONTROLLED_PROP_KEY]
-        )
+        if self.asgi_connection.scope["state"][SKIP_UPDATE_SYSTEM_CONTROLLED_PROPS_KEY]:
+            # Skip updating system-controlled properties
+            return obj
+        obj.update_system_controlled_props(self.asgi_connection)
         return obj
 
 
