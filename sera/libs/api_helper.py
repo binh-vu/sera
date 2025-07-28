@@ -138,7 +138,11 @@ class SingleAutoUSCP(MsgspecDTO[S], Generic[S]):
         obj = backend.populate_data_from_raw(value, self.asgi_connection)
         if self.asgi_connection.scope["state"][SKIP_UPDATE_SYSTEM_CONTROLLED_PROPS_KEY]:
             # Skip updating system-controlled properties
+            # TODO: dirty fix as this assumes every struct has _is_scp_updated property. find a
+            # better solution and fix me!
+            obj._is_scp_updated = True
             return obj
+
         obj.update_system_controlled_props(self.asgi_connection)
         return obj
 
