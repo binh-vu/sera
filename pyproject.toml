@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sera-2"
-version = "1.20.9"
+version = "1.20.10"
 description = ""
 authors = ["Binh Vu <bvu687@gmail.com>"]
 readme = "README.md"
@@ -19,7 +19,7 @@ sqlalchemy = { extras = ["asyncio"], version = "^2.0.41" }
 isort = "==6.0.1"
 serde2 = "^1.9.2"
 tqdm = "^4.67.1"
-graph-wrapper = "^1.7.2"
+graph-wrapper = "^1.7.3"
 
 [build-system]
 requires = ["poetry-core"]
