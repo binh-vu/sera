@@ -78,6 +78,19 @@ class PyTypeWithDep:
             return ("TypeConversion.to_float", "sera.libs.api_helper.TypeConversion")
         if self.type == "bool":
             return ("TypeConversion.to_bool", "sera.libs.api_helper.TypeConversion")
+        if any(
+            dep.find(".models.enums.") != -1 and dep.endswith(self.type)
+            for dep in self.deps
+        ):
+            # This is an enum type, we directly use the enum constructor as the conversion function
+            return (
+                self.type,
+                [
+                    dep
+                    for dep in self.deps
+                    if dep.find(".models.enums.") != -1 and dep.endswith(self.type)
+                ][0],
+            )
         else:
             raise NotImplementedError()
 

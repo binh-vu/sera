@@ -91,7 +91,7 @@ def parse_query(
                     v = [norm_func(x) for x in v]
                 else:
                     v = norm_func(v)
-            except ValueError:
+            except (ValueError, KeyError):
                 if debug:
                     raise HTTPException(
                         status_code=status_codes.HTTP_400_BAD_REQUEST,
