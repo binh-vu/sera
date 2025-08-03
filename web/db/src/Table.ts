@@ -2,7 +2,7 @@ import axios from "axios";
 import { action, makeObservable, observable, runInAction } from "mobx";
 import { Index, SingleKeyIndex, SingleKeyUniqueIndex } from "./TableIndex";
 import { Query, QueryConditions, QueryProcessor } from "./Query";
-import { Record as DBRecord, DraftRecord, RecordClass } from "./Record";
+import { ClassName, Record as DBRecord, DraftRecord, RecordClass } from "./Record";
 import { DB } from "./DB";
 
 export type FetchResult<R> = { records: R[]; total: number };
@@ -96,7 +96,7 @@ export class Table<
   }
 
   // Return name of the class
-  get name(): string {
+  get name(): ClassName {
     return this.cls.className;
   }
 

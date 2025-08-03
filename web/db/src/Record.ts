@@ -1,3 +1,6 @@
+// Name of the class in the database/schema
+export type ClassName = string;
+
 export interface Record<ID> {
   id: ID;
 }
@@ -5,7 +8,7 @@ export interface Record<ID> {
 export interface EmbeddedRecord { }
 
 export type RecordClass<R> = { new(...args: any[]): R } & {
-  className: string;
+  className: ClassName;
   deser(data: any): R;
 };
 

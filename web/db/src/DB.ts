@@ -1,8 +1,9 @@
+import { ClassName } from "./Record";
 import { Table } from "./Table";
 
 export class DB {
-  tables: { [name: string]: Table<any, any, any> };
-  cls2table: { [name: string]: Table<any, any, any> };
+  tables: { [name: ClassName]: Table<any, any, any> };
+  cls2table: { [name: ClassName]: Table<any, any, any> };
 
   constructor() {
     this.tables = {};
@@ -15,7 +16,7 @@ export class DB {
   }
 
   /// Get a table by its name ("User")
-  getByName(name: string): Table<any, any, any> {
+  getByName(name: ClassName): Table<any, any, any> {
     return this.tables[name];
   }
 
@@ -37,8 +38,8 @@ export class DB {
   }
 
   /// Populate the database with data
-  populateData(data: { [name: string]: any[] }): { [name: string]: any[] } {
-    let output: { [name: string]: any[] } = {};
+  populateData(data: { [name: ClassName]: any[] }): { [name: ClassName]: any[] } {
+    let output: { [name: ClassName]: any[] } = {};
     for (const name in data) {
       const table = this.tables[name];
       if (table === undefined) continue;

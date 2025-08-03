@@ -25,6 +25,7 @@ export default defineConfig({
         // for externalized deps
         globals: {
           react: "react",
+          "react-dom": "react-dom",
           "react-router": "react-router",
         },
       },

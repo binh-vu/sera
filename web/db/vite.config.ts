@@ -18,13 +18,15 @@ export default defineConfig({
     rollupOptions: {
       // make sure to externalize deps that shouldn't be bundled
       // into your library
-      external: ["mobx", "axios"],
+      external: ["mobx", "axios", "memoize-one", "validator"],
       output: {
         // Provide global variables to use in the UMD build
         // for externalized deps
         globals: {
           mobx: "mobx",
           axios: "axios",
+          "memoize-one": "memoizeOne",
+          validator: "validator",
         },
       },
     },

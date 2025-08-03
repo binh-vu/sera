@@ -7,6 +7,7 @@ export * from "./Schema";
 export * as validators from "./validators";
 export * as normalizers from "./normalizers";
 export { DynamicMultiLingualString, I18NStore } from "./I18N";
+export type { ClassName } from "./Record";
 
 /**
  * Register a default error handler for all ajax requests via axios, which simply show a bubble message, and re-throw the error.
