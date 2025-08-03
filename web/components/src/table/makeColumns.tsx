@@ -15,10 +15,10 @@ import { MultiLingualString } from "../basic";
 import {
   DataType2DisplayComponent,
   DisplayInterface,
+  EntityRoutes,
   MultiForeignKeyDisplay,
   SingleForeignKeyDisplay,
 } from "../data/display";
-import { NoQueryArgsPathDef } from "sera-route";
 
 type DOP = DataProperty | ObjectProperty;
 
@@ -38,8 +38,8 @@ export interface SeraColumn {
 
 export function makeTableColumn(
   db: DB,
-  property: DOP,
-  entityRoutes: Record<string, NoQueryArgsPathDef<{ id: "string" }, any>>
+  entityRoutes: EntityRoutes,
+  property: DOP
 ): SeraColumn {
   let Component: React.ComponentType<DisplayInterface<any>>;
   if (isObjectProperty(property)) {
@@ -79,9 +79,9 @@ export function makeTableColumn(
 
 export function makeTableColumnFromNestedProperty(
   db: DB,
+  entityRoutes: EntityRoutes,
   property: DOP,
   nestedProperty: DOP,
-  entityRoutes: Record<string, NoQueryArgsPathDef<{ id: "string" }, any>>,
   { title }: { title?: React.ReactNode } = {}
 ): SeraColumn {
   let Component: React.ComponentType<DisplayInterface<any>>;
@@ -133,8 +133,8 @@ export function makeTableColumns<
 >(
   db: DB,
   schema: Schema<ID, R, DR, PF, F, ST> | EmbeddedSchema<R, DR, PF, F>,
-  selectedColumns: (PF | SeraColumn)[],
-  entityRoutes: Record<string, NoQueryArgsPathDef<{ id: "string" }, any>>
+  entityRoutes: EntityRoutes,
+  selectedColumns: (PF | SeraColumn)[]
 ): SeraColumn[] {
   return selectedColumns.map((columnDef) => {
     if (isSeraColumn(columnDef)) {
@@ -143,8 +143,8 @@ export function makeTableColumns<
     }
     return makeTableColumn(
       db,
-      schema.publicProperties[columnDef],
-      entityRoutes
+      entityRoutes,
+      schema.publicProperties[columnDef]
     );
   });
 }
@@ -157,8 +157,8 @@ export function makeEmbeddedTableColumns<
 >(
   db: DB,
   schema: EmbeddedSchema<R, DR, PF, F>,
-  selectedColumns: (PF | SeraColumn)[],
-  entityRoutes: Record<string, NoQueryArgsPathDef<{ id: "string" }, any>>
+  entityRoutes: EntityRoutes,
+  selectedColumns: (PF | SeraColumn)[]
 ): SeraColumn[] {
   return selectedColumns.map((columnDef) => {
     if (isSeraColumn(columnDef)) {
@@ -167,8 +167,8 @@ export function makeEmbeddedTableColumns<
     }
     return makeTableColumn(
       db,
-      schema.publicProperties[columnDef],
-      entityRoutes
+      entityRoutes,
+      schema.publicProperties[columnDef]
     );
   });
 }

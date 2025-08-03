@@ -1,8 +1,8 @@
 import { useEffect, useMemo } from "react";
-import { DisplayInterface } from ".";
+import { DisplayInterface, EntityRoute, EntityRoutes } from ".";
 import { observer } from "mobx-react-lite";
 import { DB, ObjectProperty } from "sera-db";
-import { InternalLink, NoQueryArgsPathDef } from "sera-route";
+import { InternalLink } from "sera-route";
 import { Group, Text } from "@mantine/core";
 import { NotFoundInline } from "../../basic/Transition";
 
@@ -10,8 +10,8 @@ function useForeignKeyDisplay<ID extends string | number>(
   db: DB,
   property: ObjectProperty,
   ids: ID[],
-  entityRoutes: Record<string, NoQueryArgsPathDef<{ id: "string" }, any>>
-): [Record<ID, any>, NoQueryArgsPathDef<{ id: "string" }, any>] {
+  entityRoutes: EntityRoutes
+): [Record<ID, any>, EntityRoute] {
   const table = db.getByName(property.targetClass);
   const route = entityRoutes[property.targetClass];
 

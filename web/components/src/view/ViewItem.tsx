@@ -29,7 +29,7 @@ export interface ViewItemProps<
   DisplayComponent: React.ComponentType<DisplayInterface<any>>;
 
   /// Entity routes for navigation
-  entityRoutes: Record<ClassName, NoQueryArgsPathDef<{ id: "string" }, any>>;
+  entityRoutes: EntityRoutes;
 }
 
 export const ViewItem = observer(

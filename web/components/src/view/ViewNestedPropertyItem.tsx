@@ -29,7 +29,7 @@ export interface ViewNestedPropertyItemProps<
   DisplayComponent: React.ComponentType<DisplayInterface<any>>;
 
   // entity routes for foreign key navigation
-  entityRoutes: Record<ClassName, NoQueryArgsPathDef<{ id: "string" }, any>>;
+  entityRoutes: EntityRoutes;
 }
 
 /**

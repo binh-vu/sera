@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import {
-  ClassName,
   DataProperty,
   DraftRecord,
   GenericRecord,
@@ -14,12 +13,12 @@ import { Grid, Stack } from "@mantine/core";
 import {
   DataType2DisplayComponent,
   DisplayInterface,
+  EntityRoutes,
   MultiForeignKeyDisplay,
   SingleForeignKeyDisplay,
 } from "../data/display";
 import { ViewItem } from "./ViewItem";
 import { ViewNestedPropertyItem } from "./ViewNestedPropertyItem";
-import { NoQueryArgsPathDef } from "sera-route";
 
 const SPAN_COL = 12;
 
@@ -68,7 +67,7 @@ export interface SeraViewProps<
   className?: string;
 
   // entity routes for foreign key navigation
-  entityRoutes: Record<ClassName, NoQueryArgsPathDef<{ id: "string" }, any>>;
+  entityRoutes: EntityRoutes;
 }
 
 export const SeraView = <
@@ -116,7 +115,7 @@ function makeFieldGroup<
   record: R,
   key: string | number,
   group: FieldGroup<ID, R, DR, PF, F, ST>,
-  entityRoutes: Record<ClassName, NoQueryArgsPathDef<{ id: "string" }, any>>
+  entityRoutes: EntityRoutes
 ) {
   const fields = group.fields;
   const cols = [];
@@ -195,7 +194,7 @@ export function makeFieldDisplay<
   DR extends DraftRecord<ID>
 >(
   props: (DataProperty | ObjectProperty)[],
-  entityRoutes: Record<ClassName, NoQueryArgsPathDef<{ id: "string" }, any>>,
+  entityRoutes: EntityRoutes,
   display?: React.ComponentType<DisplayInterface<any>>
 ): (store: Table<ID, R, DR>, record: R) => React.ReactNode {
   const property = props[props.length - 1];

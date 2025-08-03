@@ -39,7 +39,7 @@ export interface SeraViewTabProps<
   tabClassName?: string;
 
   // entity routes for foreign key navigation
-  entityRoutes: Record<ClassName, NoQueryArgsPathDef<{ id: "string" }, any>>;
+  entityRoutes: EntityRoutes;
 }
 
 export const SeraViewTab = <
