@@ -172,6 +172,8 @@ class TsTypeWithDep:
             return value
         if self.type == "Date":
             return expr.ExprRawTypescript(f"{value.to_typescript()}.toISOString()")
+        if self.type == "Date | undefined":
+            return expr.ExprRawTypescript(f"{value.to_typescript()}?.toISOString()")
         if any(x.startswith("@.models.enum") for x in self.deps):
             # enum type, we don't need to do anything as we use strings for enums
             return value
