@@ -1,14 +1,28 @@
 from __future__ import annotations
 
+import importlib
 import inspect
 import re
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, Sequence, Type, TypedDict, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Iterable,
+    Optional,
+    Sequence,
+    Type,
+    TypedDict,
+    TypeVar,
+    cast,
+)
 
+import msgspec
+import orjson
 import serde.csv
 import serde.json
+from loguru import logger
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 from tqdm import tqdm
@@ -55,6 +69,13 @@ reserved_keywords = {
     "None",
     "self",
 }
+
+
+def import_attr(attr_ident: str):
+    lst = attr_ident.rsplit(".", 1)
+    module, cls = lst
+    module = importlib.import_module(module)
+    return getattr(module, cls)
 
 
 def to_snake_case(camelcase: str) -> str:
@@ -134,7 +155,7 @@ class RelTableIndex:
     """An index of relational tables to find a record by its unique property."""
 
     def __init__(self, cls2index: Optional[dict[str, list[str]]] = None):
-        self.table2rows: dict[str, dict[str, Any]] = defaultdict(dict)
+        self.table2rows: dict[str, dict[int, Any]] = defaultdict(dict)
         self.table2uniqindex2id: dict[str, dict[str, int]] = defaultdict(dict)
         self.cls2index = cls2index or {}
 
@@ -217,14 +238,37 @@ def load_data(
 
             assert "record_deser" in args
             deser = args["record_deser"]
+            if deser is None:
+                assert len(tbls) == 1
+                module, clsname = (
+                    get_classpath(tbls[0])
+                    .replace(".models.db.", ".models.data.")
+                    .rsplit(".", maxsplit=1)
+                )
+                StructType = getattr(
+                    importlib.import_module(module), f"Create{clsname}"
+                )
+
+                def deser_func(obj: dict):
+                    record = msgspec.json.decode(
+                        orjson.dumps(obj), type=StructType
+                    ).to_db()
+                    if hasattr(record, "_is_scp_updated"):
+                        # Skip updating system-controlled properties
+                        record._is_scp_updated = True
+                    return record
+
+                deser = deser_func
 
             sig = inspect.signature(deser)
             param_count = len(sig.parameters)
             if param_count == 1:
-                records = [deser(row) for row in raw_records]
+                _deser = cast(Callable[[dict], Any], deser)
+                records = [_deser(row) for row in raw_records]
             else:
                 assert param_count == 2
-                records = [deser(row, reltable_index) for row in raw_records]
+                _deser = cast(Callable[[dict, RelTableIndex], Any], deser)
+                records = [_deser(row, reltable_index) for row in raw_records]
 
             for r in tqdm(
                 records,
@@ -263,6 +307,35 @@ def load_data(
         session.commit()
 
 
+def load_data_from_dir(
+    engine: Engine,
+    create_db_and_tables: Callable[[], None],
+    data_dir: Path,
+    tables: Sequence[type],
+    verbose: bool = False,
+):
+    """Load data into the database from a directory"""
+
+    load_args = []
+
+    for tbl in tables:
+        file = data_dir / (tbl.__tablename__ + ".json")
+        if not file.exists():
+            logger.warning(
+                "File {} does not exist, skipping loading for {}", file, tbl.__name__
+            )
+
+        load_args.append(
+            LoadTableDataArgs(
+                table=tbl,
+                file=file,
+                record_deser=None,
+            )
+        )
+
+    load_data(engine, create_db_and_tables, load_args, verbose)
+
+
 def identity(x: T) -> T:
     """Identity function that returns the input unchanged."""
     return x
@@ -286,4 +359,8 @@ def get_classpath(type: Type | Callable) -> str:
     else:
         raise NotImplementedError(type)
 
+    return path
+    return path
+    return path
+    return path
     return path

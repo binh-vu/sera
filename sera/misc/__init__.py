@@ -8,6 +8,7 @@ from sera.misc._utils import (
     get_classpath,
     identity,
     load_data,
+    load_data_from_dir,
     to_camel_case,
     to_pascal_case,
     to_snake_case,
@@ -28,4 +29,5 @@ __all__ = [
     "get_classpath",
     "LoadTableDataArgs",
     "RelTableIndex",
+    "load_data_from_dir",
 ]
