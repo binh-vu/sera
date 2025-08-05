@@ -144,10 +144,10 @@ class LoadTableDataArgs(TypedDict, total=False):
     file: Path
     files: Sequence[Path]
     file_deser: Callable[[Path], list[Any]]
-    record_deser: (
+    record_deser: Optional[
         Callable[[dict], Any | list[Any]]
         | Callable[[dict, RelTableIndex], Any | list[Any]]
-    )
+    ]
     table_unique_index: dict[type, list[str]]
 
 
@@ -198,7 +198,7 @@ def load_data(
 
         reltable_index = RelTableIndex()
 
-        for args in tqdm(table_data, disable=not verbose, desc="Loading data"):
+        for args in table_data:
             if "table" in args:
                 tbls = [args["table"]]
             elif "tables" in args:
@@ -240,25 +240,7 @@ def load_data(
             deser = args["record_deser"]
             if deser is None:
                 assert len(tbls) == 1
-                module, clsname = (
-                    get_classpath(tbls[0])
-                    .replace(".models.db.", ".models.data.")
-                    .rsplit(".", maxsplit=1)
-                )
-                StructType = getattr(
-                    importlib.import_module(module), f"Create{clsname}"
-                )
-
-                def deser_func(obj: dict):
-                    record = msgspec.json.decode(
-                        orjson.dumps(obj), type=StructType
-                    ).to_db()
-                    if hasattr(record, "_is_scp_updated"):
-                        # Skip updating system-controlled properties
-                        record._is_scp_updated = True
-                    return record
-
-                deser = deser_func
+                deser = get_dbclass_deser_func(tbls[0])
 
             sig = inspect.signature(deser)
             param_count = len(sig.parameters)
@@ -272,7 +254,7 @@ def load_data(
 
             for r in tqdm(
                 records,
-                desc=f"load {', '.join(tbl.__name__ for tbl in tbls)}",
+                desc=f"Load {', '.join(tbl.__tablename__ for tbl in tbls)}",
                 disable=not verbose,
             ):
                 if isinstance(r, Sequence):
@@ -311,7 +293,7 @@ def load_data_from_dir(
     engine: Engine,
     create_db_and_tables: Callable[[], None],
     data_dir: Path,
-    tables: Sequence[type],
+    tables: Sequence[type | tuple[type, Callable[[dict], Any]]],
     verbose: bool = False,
 ):
     """Load data into the database from a directory"""
@@ -319,6 +301,11 @@ def load_data_from_dir(
     load_args = []
 
     for tbl in tables:
+        if isinstance(tbl, tuple):
+            tbl, record_deser = tbl
+        else:
+            record_deser = None
+
         file = data_dir / (tbl.__tablename__ + ".json")
         if not file.exists():
             logger.warning(
@@ -329,7 +316,7 @@ def load_data_from_dir(
             LoadTableDataArgs(
                 table=tbl,
                 file=file,
-                record_deser=None,
+                record_deser=record_deser,
             )
         )
 
@@ -360,7 +347,23 @@ def get_classpath(type: Type | Callable) -> str:
         raise NotImplementedError(type)
 
     return path
-    return path
-    return path
-    return path
-    return path
+
+
+def get_dbclass_deser_func(type: type[T]) -> Callable[[dict], T]:
+    """Get a deserializer function for a class in models.db."""
+    module, clsname = (
+        get_classpath(type)
+        .replace(".models.db.", ".models.data.")
+        .rsplit(".", maxsplit=1)
+    )
+    StructType = getattr(importlib.import_module(module), f"Create{clsname}")
+
+    def deser_func(obj: dict):
+        record = msgspec.json.decode(orjson.dumps(obj), type=StructType)
+        if hasattr(record, "_is_scp_updated"):
+            # Skip updating system-controlled properties
+            record._is_scp_updated = True
+
+        return record.to_db()
+
+    return deser_func

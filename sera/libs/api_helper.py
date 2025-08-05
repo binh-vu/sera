@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Callable, Collection, Generic, TypeVar, cast
+from typing import Callable, Collection, Generic, Mapping, TypeVar, cast
 
 from litestar import Request, status_codes
 from litestar.connection import ASGIConnection
@@ -40,7 +40,7 @@ class TypeConversion:
 
 def parse_query(
     request: Request,
-    fields: dict[str, Callable[[str], str | int | bool | float]],
+    fields: Mapping[str, Callable[[str], str | int | bool | float]],
     debug: bool,
 ) -> Query:
     """Parse query for retrieving records that match a query.
