@@ -311,6 +311,7 @@ def load_data_from_dir(
             logger.warning(
                 "File {} does not exist, skipping loading for {}", file, tbl.__name__
             )
+            continue
 
         load_args.append(
             LoadTableDataArgs(
