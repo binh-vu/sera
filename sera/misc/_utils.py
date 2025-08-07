@@ -4,9 +4,9 @@ import importlib
 import inspect
 import re
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Iterable,
@@ -26,6 +26,9 @@ from loguru import logger
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 from tqdm import tqdm
+
+if TYPE_CHECKING:
+    from sera.libs.directed_computing_graph import DirectedComputingGraph
 
 T = TypeVar("T")
 
@@ -136,6 +139,52 @@ def filter_duplication(
             keys.add(k)
             new_lst.append(k)
     return new_lst
+
+
+def identity(x: T) -> T:
+    """Identity function that returns the input unchanged."""
+    return x
+
+
+def get_classpath(type: Type | Callable) -> str:
+    if type.__module__ == "builtins":
+        return type.__qualname__
+
+    if hasattr(type, "__qualname__"):
+        return type.__module__ + "." + type.__qualname__
+
+    # typically a class from the typing module
+    if hasattr(type, "_name") and type._name is not None:
+        path = type.__module__ + "." + type._name
+        if path in TYPE_ALIASES:
+            path = TYPE_ALIASES[path]
+    elif hasattr(type, "__origin__") and hasattr(type.__origin__, "_name"):
+        # found one case which is typing.Union
+        path = type.__module__ + "." + type.__origin__._name
+    else:
+        raise NotImplementedError(type)
+
+    return path
+
+
+def get_dbclass_deser_func(type: type[T]) -> Callable[[dict], T]:
+    """Get a deserializer function for a class in models.db."""
+    module, clsname = (
+        get_classpath(type)
+        .replace(".models.db.", ".models.data.")
+        .rsplit(".", maxsplit=1)
+    )
+    StructType = getattr(importlib.import_module(module), f"Create{clsname}")
+
+    def deser_func(obj: dict):
+        record = msgspec.json.decode(orjson.dumps(obj), type=StructType)
+        if hasattr(record, "_is_scp_updated"):
+            # Skip updating system-controlled properties
+            record._is_scp_updated = True
+
+        return record.to_db()
+
+    return deser_func
 
 
 class LoadTableDataArgs(TypedDict, total=False):
@@ -324,47 +373,17 @@ def load_data_from_dir(
     load_data(engine, create_db_and_tables, load_args, verbose)
 
 
-def identity(x: T) -> T:
-    """Identity function that returns the input unchanged."""
-    return x
-
-
-def get_classpath(type: Type | Callable) -> str:
-    if type.__module__ == "builtins":
-        return type.__qualname__
-
-    if hasattr(type, "__qualname__"):
-        return type.__module__ + "." + type.__qualname__
-
-    # typically a class from the typing module
-    if hasattr(type, "_name") and type._name is not None:
-        path = type.__module__ + "." + type._name
-        if path in TYPE_ALIASES:
-            path = TYPE_ALIASES[path]
-    elif hasattr(type, "__origin__") and hasattr(type.__origin__, "_name"):
-        # found one case which is typing.Union
-        path = type.__module__ + "." + type.__origin__._name
-    else:
-        raise NotImplementedError(type)
-
-    return path
-
-
-def get_dbclass_deser_func(type: type[T]) -> Callable[[dict], T]:
-    """Get a deserializer function for a class in models.db."""
-    module, clsname = (
-        get_classpath(type)
-        .replace(".models.db.", ".models.data.")
-        .rsplit(".", maxsplit=1)
-    )
-    StructType = getattr(importlib.import_module(module), f"Create{clsname}")
-
-    def deser_func(obj: dict):
-        record = msgspec.json.decode(orjson.dumps(obj), type=StructType)
-        if hasattr(record, "_is_scp_updated"):
-            # Skip updating system-controlled properties
-            record._is_scp_updated = True
-
-        return record.to_db()
-
-    return deser_func
+async def replay_events(
+    engine: AsyncEngine, dcg: DirectedComputingGraph, tables: Sequence[type]
+):
+    """Replay the events in the DirectedComputingGraph. This is useful to re-run the workflows
+    that computes derived data after initial data loading.
+    """
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        for tbl in tables:
+            innode = f"{tbl.__tablename__}.create"
+            for record in tqdm(
+                session.execute(select(tbl)).scalars(),
+                desc=f"Replaying events for {tbl.__tablename__}",
+            ):
+                await dcg.execute_async(input={innode: record})

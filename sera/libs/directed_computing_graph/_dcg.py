@@ -201,7 +201,7 @@ class DirectedComputingGraph:
 
         Args:
             input: A dictionary mapping function identifiers to their input arguments.
-            output: A set of function identifiers that should be executed.
+            output: A set of function identifiers that their output should be captured.
             context: An optional context that can be a dictionary of functions or a single function.
         """
         assert all(
@@ -307,7 +307,7 @@ class DirectedComputingGraph:
 
         Args:
             input: A dictionary mapping function identifiers to their input arguments.
-            output: A set of function identifiers that should be executed.
+            output: A set of function identifiers that their output should be captured.
             context: An optional context that can be a dictionary of functions or a single function.
         """
         assert all(

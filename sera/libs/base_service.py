@@ -128,8 +128,6 @@ class BaseAsyncService(Generic[ID, R]):
                         func.to_tsvector(getattr(self.orm_cls, field)).match(value)
                     )
 
-        print(">>>", q)
-
         cq = select(func.count()).select_from(q.subquery())
         rq = q.limit(limit).offset(offset)
         records = self._process_result(await session.execute(rq)).scalars().all()

@@ -10,8 +10,8 @@ ConstraintName = Literal[
     "not_empty",
     "username",
     "password",
-    "whole_number",
     "positive_number",
+    "non_negative_number",
 ]
 
 
@@ -34,7 +34,7 @@ class Constraint:
             )
         elif self.name == "password":
             return "msgspec.Meta(min_length=8, max_length=40)"
-        elif self.name == "whole_number":
+        elif self.name == "non_negative_number":
             return "msgspec.Meta(ge=0)"
         elif self.name == "positive_number":
             return "msgspec.Meta(gt=0)"
@@ -58,7 +58,7 @@ predefined_constraints: dict[ConstraintName, Constraint] = {
     "not_empty": Constraint("not_empty", ()),
     "username": Constraint("username", ()),
     "password": Constraint("password", ()),
-    "whole_number": Constraint("whole_number", ()),
+    "non_negative_number": Constraint("non_negative_number", ()),
     "positive_number": Constraint("positive_number", ()),
     "url": Constraint("url", ()),
 }
