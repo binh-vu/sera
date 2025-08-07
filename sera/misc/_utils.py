@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import importlib
 import inspect
 import re
 from collections import defaultdict
+from importlib import import_module
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -23,7 +23,8 @@ import orjson
 import serde.csv
 import serde.json
 from loguru import logger
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, select, text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
@@ -77,7 +78,7 @@ reserved_keywords = {
 def import_attr(attr_ident: str):
     lst = attr_ident.rsplit(".", 1)
     module, cls = lst
-    module = importlib.import_module(module)
+    module = import_module(module)
     return getattr(module, cls)
 
 
@@ -147,7 +148,7 @@ def identity(x: T) -> T:
 
 
 def get_classpath(type: Type | Callable) -> str:
-    if type.__module__ == "builtins":
+    if hasattr(type, "__module__") and type.__module__ == "builtins":
         return type.__qualname__
 
     if hasattr(type, "__qualname__"):
@@ -174,7 +175,7 @@ def get_dbclass_deser_func(type: type[T]) -> Callable[[dict], T]:
         .replace(".models.db.", ".models.data.")
         .rsplit(".", maxsplit=1)
     )
-    StructType = getattr(importlib.import_module(module), f"Create{clsname}")
+    StructType = getattr(import_module(module), f"Create{clsname}")
 
     def deser_func(obj: dict):
         record = msgspec.json.decode(orjson.dumps(obj), type=StructType)
@@ -185,6 +186,29 @@ def get_dbclass_deser_func(type: type[T]) -> Callable[[dict], T]:
         return record.to_db()
 
     return deser_func
+
+
+def auto_import(module: type):
+    """Auto-import all submodules of a given module."""
+    mdir = Path(module.__path__[0])
+    for py_file in mdir.rglob("*.py"):
+        if py_file.name == "__init__.py":
+            continue
+
+        # Get the path of the submodule relative to the parent module's directory
+        relative_path = py_file.relative_to(mdir)
+
+        # Create the module import string from the file path
+        # e.g., for a file like `sub/module.py`, this creates `sub.module`
+        module_parts = list(relative_path.parts)
+        module_parts[-1] = relative_path.stem  # remove .py extension
+        relative_module_name = ".".join(module_parts)
+
+        # Construct the full module path
+        full_module_path = f"{module.__name__}.{relative_module_name}"
+
+        # Dynamically import the module
+        import_module(full_module_path)
 
 
 class LoadTableDataArgs(TypedDict, total=False):
@@ -374,7 +398,10 @@ def load_data_from_dir(
 
 
 async def replay_events(
-    engine: AsyncEngine, dcg: DirectedComputingGraph, tables: Sequence[type]
+    engine: AsyncEngine,
+    dcg: DirectedComputingGraph,
+    tables: Sequence[type],
+    verbose: bool = False,
 ):
     """Replay the events in the DirectedComputingGraph. This is useful to re-run the workflows
     that computes derived data after initial data loading.
@@ -383,7 +410,10 @@ async def replay_events(
         for tbl in tables:
             innode = f"{tbl.__tablename__}.create"
             for record in tqdm(
-                session.execute(select(tbl)).scalars(),
+                (await session.execute(select(tbl))).scalars(),
                 desc=f"Replaying events for {tbl.__tablename__}",
+                disable=not verbose,
             ):
-                await dcg.execute_async(input={innode: record})
+                await dcg.execute_async(
+                    input={innode: (record,)}, context={"session": session}
+                )

@@ -4,6 +4,7 @@ from sera.misc._utils import (
     RelTableIndex,
     assert_isinstance,
     assert_not_null,
+    auto_import,
     filter_duplication,
     get_classpath,
     identity,
@@ -32,4 +33,5 @@ __all__ = [
     "RelTableIndex",
     "load_data_from_dir",
     "replay_events",
+    "auto_import",
 ]

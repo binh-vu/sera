@@ -1,18 +1,6 @@
 from __future__ import annotations
 
-import asyncio
-import inspect
-from dataclasses import dataclass
-from enum import Enum
-from typing import (
-    Annotated,
-    Any,
-    Awaitable,
-    Callable,
-    MutableSequence,
-    Optional,
-    Sequence,
-)
+from typing import Annotated, Any, Callable, MutableSequence, Optional, Sequence
 
 from graph.retworkx import RetworkXStrDiGraph
 
@@ -296,7 +284,7 @@ class DirectedComputingGraph:
     async def execute_async(
         self,
         input: dict[ComputeFnId, tuple],
-        output: set[str],
+        output: Optional[set[str]] = None,
         context: Optional[
             dict[str, Callable | Any] | Callable[[], dict[str, Any]]
         ] = None,
@@ -320,6 +308,9 @@ class DirectedComputingGraph:
             context = context()
         else:
             context = {k: v() if callable(v) else v for k, v in context.items()}
+
+        if output is None:
+            output = set()
 
         # This is a quick reactive algorithm, we may be able to do it better.
         # The idea is when all inputs of a function is available, we can execute a function.
