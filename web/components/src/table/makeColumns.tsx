@@ -25,22 +25,22 @@ type DOP = DataProperty | ObjectProperty;
 /**
  * Represents a column configuration for a table component.
  */
-export interface SeraColumn {
+export interface SeraColumn<R> {
   /// A unique identifier for the column
   key: string;
   /// The display title of the column, which can include React elements
   title: React.ReactNode;
   /// A function to extract the value for this column from a given record
-  accessorFn: (record: any) => any;
+  accessorFn: (record: R) => any;
   /// A function to render the content of the column for a given record, returning a React node
-  render: (record: any) => React.ReactNode;
+  render: (record: R) => React.ReactNode;
 }
 
-export function makeTableColumn(
+export function makeTableColumn<R>(
   db: DB,
   entityRoutes: EntityRoutes,
   property: DOP
-): SeraColumn {
+): SeraColumn<R> {
   let Component: React.ComponentType<DisplayInterface<any>>;
   if (isObjectProperty(property)) {
     if (property.cardinality === "1:N" || property.cardinality === "N:N") {
@@ -77,13 +77,13 @@ export function makeTableColumn(
   };
 }
 
-export function makeTableColumnFromNestedProperty(
+export function makeTableColumnFromNestedProperty<R>(
   db: DB,
   entityRoutes: EntityRoutes,
   property: DOP,
   nestedProperty: DOP,
   { title }: { title?: React.ReactNode } = {}
-): SeraColumn {
+): SeraColumn<R> {
   let Component: React.ComponentType<DisplayInterface<any>>;
   if (isObjectProperty(nestedProperty)) {
     if (
@@ -134,8 +134,8 @@ export function makeTableColumns<
   db: DB,
   schema: Schema<ID, R, DR, PF, F, ST> | EmbeddedSchema<R, DR, PF, F>,
   entityRoutes: EntityRoutes,
-  selectedColumns: (PF | SeraColumn)[]
-): SeraColumn[] {
+  selectedColumns: (PF | SeraColumn<R>)[]
+): SeraColumn<R>[] {
   return selectedColumns.map((columnDef) => {
     if (isSeraColumn(columnDef)) {
       // If it's already a SeraColumn, return it directly
@@ -158,8 +158,8 @@ export function makeEmbeddedTableColumns<
   db: DB,
   schema: EmbeddedSchema<R, DR, PF, F>,
   entityRoutes: EntityRoutes,
-  selectedColumns: (PF | SeraColumn)[]
-): SeraColumn[] {
+  selectedColumns: (PF | SeraColumn<R>)[] = []
+): SeraColumn<R>[] {
   return selectedColumns.map((columnDef) => {
     if (isSeraColumn(columnDef)) {
       // If it's already a SeraColumn, return it directly
@@ -173,6 +173,8 @@ export function makeEmbeddedTableColumns<
   });
 }
 
-export function isSeraColumn(column: SeraColumn | any): column is SeraColumn {
+export function isSeraColumn<R>(
+  column: SeraColumn<R> | any
+): column is SeraColumn<R> {
   return typeof column === "object" && "key" in column && "title" in column;
 }

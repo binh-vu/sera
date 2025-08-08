@@ -35,7 +35,7 @@ export interface SeraTableProps<
   };
   schema: Schema<ID, R, DR, PF, F, ST>;
   // list of columns to display
-  columns: SeraColumn[];
+  columns: SeraColumn<ST["cls"]>[];
   // an observable query to fetch the data
   query: ObservableQuery<ST["cls"]>;
   // function to fetch the data
@@ -259,7 +259,7 @@ const SeraTableData = <
 >(props: {
   data: FetchResult<ST["cls"]>;
   loading: boolean;
-  columns: SeraColumn[];
+  columns: SeraColumn<ST["cls"]>[];
   primaryKey: ST["publicProperties"];
   selectedRowKeys: Record<string, boolean>;
   setSelectedRowKeys: (keys: Updater<Record<string, boolean>>) => void;
