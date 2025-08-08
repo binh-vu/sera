@@ -1,6 +1,7 @@
 import { ClassName, DataProperty, DataType, DB, ObjectProperty } from "sera-db";
 import { TextDisplay } from "./TextDisplay";
 import { NoQueryArgsPathDef } from "sera-route";
+import { DateDisplay, DateTimeDisplay } from "./DatetimeDisplay";
 export { SingleForeignKeyDisplay, MultiForeignKeyDisplay } from "./ForeignKeyDisplay";
 
 export type EntityRoute = NoQueryArgsPathDef<{ id: "string" | "number" }, any>;
@@ -22,4 +23,6 @@ export const DataType2DisplayComponent: Partial<Record<DataType, React.Component
   boolean: TextDisplay,
   "string[]": TextDisplay,
   enum: TextDisplay,
+  datetime: DateTimeDisplay,
+  date: DateDisplay
 }

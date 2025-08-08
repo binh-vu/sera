@@ -13,7 +13,12 @@ export const SeraTableContent = <R,>(props: {
   hasBottomSection?: boolean;
 }) => {
   const el = (
-    <Table striped={true} highlightOnHover={true} verticalSpacing="xs">
+    <Table
+      striped={true}
+      highlightOnHover={true}
+      verticalSpacing="xs"
+      tabularNums={true}
+    >
       <Thead>
         {props.table.getHeaderGroups().map((headerGroup) => (
           <Tr key={headerGroup.id}>
