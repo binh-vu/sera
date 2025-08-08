@@ -417,3 +417,5 @@ async def replay_events(
                 await dcg.execute_async(
                     input={innode: (record,)}, context={"session": session}
                 )
+
+        await session.commit()
