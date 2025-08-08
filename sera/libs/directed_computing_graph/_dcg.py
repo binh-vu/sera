@@ -41,6 +41,11 @@ class DirectedComputingGraph:
     ):
         self.graph = graph
         self.type_service = type_service
+        self.node2descendants: dict[str, list[DCGNode]] = {}
+
+        for u in graph.iter_nodes():
+            self.node2descendants[u.id] = graph.descendants(u.id)
+            self.node2descendants[u.id].append(u)
 
     @staticmethod
     def from_flows(
@@ -179,7 +184,7 @@ class DirectedComputingGraph:
     def execute(
         self,
         input: dict[ComputeFnId, tuple],
-        output: set[str],
+        output: Optional[set[str]] = None,
         context: Optional[
             dict[str, Callable | Any] | Callable[[], dict[str, Any]]
         ] = None,
@@ -203,6 +208,9 @@ class DirectedComputingGraph:
         else:
             context = {k: v() if callable(v) else v for k, v in context.items()}
 
+        if output is None:
+            output = set()
+
         # This is a quick reactive algorithm, we may be able to do it better.
         # The idea is when all inputs of a function is available, we can execute a function.
         # We assume that the memory is large enough to hold all the functions and their inputs
@@ -211,25 +219,25 @@ class DirectedComputingGraph:
         # we execute the computing nodes
         # when it's finished, we put the outgoing edges into a stack.
         runtimes: dict[NodeId, NodeRuntime] = {}
+        for id in input.keys():
+            for u in self.node2descendants[id]:
+                if u.id in input:
+                    # user provided input should supersede the context
+                    n_provided_args = len(input[u.id])
+                    n_consumed_context = n_provided_args - len(u.required_args)
+                else:
+                    n_consumed_context = 0
 
-        for u in self.graph.iter_nodes():
-            if u.id in input:
-                # user provided input should supersede the context
-                n_provided_args = len(input[u.id])
-                n_consumed_context = n_provided_args - len(u.required_args)
-            else:
-                n_consumed_context = 0
-
-            node_context = tuple(
-                (
-                    context[name]
-                    if name in context
-                    else u.required_context_default_args[name]
+                node_context = tuple(
+                    (
+                        context[name]
+                        if name in context
+                        else u.required_context_default_args[name]
+                    )
+                    for name in u.required_context[n_consumed_context:]
                 )
-                for name in u.required_context[n_consumed_context:]
-            )
 
-            runtimes[u.id] = NodeRuntime.from_node(self.graph, u, node_context)
+                runtimes[u.id] = NodeRuntime.from_node(self.graph, u, node_context)
         stack: list[NodeId] = []
 
         for id, args in input.items():
@@ -321,24 +329,25 @@ class DirectedComputingGraph:
         # when it's finished, we put the outgoing edges into a stack.
         runtimes: dict[NodeId, NodeRuntime] = {}
 
-        for u in self.graph.iter_nodes():
-            if u.id in input:
-                # user provided input should supersede the context
-                n_provided_args = len(input[u.id])
-                n_consumed_context = n_provided_args - len(u.required_args)
-            else:
-                n_consumed_context = 0
+        for id in input.keys():
+            for u in self.node2descendants[id]:
+                if u.id in input:
+                    # user provided input should supersede the context
+                    n_provided_args = len(input[u.id])
+                    n_consumed_context = n_provided_args - len(u.required_args)
+                else:
+                    n_consumed_context = 0
 
-            node_context = tuple(
-                (
-                    context[name]
-                    if name in context
-                    else u.required_context_default_args[name]
+                node_context = tuple(
+                    (
+                        context[name]
+                        if name in context
+                        else u.required_context_default_args[name]
+                    )
+                    for name in u.required_context[n_consumed_context:]
                 )
-                for name in u.required_context[n_consumed_context:]
-            )
+                runtimes[u.id] = NodeRuntime.from_node(self.graph, u, node_context)
 
-            runtimes[u.id] = NodeRuntime.from_node(self.graph, u, node_context)
         stack: list[NodeId] = []
 
         for id, args in input.items():
