@@ -36,10 +36,35 @@ export interface SeraColumn<R> {
   render: (record: R) => React.ReactNode;
 }
 
+/**
+ * Creates a table column configuration for displaying entity properties in a data table.
+ *
+ * @template R - The type of the record/row data
+ * @param db - The database instance used for data operations
+ * @param entityRoutes - Configuration object containing routing information for entities
+ * @param property - The data object property (DOP) that defines the column's data type and behavior
+ * @param nestedKey - Optional string indicating if this is a nested property path
+ * @returns A SeraColumn configuration object with key, title, accessor function, and render component
+ *
+ * @throws {Error} When no display component is found for the specified datatype
+ *
+ * @example
+ * ```tsx
+ * const column = makeTableColumn(db, routes, userNameProperty);
+ * // Returns a column that displays user names with appropriate formatting
+ * ```
+ *
+ * @remarks
+ * The function automatically selects the appropriate display component based on:
+ * - Object properties with cardinality "1:N" or "N:N" use MultiForeignKeyDisplay
+ * - Object properties with other cardinalities use SingleForeignKeyDisplay
+ * - Non-object properties use components from DataType2DisplayComponent mapping
+ */
 export function makeTableColumn<R>(
   db: DB,
   entityRoutes: EntityRoutes,
-  property: DOP
+  property: DOP,
+  { title, nestedKey }: { title?: React.ReactNode; nestedKey?: string } = {}
 ): SeraColumn<R> {
   let Component: React.ComponentType<DisplayInterface<any>>;
   if (isObjectProperty(property)) {
@@ -57,9 +82,9 @@ export function makeTableColumn<R>(
     Component = DataType2DisplayComponent[property.datatype]!;
   }
 
-  return {
+  const cfg = {
     key: property.name,
-    title: <MultiLingualString value={property.label} />,
+    title: title || <MultiLingualString value={property.label} />,
     accessorFn: (record: any) => {
       return record[property.tsName];
     },
@@ -75,6 +100,25 @@ export function makeTableColumn<R>(
       );
     },
   };
+
+  if (nestedKey !== undefined) {
+    cfg.accessorFn = (record: any) => {
+      return record[nestedKey][property.tsName];
+    };
+    cfg.render = (record: any) => {
+      const value = record[nestedKey][property.tsName];
+      return (
+        <Component
+          db={db}
+          property={property}
+          value={value}
+          entityRoutes={entityRoutes}
+        />
+      );
+    };
+  }
+
+  return cfg;
 }
 
 export function makeTableColumnFromNestedProperty<R>(
@@ -82,7 +126,7 @@ export function makeTableColumnFromNestedProperty<R>(
   entityRoutes: EntityRoutes,
   property: DOP,
   nestedProperty: DOP,
-  { title }: { title?: React.ReactNode } = {}
+  { title, nestedKey }: { title?: React.ReactNode; nestedKey?: string } = {}
 ): SeraColumn<R> {
   let Component: React.ComponentType<DisplayInterface<any>>;
   if (isObjectProperty(nestedProperty)) {
@@ -103,7 +147,7 @@ export function makeTableColumnFromNestedProperty<R>(
     Component = DataType2DisplayComponent[nestedProperty.datatype]!;
   }
 
-  return {
+  const cfg = {
     key: property + "." + nestedProperty.name,
     title: title || <MultiLingualString value={nestedProperty.label} />,
     accessorFn: (record: any) => {
@@ -121,6 +165,25 @@ export function makeTableColumnFromNestedProperty<R>(
       );
     },
   };
+
+  if (nestedKey !== undefined) {
+    cfg.accessorFn = (record: any) => {
+      return record[nestedKey][property.tsName][nestedProperty.tsName];
+    };
+    cfg.render = (record: any) => {
+      const value = record[nestedKey][property.tsName][nestedProperty.tsName];
+      return (
+        <Component
+          db={db}
+          property={nestedProperty}
+          value={value}
+          entityRoutes={entityRoutes}
+        />
+      );
+    };
+  }
+
+  return cfg;
 }
 
 export function makeTableColumns<
@@ -134,17 +197,20 @@ export function makeTableColumns<
   db: DB,
   schema: Schema<ID, R, DR, PF, F, ST> | EmbeddedSchema<R, DR, PF, F>,
   entityRoutes: EntityRoutes,
-  selectedColumns: (PF | SeraColumn<R>)[]
+  selectedColumns: (PF | SeraColumn<R>)[],
+  options: { nestedKey?: string } = {}
 ): SeraColumn<R>[] {
   return selectedColumns.map((columnDef) => {
     if (isSeraColumn(columnDef)) {
       // If it's already a SeraColumn, return it directly
       return columnDef;
     }
+
     return makeTableColumn(
       db,
       entityRoutes,
-      schema.publicProperties[columnDef]
+      schema.publicProperties[columnDef],
+      options
     );
   });
 }
@@ -158,7 +224,8 @@ export function makeEmbeddedTableColumns<
   db: DB,
   schema: EmbeddedSchema<R, DR, PF, F>,
   entityRoutes: EntityRoutes,
-  selectedColumns: (PF | SeraColumn<R>)[] = []
+  selectedColumns: (PF | SeraColumn<R>)[] = [],
+  options: { nestedKey?: string } = {}
 ): SeraColumn<R>[] {
   return selectedColumns.map((columnDef) => {
     if (isSeraColumn(columnDef)) {
@@ -168,7 +235,8 @@ export function makeEmbeddedTableColumns<
     return makeTableColumn(
       db,
       entityRoutes,
-      schema.publicProperties[columnDef]
+      schema.publicProperties[columnDef],
+      options
     );
   });
 }

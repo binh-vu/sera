@@ -18,20 +18,21 @@ export interface SeraEmbeddedTableProps<R> {
     showSizeChanger?: boolean;
   };
   // list of columns to display
-  columns: SeraColumn[];
+  columns: SeraColumn<R>[];
   // data
   data: R[];
   // predefined actions that can be performed on the table
   actions?: SeraActionConfig<number>;
 }
 
-export const DEFAULT_PAGINATION_POSITIONS = new Set<"topRight" | "bottomLeft" | "bottomRight">([
-  "topRight",
-  "bottomRight",
-]);
+export const DEFAULT_PAGINATION_POSITIONS = new Set<
+  "topRight" | "bottomLeft" | "bottomRight"
+>(["topRight", "bottomRight"]);
 
 export const SeraEmbeddedTable = <R,>(props: SeraEmbeddedTableProps<R>) => {
-  const [selectedRowKeys, setSelectedRowKeys] = useState({} as Record<string, boolean>);
+  const [selectedRowKeys, setSelectedRowKeys] = useState(
+    {} as Record<string, boolean>
+  );
 
   // render the table
   const columns: ColumnDef<R>[] = useMemo(() => {
@@ -90,10 +91,16 @@ export const SeraEmbeddedTable = <R,>(props: SeraEmbeddedTableProps<R>) => {
   let bottomSection = undefined;
 
   if (hasAction(props.actions)) {
-    topSection = <SeraTableAction actions={props.actions} selectedRowKeys={listSelectedRowKeys} />;
+    topSection = (
+      <SeraTableAction
+        actions={props.actions}
+        selectedRowKeys={listSelectedRowKeys}
+      />
+    );
   }
 
-  const paginationPositions = props.pagination?.positions || DEFAULT_PAGINATION_POSITIONS;
+  const paginationPositions =
+    props.pagination?.positions || DEFAULT_PAGINATION_POSITIONS;
   if (paginationPositions.size > 0) {
     const pagination = table.getState().pagination;
 
@@ -134,8 +141,11 @@ export const SeraEmbeddedTable = <R,>(props: SeraEmbeddedTableProps<R>) => {
             {pgnEl}
             <Text size="sm" c="dimmed">
               Showing {pagination.pageIndex * pagination.pageSize + 1} to{" "}
-              {Math.min((pagination.pageIndex + 1) * pagination.pageSize, props.data.length)} of{" "}
-              {props.data.length} records
+              {Math.min(
+                (pagination.pageIndex + 1) * pagination.pageSize,
+                props.data.length
+              )}{" "}
+              of {props.data.length} records
             </Text>
           </Flex>
         );
@@ -144,8 +154,11 @@ export const SeraEmbeddedTable = <R,>(props: SeraEmbeddedTableProps<R>) => {
           <Flex justify="space-between" align="center">
             <Text size="sm" c="dimmed">
               Showing {pagination.pageIndex * pagination.pageSize + 1} to{" "}
-              {Math.min((pagination.pageIndex + 1) * pagination.pageSize, props.data.length)} of{" "}
-              {props.data.length} records
+              {Math.min(
+                (pagination.pageIndex + 1) * pagination.pageSize,
+                props.data.length
+              )}{" "}
+              of {props.data.length} records
             </Text>
             {pgnEl}
           </Flex>

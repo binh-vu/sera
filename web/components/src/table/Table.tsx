@@ -5,60 +5,41 @@ import {
   Updater,
   useReactTable,
 } from "@tanstack/react-table";
-import {
-  DraftRecord,
-  FetchResult,
-  GenericRecord,
-  ObservableQuery,
-  Query,
-  Schema,
-  SchemaType,
-} from "sera-db";
+import { FetchResult, ObservableQuery, Query } from "sera-db";
 import { Checkbox, Flex, Group, Paper, Text } from "@mantine/core";
 import { SeraColumn } from "./makeColumns";
 import { hasAction, SeraActionConfig, SeraTableAction } from "./TableAction";
 import { SeraTableContent } from "./TableContent";
 import { TablePagination } from "./TablePagination";
 
-export interface SeraTableProps<
-  ID extends string | number,
-  R extends GenericRecord<ID, DR>,
-  DR extends DraftRecord<ID>,
-  PF extends keyof R,
-  F extends keyof DR,
-  ST extends SchemaType<ID, R, DR, PF, F>
-> {
+export interface SeraTableProps<ID extends string | number, R> {
   // position of the pagination
   pagination?: {
     positions?: Set<"topRight" | "bottomLeft" | "bottomCenter" | "bottomRight">;
     showSizeChanger?: boolean;
   };
-  schema: Schema<ID, R, DR, PF, F, ST>;
   // list of columns to display
-  columns: SeraColumn<ST["cls"]>[];
+  columns: SeraColumn<R>[];
   // an observable query to fetch the data
-  query: ObservableQuery<ST["cls"]>;
+  query: ObservableQuery<R>;
   // function to fetch the data
-  getData: (query: Query<ST["cls"]>) => Promise<FetchResult<ST["cls"]>>;
+  getData: (query: Query<R>) => Promise<FetchResult<R>>;
   // predefined actions that can be performed on the table
-  actions?: SeraActionConfig<ST["id"]>;
+  actions?: SeraActionConfig<ID>;
+  // function to get the row id
+  getRowId: (row: R) => ID;
+  // function to convert the row id in string back to the original type
+  normalizeRowId: (id: string) => ID;
 }
 
 export const DEFAULT_PAGINATION_POSITIONS = new Set<
   "topRight" | "bottomLeft" | "bottomRight"
 >(["topRight", "bottomRight"]);
 
-export const SeraTable = <
-  ID extends string | number,
-  R extends GenericRecord<ID, DR>,
-  DR extends DraftRecord<ID>,
-  PF extends keyof R,
-  F extends keyof DR,
-  ST extends SchemaType<ID, R, DR, PF, F>
->(
-  props: SeraTableProps<ID, R, DR, PF, F, ST>
+export const SeraTable = <ID extends string | number, R>(
+  props: SeraTableProps<ID, R>
 ) => {
-  const [data, setData] = useState<FetchResult<ST["cls"]>>({
+  const [data, setData] = useState<FetchResult<R>>({
     records: [],
     total: 0,
   });
@@ -68,7 +49,7 @@ export const SeraTable = <
   );
 
   // function to update the data according to the query
-  const loadData = (query: Query<ST["cls"]>) => {
+  const loadData = (query: Query<R>) => {
     setLoading(true);
     props.getData(query).then((data) => {
       setData(data);
@@ -108,10 +89,9 @@ export const SeraTable = <
   }, [props.query]);
 
   const listSelectedRowKeys = useMemo(() => {
-    const normalizer = props.schema.normalizers[props.schema.primaryKey]!;
     return Object.keys(selectedRowKeys)
       .filter((key) => selectedRowKeys[key])
-      .map((key) => normalizer(key));
+      .map((key) => props.normalizeRowId(key));
   }, [selectedRowKeys]);
 
   // the top section of the table is often reserved for actions and pagination
@@ -190,11 +170,11 @@ export const SeraTable = <
   // render the table
   const tableEl = useMemo(() => {
     return (
-      <SeraTableData<ID, R, DR, PF, F, ST>
+      <SeraTableData<ID, R>
         data={data}
         loading={loading}
         columns={props.columns}
-        primaryKey={props.schema.primaryKey}
+        getRowId={props.getRowId}
         selectedRowKeys={selectedRowKeys}
         setSelectedRowKeys={setSelectedRowKeys}
         hasTopSection={topSection !== undefined}
@@ -205,7 +185,7 @@ export const SeraTable = <
     data,
     loading,
     props.columns,
-    props.schema.primaryKey,
+    props.getRowId,
     selectedRowKeys,
     setSelectedRowKeys,
     topSection !== undefined,
@@ -249,25 +229,18 @@ export const SeraTable = <
   }
 };
 
-const SeraTableData = <
-  ID extends string | number,
-  R extends GenericRecord<ID, DR>,
-  DR extends DraftRecord<ID>,
-  PF extends keyof R,
-  F extends keyof DR,
-  ST extends SchemaType<ID, R, DR, PF, F>
->(props: {
-  data: FetchResult<ST["cls"]>;
+const SeraTableData = <ID extends string | number, R>(props: {
+  data: FetchResult<R>;
   loading: boolean;
-  columns: SeraColumn<ST["cls"]>[];
-  primaryKey: ST["publicProperties"];
+  columns: SeraColumn<R>[];
+  getRowId: (row: R) => ID;
   selectedRowKeys: Record<string, boolean>;
   setSelectedRowKeys: (keys: Updater<Record<string, boolean>>) => void;
   hasTopSection?: boolean;
   hasBottomSection?: boolean;
 }) => {
-  const columns: ColumnDef<ST["cls"]>[] = useMemo(() => {
-    const columns: ColumnDef<ST["cls"]>[] = [
+  const columns: ColumnDef<R>[] = useMemo(() => {
+    const columns: ColumnDef<R>[] = [
       {
         id: "selection",
         header: ({ table }) => (
@@ -304,7 +277,7 @@ const SeraTableData = <
     columns,
     getCoreRowModel: getCoreRowModel(),
     // convert to string, but we actually can get away with number
-    getRowId: (row: ST["cls"]) => (row[props.primaryKey] as ID).toString(),
+    getRowId: (row: R) => props.getRowId(row).toString(),
     state: {
       rowSelection: props.selectedRowKeys,
     },
