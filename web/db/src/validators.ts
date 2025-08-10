@@ -83,6 +83,7 @@ export function constraintToValidator(constraint: Constraint): ValueValidator {
     case "phone_number": return validatePhoneNumber;
     case "username": return validateUsername;
     case "positive_number": return validatePositiveNumber;
+    case "non_negative_number": return validateNonNegativeNumber;
     default: throw new Error(`Not Implemented Error: ${constraint}`);
   }
 }
@@ -226,5 +227,23 @@ export function validatePositiveNumber(value: any): ValidationResult {
   return {
     isValid,
     errorMessage: isValid ? undefined : new DynamicMultiLingualString("validator.positive_number"),
+  };
+}
+
+/**
+ * Validates whether a given value is a non-negative number.
+ * A non-negative number is any number greater than or equal to 0.
+ * 
+ * @param value - The value to validate as a non-negative number
+ * @returns A ValidationResult object containing:
+ *   - isValid: boolean indicating if the value is a non-negative number
+ *   - errorMessage: undefined if valid, otherwise a DynamicMultiLingualString with the error key
+ */
+export function validateNonNegativeNumber(value: any): ValidationResult {
+  const num = Number(value);
+  const isValid = !isNaN(num) && isFinite(num) && num >= 0;
+  return {
+    isValid,
+    errorMessage: isValid ? undefined : new DynamicMultiLingualString("validator.non_negative_number"),
   };
 }

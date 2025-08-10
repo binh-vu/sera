@@ -14,13 +14,14 @@ export interface MultiLingualString {
 
 // We do not use enum here because Constraint can have arguments
 export type Constraint =
+  | "url"
   | "phone_number"
   | "email"
   | "not_empty"
-  | "url"
   | "username"
   | "password"
-  | "positive_number";
+  | "positive_number"
+  | "non_negative_number";
 
 export interface Property {
   // name of the property
