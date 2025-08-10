@@ -1,4 +1,7 @@
 import { action, makeObservable, observable } from "mobx";
+import { DataProperty, ObjectProperty } from "./Schema";
+
+type DOP = DataProperty | ObjectProperty;
 
 /**
  * For each field, you can either choose to filter by exact value matching (typeof string, number, boolean),
@@ -37,7 +40,7 @@ export interface Query<R> {
   returnTotal?: boolean;
 }
 
-export interface Query2J<P, PropName extends string, S> {
+export interface Query2J<P, S> {
   limit: number;
   offset: number;
   /// List of fields to return in the result
@@ -46,7 +49,7 @@ export interface Query2J<P, PropName extends string, S> {
   conditions?: QueryConditions<P>;
   /// Conditions of the secondary class
   joinConditions: {
-    prop: PropName;
+    prop: DOP;
     /// default is inner
     joinType?: "inner" | "left" | "full";
     /// List of fields to return in the results
@@ -60,10 +63,10 @@ export interface Query2J<P, PropName extends string, S> {
   sortedBy?:
   | keyof P
   | { field: keyof P; order: "desc" | "asc" }
-  | { field: keyof S; order?: "desc" | "asc", prop: PropName }
-  | ({ field: keyof P; order: "desc" | "asc" } | { field: keyof S; order: "desc" | "asc", prop: PropName })[];
+  | { field: keyof S; order?: "desc" | "asc", prop: DOP }
+  | ({ field: keyof P; order: "desc" | "asc" } | { field: keyof S; order: "desc" | "asc", prop: DOP })[];
   /// Group the records by a field or multiple fields
-  groupBy?: (keyof P | { field: keyof S, prop: PropName })[];
+  groupBy?: (keyof P | { field: keyof S, prop: DOP })[];
   /// Whether to return the total number of records that match the query
   returnTotal?: boolean;
 }
@@ -77,14 +80,14 @@ export class QueryProcessor<R> {
   }
 
   /// Prepare a join query to send to the server
-  static prepareJoinQuery<P, S>(primary: QueryProcessor<P>, secondary: QueryProcessor<S>, query: Query2J<P, string, S>): object {
+  static prepareJoinQuery<P, S>(primary: QueryProcessor<P>, secondary: QueryProcessor<S>, query: Query2J<P, S>): object {
     let params: any = {
       limit: query.limit,
       offset: query.offset,
       unique: query.unique,
       return_total: query.returnTotal,
       join_conditions: {
-        prop: query.joinConditions.prop,
+        prop: query.joinConditions.prop.name,
         join_type: query.joinConditions.joinType || "inner",
       }
     };
@@ -105,14 +108,14 @@ export class QueryProcessor<R> {
     if (Array.isArray(query.sortedBy)) {
       params.sorted_by = query.sortedBy.map((item) => {
         if ("prop" in item) {
-          return { field: secondary.renameField[item.field] || item.field, order: item.order || "asc" };
+          return { field: secondary.renameField[item.field] || item.field, order: item.order || "asc", prop: item.prop.name };
         } else {
           return { field: primary.renameField[item.field] || item.field, order: item.order || "asc" };
         }
       });
     } else if (typeof query.sortedBy === "object") {
       if ("prop" in query.sortedBy) {
-        params.sorted_by = [{ field: secondary.renameField[query.sortedBy.field] || query.sortedBy.field, order: query.sortedBy.order || "asc" }];
+        params.sorted_by = [{ field: secondary.renameField[query.sortedBy.field] || query.sortedBy.field, order: query.sortedBy.order || "asc", prop: query.sortedBy.prop.name }];
       } else {
         params.sorted_by = [{ field: primary.renameField[query.sortedBy.field] || query.sortedBy.field, order: query.sortedBy.order }];
       }
@@ -125,7 +128,7 @@ export class QueryProcessor<R> {
       params.group_by = query.groupBy.map(
         (field) => {
           if (typeof field === "object") {
-            return { field: secondary.renameField[field.field] || field.field, prop: field.prop };
+            return { field: secondary.renameField[field.field] || field.field, prop: field.prop.name };
           } else {
             return { field: primary.renameField[field] || field };
           }

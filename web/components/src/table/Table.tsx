@@ -5,7 +5,7 @@ import {
   Updater,
   useReactTable,
 } from "@tanstack/react-table";
-import { FetchResult, ObservableQuery, Query } from "sera-db";
+import { FetchResult, ObservableQuery } from "sera-db";
 import { Checkbox, Flex, Group, Paper, Text } from "@mantine/core";
 import { SeraColumn } from "./makeColumns";
 import { hasAction, SeraActionConfig, SeraTableAction } from "./TableAction";

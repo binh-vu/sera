@@ -58,6 +58,9 @@ export interface DataProperty extends Property {
   datatype: DataType;
   // if the property is an enum, this will contain the enum class
   enumType?: Enum;
+  // if the property is a primary key, it can be foreign key to another table. If so, this property
+  // indicates the target class that this foreign key references to
+  foreignKeyTarget?: TargetClassName;
 }
 
 type NoStale<T> = T extends { stale: boolean } ? never : T;

@@ -1242,6 +1242,18 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
                         if tstype.type in schema.enums
                         else []
                     ),
+                    *(
+                        [
+                            (
+                                expr.ExprIdent("foreignKeyTarget"),
+                                expr.ExprConstant(prop.db.foreign_key.name),
+                            )
+                        ]
+                        if prop.db is not None
+                        and prop.db.is_primary_key
+                        and prop.db.foreign_key is not None
+                        else []
+                    ),
                     (
                         expr.ExprIdent("isRequired"),
                         expr.ExprConstant(

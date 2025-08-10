@@ -93,9 +93,7 @@ class BaseAsyncService(Generic[ID, R]):
                             target_tbl,
                             assert_not_null(prop.target.get_id_property()).name,
                         )
-                        == getattr(
-                            self.orm_cls, to_snake_case(prop.target.name) + "_id"
-                        ),
+                        == getattr(self.orm_cls, to_snake_case(prop.name) + "_id"),
                         "contains_eager": getattr(self.orm_cls, prop.name),
                     },
                 ]
@@ -196,6 +194,8 @@ class BaseAsyncService(Generic[ID, R]):
                     isouter=join_condition.join_type == "left",
                     full=join_condition.join_type == "full",
                 ).options(contains_eager(join_clause["contains_eager"]))
+
+                print(">>>", join_clause)
 
         cq = select(func.count()).select_from(q.subquery())
         rq = q.limit(query.limit).offset(query.offset)

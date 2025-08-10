@@ -1,9 +1,10 @@
 import axios from "axios";
 import { action, makeObservable, observable, runInAction } from "mobx";
 import { Index, SingleKeyIndex, SingleKeyUniqueIndex } from "./TableIndex";
-import { Query, QueryConditions, QueryProcessor } from "./Query";
+import { Query, Query2J, QueryConditions, QueryProcessor } from "./Query";
 import { ClassName, Record as DBRecord, DraftRecord, RecordClass } from "./Record";
 import { DB } from "./DB";
+import { isObjectProperty } from "./Schema";
 
 export type FetchResult<R> = { records: R[]; total: number };
 
@@ -151,15 +152,48 @@ export class Table<
   }
 
   /** Fetch records by query */
-  async fetch(query: Query<R>): Promise<FetchResult<R>> {
-    if (query.fields !== undefined) {
-      throw new Error(
-        "Fetching specific fields is not supported in Table.fetch"
-      );
+  async fetch<S>(query: Query<R> | Query2J<R, S>): Promise<FetchResult<R>> {
+    let preparedQuery: object;
+
+    if ("joinConditions" in query) {
+      // join query
+      if (query.fields !== undefined || query.joinConditions.fields !== undefined) {
+        throw new Error(
+          "Fetching specific fields is not supported in Table.fetch"
+        );
+      }
+
+      let secondaryProcessor;
+      if (isObjectProperty(query.joinConditions.prop)) {
+        secondaryProcessor = this.db.getByName(query.joinConditions.prop.targetClass).queryProcessor;
+      } else {
+        if (query.joinConditions.prop.foreignKeyTarget === undefined) {
+          throw new Error(
+            "The data property is not a foreign key used as a primary key, so it cannot be used in a join query"
+          );
+        }
+        secondaryProcessor = this.db.getByName(query.joinConditions.prop.foreignKeyTarget).queryProcessor;
+      }
+
+      preparedQuery = QueryProcessor.prepareJoinQuery(
+        this.queryProcessor,
+        secondaryProcessor,
+        query
+      )
+    } else {
+      // normal query
+      if (query.fields !== undefined) {
+        throw new Error(
+          "Fetching specific fields is not supported in Table.fetch"
+        );
+      }
+
+      preparedQuery = this.queryProcessor.prepare(query)
     }
 
+
     let resp = await axios.post(`${this.remoteURL}/q`, {
-      params: this.queryProcessor.prepare(query),
+      data: preparedQuery,
     });
 
     const output = runInAction(() => {
