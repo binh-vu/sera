@@ -192,14 +192,15 @@ export function makeTableColumns<
   DR extends DraftRecord<ID>,
   PF extends keyof R,
   F extends keyof DR,
-  ST extends SchemaType<ID, R, DR, PF, F>
+  ST extends SchemaType<ID, R, DR, PF, F>,
+  OR
 >(
   db: DB,
   schema: Schema<ID, R, DR, PF, F, ST> | EmbeddedSchema<R, DR, PF, F>,
   entityRoutes: EntityRoutes,
-  selectedColumns: (PF | SeraColumn<R>)[],
+  selectedColumns: (PF | SeraColumn<OR>)[],
   options: { nestedKey?: string } = {}
-): SeraColumn<R>[] {
+): SeraColumn<OR>[] {
   return selectedColumns.map((columnDef) => {
     if (isSeraColumn(columnDef)) {
       // If it's already a SeraColumn, return it directly
@@ -219,14 +220,15 @@ export function makeEmbeddedTableColumns<
   R extends GenericEmbeddedRecord<DR>,
   DR extends DraftEmbeddedRecord,
   PF extends keyof R,
-  F extends keyof DR
+  F extends keyof DR,
+  OR
 >(
   db: DB,
   schema: EmbeddedSchema<R, DR, PF, F>,
   entityRoutes: EntityRoutes,
-  selectedColumns: (PF | SeraColumn<R>)[] = [],
+  selectedColumns: (PF | SeraColumn<OR>)[] = [],
   options: { nestedKey?: string } = {}
-): SeraColumn<R>[] {
+): SeraColumn<OR>[] {
   return selectedColumns.map((columnDef) => {
     if (isSeraColumn(columnDef)) {
       // If it's already a SeraColumn, return it directly

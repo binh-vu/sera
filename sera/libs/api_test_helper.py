@@ -34,7 +34,7 @@ def test_get_by_id(
         assert (
             resp.status_code == 200
         ), f"Record {record} should exist but got {resp.status_code}"
-        assert resp.json() == data
+        assert resp.json() == data, (resp.json(), data)
 
     for record in non_exist_records:
         resp = client.get(f"{base_url}/{record}")

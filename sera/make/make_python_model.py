@@ -883,6 +883,35 @@ def make_python_data_model(
                 ),
             )
 
+    def make_data_schema_export():
+        program = Program()
+        program.import_("__future__.annotations", True)
+
+        expose_vars = [expr.ExprConstant(cls.name) for cls in schema.classes.values()]
+        expose_vars.append(expr.ExprConstant("dataschema"))
+
+        output = []
+        for cls in schema.classes.values():
+            program.import_(
+                f"{target_pkg.path}.{cls.get_pymodule_name()}.{cls.name}",
+                True,
+            )
+            output.append((expr.ExprConstant(cls.name), expr.ExprIdent(cls.name)))
+
+        program.root(
+            stmt.LineBreak(),
+            lambda ast: ast.assign(
+                DeferredVar.simple("dataschema"), PredefinedFn.dict(output)
+            ),
+            stmt.LineBreak(),
+            lambda ast: ast.assign(
+                DeferredVar.simple("__all__"),
+                PredefinedFn.list(expose_vars),
+            ),
+        )
+
+        target_pkg.module("__init__").write(program)
+
     for cls in schema.topological_sort():
         if cls.name in reference_classes:
             continue
@@ -894,6 +923,8 @@ def make_python_data_model(
         program.root.linebreak()
         make_normal(program, cls)
         target_pkg.module(cls.get_pymodule_name()).write(program)
+
+    make_data_schema_export()
 
 
 def make_python_relational_model(
@@ -1098,6 +1129,66 @@ def make_python_relational_model(
 
         target_pkg.module("base").write(program)
 
+    def make_db_schema_export():
+        program = Program()
+        program.import_("__future__.annotations", True)
+
+        expose_vars = [
+            expr.ExprConstant(cls.name)
+            for cls in schema.classes.values()
+            if cls.db is not None
+        ]
+        expose_vars.append(expr.ExprConstant("dbschema"))
+
+        for name in ["engine", "async_engine", "get_session", "get_async_session"]:
+            program.import_(f"{target_pkg.path}.base.{name}", True)
+            expose_vars.append(expr.ExprConstant(name))
+
+        output = []
+        for cls in schema.classes.values():
+            if cls.db is None:
+                continue
+            program.import_(
+                f"{target_pkg.path}.{cls.get_pymodule_name()}.{cls.name}",
+                True,
+            )
+            output.append((expr.ExprConstant(cls.name), expr.ExprIdent(cls.name)))
+
+            # if there is a MANY-TO-MANY relationship, we need to add an association table as well
+            for prop in cls.properties.values():
+                if (
+                    not isinstance(prop, ObjectProperty)
+                    or prop.target.db is None
+                    or prop.cardinality != Cardinality.MANY_TO_MANY
+                ):
+                    continue
+
+                program.import_(
+                    f"{target_pkg.path}.{to_snake_case(cls.name + prop.target.name)}.{cls.name}{prop.target.name}",
+                    True,
+                )
+                output.append(
+                    (
+                        expr.ExprConstant(f"{cls.name}{prop.target.name}"),
+                        expr.ExprIdent(f"{cls.name}{prop.target.name}"),
+                    )
+                )
+                expose_vars.append(expr.ExprConstant(f"{cls.name}{prop.target.name}"))
+
+        program.root(
+            stmt.LineBreak(),
+            lambda ast: ast.assign(
+                DeferredVar.simple("dbschema"), PredefinedFn.dict(output)
+            ),
+            stmt.LineBreak(),
+            lambda ast: ast.assign(
+                DeferredVar.simple("__all__"),
+                PredefinedFn.list(expose_vars),
+            ),
+        )
+
+        target_pkg.module("__init__").write(program)
+
     def make_orm(cls: Class):
         if cls.db is None or cls.name in reference_classes:
             # skip classes that are not stored in the database
@@ -1246,6 +1337,7 @@ def make_python_relational_model(
                 assert isinstance(prop, ObjectProperty)
                 make_python_relational_object_property(
                     program=program,
+                    ident_manager=ident_manager,
                     target_pkg=target_pkg,
                     target_data_pkg=target_data_pkg,
                     cls_ast=cls_ast,
@@ -1267,9 +1359,13 @@ def make_python_relational_model(
     )
     make_base(custom_types)
 
+    # export the db classes in the __init__ file
+    make_db_schema_export()
+
 
 def make_python_relational_object_property(
     program: Program,
+    ident_manager: ImportHelper,
     target_pkg: Package,
     target_data_pkg: Package,
     cls_ast: AST,
@@ -1290,6 +1386,14 @@ def make_python_relational_object_property(
 
         if prop.cardinality.is_star_to_many():
             raise NotImplementedError((cls.name, prop.name))
+
+        program.import_("sqlalchemy.orm.relationship", True)
+        if prop.target.name != cls.name:
+            ident_manager.python_import_for_hint(
+                target_pkg.path
+                + f".{prop.target.get_pymodule_name()}.{prop.target.name}",
+                True,
+            )
 
         # we store this class in the database
         propname = f"{prop.name}_id"
@@ -1329,7 +1433,26 @@ def make_python_relational_object_property(
             ],
         )
 
-        cls_ast(stmt.DefClassVarStatement(propname, proptype, propval))
+        cls_ast(
+            stmt.DefClassVarStatement(propname, proptype, propval),
+            stmt.DefClassVarStatement(
+                prop.name,
+                f"Mapped[{prop.target.name}]",
+                expr.ExprFuncCall(
+                    expr.ExprIdent("relationship"),
+                    [
+                        PredefinedFn.keyword_assignment(
+                            "lazy",
+                            expr.ExprConstant("raise_on_sql"),
+                        ),
+                        PredefinedFn.keyword_assignment(
+                            "init",
+                            expr.ExprConstant(False),
+                        ),
+                    ],
+                ),
+            ),
+        )
         return
 
     # if the target class is not in the database,
@@ -1391,7 +1514,11 @@ def make_python_relational_object_property(
 
 
 def make_python_relational_object_property_many_to_many(
-    program: Program, ast: AST, target_pkg: Package, cls: Class, prop: ObjectProperty
+    program: Program,
+    ast: AST,
+    target_pkg: Package,
+    cls: Class,
+    prop: ObjectProperty,
 ):
     assert cls.db is not None
     assert prop.db is not None and prop.target.db is not None
@@ -1415,16 +1542,19 @@ def make_python_relational_object_property_many_to_many(
     newprogram.import_("sqlalchemy.orm.Mapped", True)
     newprogram.import_("sqlalchemy.orm.relationship", True)
     newprogram.import_(f"{target_pkg.path}.base.Base", True)
-    newprogram.import_("typing.TYPE_CHECKING", True)
-    newprogram.import_area.if_(expr.ExprIdent("TYPE_CHECKING"))(
-        lambda ast00: ast00.import_(
-            target_pkg.path + f".{cls.get_pymodule_name()}.{cls.name}",
-            is_import_attr=True,
-        ),
-        lambda ast10: ast10.import_(
-            target_pkg.path + f".{prop.target.get_pymodule_name()}.{prop.target.name}",
-            is_import_attr=True,
-        ),
+
+    ident_manager = ImportHelper(
+        newprogram,
+        GLOBAL_IDENTS,
+    )
+
+    ident_manager.python_import_for_hint(
+        target_pkg.path + f".{cls.get_pymodule_name()}.{cls.name}",
+        is_import_attr=True,
+    )
+    ident_manager.python_import_for_hint(
+        target_pkg.path + f".{prop.target.get_pymodule_name()}.{prop.target.name}",
+        is_import_attr=True,
     )
 
     newprogram.root(

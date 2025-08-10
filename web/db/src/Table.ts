@@ -158,7 +158,7 @@ export class Table<
       );
     }
 
-    let resp = await axios.get(`${this.remoteURL}`, {
+    let resp = await axios.post(`${this.remoteURL}/q`, {
       params: this.queryProcessor.prepare(query),
     });
 

@@ -1,116 +1,17 @@
 from __future__ import annotations
 
-import re
-from typing import Callable, Collection, Generic, Mapping, TypeVar, cast
+from typing import Collection, Generic, TypeVar, cast
 
-from litestar import Request, status_codes
 from litestar.connection import ASGIConnection
 from litestar.dto import MsgspecDTO
 from litestar.dto._backend import DTOBackend
 from litestar.dto._codegen_backend import DTOCodegenBackend
 from litestar.enums import RequestEncodingType
-from litestar.exceptions import HTTPException
 from litestar.serialization import decode_json, decode_msgpack
 from litestar.typing import FieldDefinition
 from msgspec import Struct
 
-from sera.libs.base_service import Query, QueryOp
 from sera.libs.middlewares.uscp import SKIP_UPDATE_SYSTEM_CONTROLLED_PROPS_KEY
-from sera.typing import T
-
-# for parsing field names and operations from query string
-FIELD_REG = re.compile(r"(?P<name>[a-zA-Z_0-9]+)(?:\[(?P<op>[a-zA-Z_0-9]+)\])?")
-QUERY_OPS = {op.value for op in QueryOp}
-KEYWORDS = {"field", "limit", "offset", "unique", "sorted_by", "group_by"}
-
-
-class TypeConversion:
-
-    to_int = int
-    to_float = float
-
-    @staticmethod
-    def to_bool(value: str) -> bool:
-        if value == "1":
-            return True
-        elif value == "0":
-            return False
-        raise ValueError(f"Invalid boolean value: {value}")
-
-
-def parse_query(
-    request: Request,
-    fields: Mapping[str, Callable[[str], str | int | bool | float]],
-    debug: bool,
-) -> Query:
-    """Parse query for retrieving records that match a query.
-
-    If a field name collides with a keyword, you can add `_` to the field name.
-
-    To filter records, you can apply a condition on a column using <field>=<value> (equal condition). Or you can
-    be explicit by using <field>[op]=<value>, where op is one of the operators defined in QueryOp.
-    """
-    query: Query = {}
-
-    for k, v in request.query_params.items():
-        if k in KEYWORDS:
-            continue
-        m = FIELD_REG.match(k)
-        if m:
-            field_name = m.group("name")
-            operation = m.group("op")  # This will be None if no operation is specified
-
-            # If field name ends with '_' and it's to avoid keyword conflict, remove it
-            if field_name.endswith("_") and field_name[:-1] in KEYWORDS:
-                field_name = field_name[:-1]
-
-            if field_name not in fields:
-                # Invalid field name, skip
-                if debug:
-                    raise HTTPException(
-                        status_code=status_codes.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid field name: {field_name}",
-                    )
-                continue
-
-            # Process based on operation or default to equality check
-            # TODO: validate if the operation is allowed for the field
-            if not operation:
-                operation = QueryOp.eq
-            else:
-                if operation not in QUERY_OPS:
-                    raise HTTPException(
-                        status_code=status_codes.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid operation: {operation}",
-                    )
-                operation = QueryOp(operation)
-
-            try:
-                norm_func = fields[field_name]
-                if isinstance(v, list):
-                    v = [norm_func(x) for x in v]
-                else:
-                    v = norm_func(v)
-            except (ValueError, KeyError):
-                if debug:
-                    raise HTTPException(
-                        status_code=status_codes.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid value for field {field_name}: {v}",
-                    )
-                continue
-
-            query[field_name] = {operation: v}
-        else:
-            # Invalid field name format
-            if debug:
-                raise HTTPException(
-                    status_code=status_codes.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid field name: {k}",
-                )
-            continue
-
-    return query
-
 
 S = TypeVar("S", bound=Struct)
 

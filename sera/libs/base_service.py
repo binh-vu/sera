@@ -1,39 +1,18 @@
 from __future__ import annotations
 
-from enum import Enum
-from math import dist
-from typing import Annotated, Any, Generic, NamedTuple, Optional, Sequence, TypeVar
+from typing import Generic, NamedTuple, Optional, Sequence, TypeVar
 
 from litestar.exceptions import HTTPException
 from sqlalchemy import Result, Select, delete, exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import load_only
+from sqlalchemy.orm import contains_eager, load_only
 
 from sera.libs.base_orm import BaseORM
-from sera.misc import assert_not_null
-from sera.models import Class
-from sera.typing import FieldName, T, doc
+from sera.libs.search_helper import Query, QueryOp
+from sera.misc import assert_not_null, to_snake_case
+from sera.models import Cardinality, Class, ObjectProperty
 
-
-class QueryOp(str, Enum):
-    lt = "lt"
-    lte = "lte"
-    gt = "gt"
-    gte = "gte"
-    eq = "eq"
-    ne = "ne"
-    # select records where values are in the given list
-    in_ = "in"
-    not_in = "not_in"
-    # for full text search
-    fuzzy = "fuzzy"
-
-
-Query = Annotated[
-    dict[FieldName, dict[QueryOp, Annotated[Any, doc("query value")]]],
-    doc("query operations"),
-]
 R = TypeVar("R", bound=BaseORM)
 ID = TypeVar("ID")  # ID of a class
 SqlResult = TypeVar("SqlResult", bound=Result)
@@ -41,20 +20,85 @@ SqlResult = TypeVar("SqlResult", bound=Result)
 
 class QueryResult(NamedTuple, Generic[R]):
     records: Sequence[R]
-    total: int
+    total: Optional[int]
 
 
 class BaseAsyncService(Generic[ID, R]):
 
     instance = None
 
-    def __init__(self, cls: Class, orm_cls: type[R]):
+    def __init__(self, cls: Class, orm_classes: dict[str, type[R]]):
+        # schema of the class
         self.cls = cls
-        self.orm_cls = orm_cls
+        self.orm_cls = orm_classes[cls.name]
         self.id_prop = assert_not_null(cls.get_id_property())
 
         self._cls_id_prop = getattr(self.orm_cls, self.id_prop.name)
         self.is_id_auto_increment = assert_not_null(self.id_prop.db).is_auto_increment
+
+        self.prop2orm: dict[str, type] = {
+            prop.name: orm_classes[prop.target.name]
+            for prop in cls.properties.values()
+            if isinstance(prop, ObjectProperty)
+        }
+
+        # figure out the join clauses so we can join the tables
+        # for example, to join between User, UserGroup, and Group
+        # the query can look like this:
+        # select(User)
+        #     .join(UserGroup, UserGroup.user_id == User.id)
+        #     .join(Group, Group.id == UserGroup.group_id)
+        #     .options(contains_eager(User.group).contains_eager(UserGroup.group))
+        self.join_clauses: dict[str, list[dict]] = {}
+        for prop in cls.properties.values():
+            if not isinstance(prop, ObjectProperty) or prop.target.db is None:
+                continue
+            target_tbl = orm_classes[prop.target.name]
+
+            if prop.cardinality == Cardinality.MANY_TO_MANY:
+                # for many-to-many, we need to import the association tables
+                assoc_tbl = orm_classes[f"{cls.name}{prop.target.name}"]
+                assoc_tbl_source_fk = to_snake_case(cls.name) + "_id"
+                assoc_tbl_target_fk = to_snake_case(prop.target.name) + "_id"
+                self.join_clauses[prop.name] = [
+                    {
+                        "class": assoc_tbl,
+                        "condition": getattr(assoc_tbl, assoc_tbl_source_fk)
+                        == getattr(self.orm_cls, self.id_prop.name),
+                        "contains_eager": getattr(self.orm_cls, prop.name),
+                    },
+                    {
+                        "class": target_tbl,
+                        "condition": getattr(assoc_tbl, assoc_tbl_target_fk)
+                        == getattr(
+                            target_tbl,
+                            assert_not_null(prop.target.get_id_property()).name,
+                        ),
+                        "contains_eager": getattr(
+                            assoc_tbl, to_snake_case(prop.target.name)
+                        ),
+                    },
+                ]
+            elif prop.cardinality == Cardinality.ONE_TO_MANY:
+                # A -> B is 1:N, A.id is stored in B, this does not supported in SERA yet so we do not need
+                # to implement it
+                raise NotImplementedError()
+            else:
+                # A -> B is either 1:1 or N:1, we will store the foreign key is in A
+                # .join(B, A.<foreign_key> == B.id)
+                self.join_clauses[prop.name] = [
+                    {
+                        "class": target_tbl,
+                        "condition": getattr(
+                            target_tbl,
+                            assert_not_null(prop.target.get_id_property()).name,
+                        )
+                        == getattr(
+                            self.orm_cls, to_snake_case(prop.target.name) + "_id"
+                        ),
+                        "contains_eager": getattr(self.orm_cls, prop.name),
+                    },
+                ]
 
     @classmethod
     def get_instance(cls):
@@ -65,73 +109,101 @@ class BaseAsyncService(Generic[ID, R]):
             cls.instance = cls()  # type: ignore[call-arg]
         return cls.instance
 
-    async def get(
+    async def search(
         self,
         query: Query,
-        limit: int,
-        offset: int,
-        unique: bool,
-        sorted_by: list[str],
-        group_by: list[str],
-        fields: list[str],
         session: AsyncSession,
     ) -> QueryResult[R]:
         """Retrieving records matched a query.
 
         Args:
-            query: The query to filter the records
-            limit: The maximum number of records to return
-            offset: The number of records to skip before returning results
-            unique: Whether to return unique results only
-            sorted_by: list of field names to sort by, prefix a field with '-' to sort that field in descending order
-            group_by: list of field names to group by
-            fields: list of field names to include in the results -- empty means all fields
+            query: The search query
+            session: The database session
         """
         q = self._select()
-        if fields:
-            q = q.options(
-                load_only(*[getattr(self.orm_cls, field) for field in fields])
-            )
-        if unique:
-            q = q.distinct()
-        for field in sorted_by:
-            if field.startswith("-"):
-                q = q.order_by(getattr(self.orm_cls, field[1:]).desc())
-            else:
-                q = q.order_by(getattr(self.orm_cls, field))
-        for field in group_by:
-            q = q.group_by(getattr(self.orm_cls, field))
 
-        for field, conditions in query.items():
-            for op, value in conditions.items():
-                # TODO: check if the operation is valid for the field.
-                if op == QueryOp.eq:
-                    q = q.where(getattr(self.orm_cls, field) == value)
-                elif op == QueryOp.ne:
-                    q = q.where(getattr(self.orm_cls, field) != value)
-                elif op == QueryOp.lt:
-                    q = q.where(getattr(self.orm_cls, field) < value)
-                elif op == QueryOp.lte:
-                    q = q.where(getattr(self.orm_cls, field) <= value)
-                elif op == QueryOp.gt:
-                    q = q.where(getattr(self.orm_cls, field) > value)
-                elif op == QueryOp.gte:
-                    q = q.where(getattr(self.orm_cls, field) >= value)
-                elif op == QueryOp.in_:
-                    q = q.where(getattr(self.orm_cls, field).in_(value))
-                elif op == QueryOp.not_in:
-                    q = q.where(~getattr(self.orm_cls, field).in_(value))
-                else:
-                    assert op == QueryOp.fuzzy
-                    # Assuming fuzzy search is implemented as a full-text search
-                    q = q.where(
-                        func.to_tsvector(getattr(self.orm_cls, field)).match(value)
+        if len(query.fields) > 0:
+            q = q.options(
+                load_only(*[getattr(self.orm_cls, field) for field in query.fields])
+            )
+
+        if query.unique:
+            q = q.distinct()
+
+        if len(query.sorted_by) > 0:
+            q = q.order_by(
+                *[
+                    (
+                        (
+                            getattr(self.orm_cls, field.field).desc()
+                            if field.order == "desc"
+                            else getattr(self.orm_cls, field.field)
+                        )
+                        if field.prop is None
+                        else (
+                            getattr(self.prop2orm[field.prop], field.field).desc()
+                            if field.order == "desc"
+                            else getattr(self.prop2orm[field.prop], field.field)
+                        )
                     )
+                    for field in query.sorted_by
+                ]
+            )
+
+        if len(query.group_by) > 0:
+            q = q.group_by(
+                *[
+                    (
+                        getattr(self.orm_cls, field.field)
+                        if field.prop is None
+                        else getattr(self.prop2orm[field.prop], field.field)
+                    )
+                    for field in query.group_by
+                ]
+            )
+
+        for clause in query.conditions:
+            if clause.op == QueryOp.eq:
+                q = q.where(getattr(self.orm_cls, clause.field) == clause.value)
+            elif clause.op == QueryOp.ne:
+                q = q.where(getattr(self.orm_cls, clause.field) != clause.value)
+            elif clause.op == QueryOp.lt:
+                q = q.where(getattr(self.orm_cls, clause.field) < clause.value)
+            elif clause.op == QueryOp.lte:
+                q = q.where(getattr(self.orm_cls, clause.field) <= clause.value)
+            elif clause.op == QueryOp.gt:
+                q = q.where(getattr(self.orm_cls, clause.field) > clause.value)
+            elif clause.op == QueryOp.gte:
+                q = q.where(getattr(self.orm_cls, clause.field) >= clause.value)
+            elif clause.op == QueryOp.in_:
+                q = q.where(getattr(self.orm_cls, clause.field).in_(clause.value))
+            elif clause.op == QueryOp.not_in:
+                q = q.where(~getattr(self.orm_cls, clause.field).in_(clause.value))
+            else:
+                assert clause.op == QueryOp.fuzzy
+                # Assuming fuzzy search is implemented as a full-text search
+                q = q.where(
+                    func.to_tsvector(getattr(self.orm_cls, clause.field)).match(
+                        clause.value
+                    )
+                )
+
+        for join_condition in query.join_conditions:
+            for join_clause in self.join_clauses[join_condition.prop]:
+                q = q.join(
+                    join_clause["class"],
+                    join_clause["condition"],
+                    isouter=join_condition.join_type == "left",
+                    full=join_condition.join_type == "full",
+                ).options(contains_eager(join_clause["contains_eager"]))
 
         cq = select(func.count()).select_from(q.subquery())
-        rq = q.limit(limit).offset(offset)
+        rq = q.limit(query.limit).offset(query.offset)
         records = self._process_result(await session.execute(rq)).scalars().all()
-        total = (await session.execute(cq)).scalar_one()
+        if query.return_total:
+            total = (await session.execute(cq)).scalar_one()
+        else:
+            total = None
         return QueryResult(records, total)
 
     async def get_by_id(self, id: ID, session: AsyncSession) -> Optional[R]:

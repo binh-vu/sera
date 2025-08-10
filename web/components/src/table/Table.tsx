@@ -12,7 +12,11 @@ import { hasAction, SeraActionConfig, SeraTableAction } from "./TableAction";
 import { SeraTableContent } from "./TableContent";
 import { TablePagination } from "./TablePagination";
 
-export interface SeraTableProps<ID extends string | number, R> {
+export interface SeraTableProps<
+  ID extends string | number,
+  Q extends { limit: number; offset: number },
+  R
+> {
   // position of the pagination
   pagination?: {
     positions?: Set<"topRight" | "bottomLeft" | "bottomCenter" | "bottomRight">;
@@ -21,9 +25,9 @@ export interface SeraTableProps<ID extends string | number, R> {
   // list of columns to display
   columns: SeraColumn<R>[];
   // an observable query to fetch the data
-  query: ObservableQuery<R>;
+  query: ObservableQuery<Q>;
   // function to fetch the data
-  getData: (query: Query<R>) => Promise<FetchResult<R>>;
+  getData: (query: Q) => Promise<FetchResult<R>>;
   // predefined actions that can be performed on the table
   actions?: SeraActionConfig<ID>;
   // function to get the row id
@@ -36,8 +40,12 @@ export const DEFAULT_PAGINATION_POSITIONS = new Set<
   "topRight" | "bottomLeft" | "bottomRight"
 >(["topRight", "bottomRight"]);
 
-export const SeraTable = <ID extends string | number, R>(
-  props: SeraTableProps<ID, R>
+export const SeraTable = <
+  ID extends string | number,
+  Q extends { limit: number; offset: number },
+  R
+>(
+  props: SeraTableProps<ID, Q, R>
 ) => {
   const [data, setData] = useState<FetchResult<R>>({
     records: [],
@@ -49,7 +57,7 @@ export const SeraTable = <ID extends string | number, R>(
   );
 
   // function to update the data according to the query
-  const loadData = (query: Query<R>) => {
+  const loadData = (query: Q) => {
     setLoading(true);
     props.getData(query).then((data) => {
       setData(data);

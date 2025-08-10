@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import re
 from collections import defaultdict
+from functools import lru_cache
 from importlib import import_module
 from pathlib import Path
 from typing import (
@@ -82,6 +83,7 @@ def import_attr(attr_ident: str):
     return getattr(module, cls)
 
 
+@lru_cache(maxsize=1280)
 def to_snake_case(camelcase: str) -> str:
     """Convert camelCase to snake_case."""
     snake = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", camelcase)
@@ -89,6 +91,7 @@ def to_snake_case(camelcase: str) -> str:
     return snake.lower()
 
 
+@lru_cache(maxsize=1280)
 def to_camel_case(snake: str) -> str:
     """Convert snake_case to camelCase."""
     components = snake.split("_")
@@ -99,6 +102,7 @@ def to_camel_case(snake: str) -> str:
     return out
 
 
+@lru_cache(maxsize=1280)
 def to_pascal_case(snake: str) -> str:
     """Convert snake_case to PascalCase."""
     components = snake.split("_")

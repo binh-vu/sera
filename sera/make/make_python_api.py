@@ -22,7 +22,7 @@ def make_python_api(app: App, collections: Sequence[DataCollection]):
         route = app.api.pkg("routes").pkg(collection.get_pymodule_name())
 
         controllers = []
-        controllers.append(make_python_get_api(collection, route))
+        controllers.append(make_python_search_api(collection, route))
         controllers.append(make_python_get_by_id_api(collection, route))
         controllers.append(make_python_has_api(collection, route))
         controllers.append(make_python_create_api(collection, route))
@@ -107,7 +107,7 @@ def make_main(target_pkg: Package, routes: Sequence[Module]):
     outmod.write(program)
 
 
-def make_python_get_api(
+def make_python_search_api(
     collection: DataCollection, target_pkg: Package
 ) -> tuple[Module, str]:
     """Make an endpoint for querying resources"""
@@ -117,10 +117,8 @@ def make_python_get_api(
     import_helper = ImportHelper(program, GLOBAL_IDENTS)
 
     program.import_("__future__.annotations", True)
-    program.import_("typing.Annotated", True)
-    program.import_("litestar.get", True)
-    program.import_("litestar.Request", True)
-    program.import_("litestar.params.Parameter", True)
+    program.import_("litestar.post", True)
+    program.import_(app.config.path + ".schema", True)
     program.import_(app.config.path + ".API_DEBUG", True)
     program.import_(
         app.services.path
@@ -128,34 +126,28 @@ def make_python_get_api(
         True,
     )
     program.import_(
-        app.models.data.path + f".{collection.get_pymodule_name()}.{collection.name}",
+        app.models.data.path + ".dataschema",
         True,
     )
-    program.import_("sera.libs.api_helper.parse_query", True)
+    program.import_("sera.libs.search_helper.Query", True)
 
-    func_name = "get_"
+    func_name = "search"
 
     queryable_fields = []
-    for propname, (
-        convert_func,
-        convert_func_import,
-    ) in collection.get_queryable_fields():
-        program.import_(convert_func_import, True)
-        queryable_fields.append(
-            (expr.ExprConstant(propname), expr.ExprIdent(convert_func))
-        )
+    for propname in collection.get_queryable_fields():
+        queryable_fields.append(expr.ExprConstant(propname))
 
     program.root(
         stmt.LineBreak(),
         lambda ast00: ast00.assign(
             DeferredVar.simple("QUERYABLE_FIELDS"),
-            PredefinedFn.dict(queryable_fields),
+            PredefinedFn.set(queryable_fields),
         ),
         stmt.PythonDecoratorStatement(
             expr.ExprFuncCall(
-                expr.ExprIdent("get"),
+                expr.ExprIdent("post"),
                 [
-                    expr.ExprConstant("/"),
+                    expr.ExprConstant("/q"),
                 ],
             )
         ),
@@ -163,44 +155,8 @@ def make_python_get_api(
             func_name,
             [
                 DeferredVar.simple(
-                    "limit",
-                    expr.ExprIdent(
-                        'Annotated[int, Parameter(default=10, description="The maximum number of records to return")]'
-                    ),
-                ),
-                DeferredVar.simple(
-                    "offset",
-                    type=expr.ExprIdent(
-                        'Annotated[int, Parameter(default=0, description="The number of records to skip before returning results")]'
-                    ),
-                ),
-                DeferredVar.simple(
-                    "unique",
-                    expr.ExprIdent(
-                        'Annotated[bool, Parameter(default=False, description="Whether to return unique results only")]'
-                    ),
-                ),
-                DeferredVar.simple(
-                    "sorted_by",
-                    expr.ExprIdent(
-                        "Annotated[list[str], Parameter(default=tuple(), description=\"list of field names to sort by, prefix a field with '-' to sort that field in descending order\")]"
-                    ),
-                ),
-                DeferredVar.simple(
-                    "group_by",
-                    expr.ExprIdent(
-                        'Annotated[list[str], Parameter(default=tuple(), description="list of field names to group by")]'
-                    ),
-                ),
-                DeferredVar.simple(
-                    "fields",
-                    expr.ExprIdent(
-                        'Annotated[list[str], Parameter(default=tuple(), description="list of field names to include in the results")]'
-                    ),
-                ),
-                DeferredVar.simple(
-                    "request",
-                    expr.ExprIdent("Request"),
+                    "data",
+                    expr.ExprIdent("Query"),
                 ),
                 DeferredVar.simple(
                     "session",
@@ -223,19 +179,26 @@ def make_python_get_api(
                     [],
                 ),
             ),
-            lambda ast101: ast101.assign(
-                DeferredVar.simple("query", expr.ExprIdent("ServiceQuery")),
+            stmt.SingleExprStatement(
                 expr.ExprFuncCall(
-                    expr.ExprIdent("parse_query"),
+                    PredefinedFn.attr_getter(
+                        expr.ExprIdent("data"),
+                        expr.ExprIdent("validate_and_normalize"),
+                    ),
                     [
-                        expr.ExprIdent("request"),
+                        PredefinedFn.item_getter(
+                            PredefinedFn.attr_getter(
+                                expr.ExprIdent("schema"), expr.ExprIdent("classes")
+                            ),
+                            expr.ExprConstant(collection.cls.name),
+                        ),
                         expr.ExprIdent("QUERYABLE_FIELDS"),
                         PredefinedFn.keyword_assignment(
                             "debug",
                             expr.ExprIdent("API_DEBUG"),
                         ),
                     ],
-                ),
+                )
             ),
             lambda ast102: ast102.assign(
                 DeferredVar.simple("result"),
@@ -243,67 +206,34 @@ def make_python_get_api(
                     expr.ExprFuncCall(
                         PredefinedFn.attr_getter(
                             expr.ExprIdent("service"),
-                            expr.ExprIdent("get"),
+                            expr.ExprIdent("search"),
                         ),
-                        [
-                            expr.ExprIdent("query"),
-                            PredefinedFn.keyword_assignment(
-                                "limit", expr.ExprIdent("limit")
-                            ),
-                            PredefinedFn.keyword_assignment(
-                                "offset", expr.ExprIdent("offset")
-                            ),
-                            PredefinedFn.keyword_assignment(
-                                "unique", expr.ExprIdent("unique")
-                            ),
-                            PredefinedFn.keyword_assignment(
-                                "sorted_by", expr.ExprIdent("sorted_by")
-                            ),
-                            PredefinedFn.keyword_assignment(
-                                "group_by", expr.ExprIdent("group_by")
-                            ),
-                            PredefinedFn.keyword_assignment(
-                                "fields", expr.ExprIdent("fields")
-                            ),
-                            PredefinedFn.keyword_assignment(
-                                "session", expr.ExprIdent("session")
-                            ),
-                        ],
+                        [expr.ExprIdent("data"), expr.ExprIdent("session")],
                     )
                 ),
             ),
             lambda ast103: ast103.return_(
-                PredefinedFn.dict(
+                expr.ExprFuncCall(
+                    PredefinedFn.attr_getter(
+                        expr.ExprIdent("data"),
+                        expr.ExprIdent("prepare_results"),
+                    ),
                     [
-                        (
+                        PredefinedFn.item_getter(
                             PredefinedFn.attr_getter(
-                                expr.ExprIdent(collection.name),
-                                expr.ExprIdent("__name__"),
+                                expr.ExprIdent("schema"), expr.ExprIdent("classes")
                             ),
-                            PredefinedFn.map_list(
-                                PredefinedFn.attr_getter(
-                                    expr.ExprIdent("result"), expr.ExprIdent("records")
-                                ),
-                                lambda item: expr.ExprMethodCall(
-                                    expr.ExprIdent(collection.name),
-                                    "from_db",
-                                    [item],
-                                ),
-                            ),
+                            expr.ExprConstant(collection.cls.name),
                         ),
-                        (
-                            expr.ExprConstant("total"),
-                            PredefinedFn.attr_getter(
-                                expr.ExprIdent("result"), expr.ExprIdent("total")
-                            ),
-                        ),
-                    ]
+                        expr.ExprIdent("dataschema"),
+                        expr.ExprIdent("result"),
+                    ],
                 )
             ),
         ),
     )
 
-    outmod = target_pkg.module("get")
+    outmod = target_pkg.module("search")
     outmod.write(program)
 
     return outmod, func_name
