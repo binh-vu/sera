@@ -11,7 +11,7 @@ from sqlalchemy.orm import contains_eager, load_only
 from sera.libs.base_orm import BaseORM
 from sera.libs.search_helper import Query, QueryOp
 from sera.misc import assert_not_null, to_snake_case
-from sera.models import Cardinality, Class, ObjectProperty
+from sera.models import Cardinality, Class, DataProperty, ObjectProperty
 
 R = TypeVar("R", bound=BaseORM)
 ID = TypeVar("ID")  # ID of a class
@@ -51,35 +51,51 @@ class BaseAsyncService(Generic[ID, R]):
         #     .options(contains_eager(User.group).contains_eager(UserGroup.group))
         self.join_clauses: dict[str, list[dict]] = {}
         for prop in cls.properties.values():
-            if not isinstance(prop, ObjectProperty) or prop.target.db is None:
+            if (
+                isinstance(prop, DataProperty)
+                and prop.db is not None
+                and prop.db.foreign_key is not None
+            ):
+                target_tbl = orm_classes[prop.db.foreign_key.name]
+                target_cls = prop.db.foreign_key
+                source_fk = prop.name
+                # the property storing the SQLAlchemy relationship of the foreign key
+                source_relprop = prop.name + "_relobj"
+                cardinality = Cardinality.ONE_TO_ONE
+            elif isinstance(prop, ObjectProperty) and prop.target.db is not None:
+                target_tbl = orm_classes[prop.target.name]
+                target_cls = prop.target
+                source_fk = prop.name + "_id"
+                source_relprop = prop.name
+                cardinality = prop.cardinality
+            else:
                 continue
-            target_tbl = orm_classes[prop.target.name]
 
-            if prop.cardinality == Cardinality.MANY_TO_MANY:
+            if cardinality == Cardinality.MANY_TO_MANY:
                 # for many-to-many, we need to import the association tables
-                assoc_tbl = orm_classes[f"{cls.name}{prop.target.name}"]
+                assoc_tbl = orm_classes[f"{cls.name}{target_cls.name}"]
                 assoc_tbl_source_fk = to_snake_case(cls.name) + "_id"
-                assoc_tbl_target_fk = to_snake_case(prop.target.name) + "_id"
+                assoc_tbl_target_fk = to_snake_case(target_cls.name) + "_id"
                 self.join_clauses[prop.name] = [
                     {
                         "class": assoc_tbl,
                         "condition": getattr(assoc_tbl, assoc_tbl_source_fk)
                         == getattr(self.orm_cls, self.id_prop.name),
-                        "contains_eager": getattr(self.orm_cls, prop.name),
+                        "contains_eager": getattr(self.orm_cls, source_relprop),
                     },
                     {
                         "class": target_tbl,
                         "condition": getattr(assoc_tbl, assoc_tbl_target_fk)
                         == getattr(
                             target_tbl,
-                            assert_not_null(prop.target.get_id_property()).name,
+                            assert_not_null(target_cls.get_id_property()).name,
                         ),
                         "contains_eager": getattr(
-                            assoc_tbl, to_snake_case(prop.target.name)
+                            assoc_tbl, to_snake_case(target_cls.name)
                         ),
                     },
                 ]
-            elif prop.cardinality == Cardinality.ONE_TO_MANY:
+            elif cardinality == Cardinality.ONE_TO_MANY:
                 # A -> B is 1:N, A.id is stored in B, this does not supported in SERA yet so we do not need
                 # to implement it
                 raise NotImplementedError()
@@ -91,10 +107,10 @@ class BaseAsyncService(Generic[ID, R]):
                         "class": target_tbl,
                         "condition": getattr(
                             target_tbl,
-                            assert_not_null(prop.target.get_id_property()).name,
+                            assert_not_null(target_cls.get_id_property()).name,
                         )
-                        == getattr(self.orm_cls, to_snake_case(prop.name) + "_id"),
-                        "contains_eager": getattr(self.orm_cls, prop.name),
+                        == getattr(self.orm_cls, source_fk),
+                        "contains_eager": getattr(self.orm_cls, source_relprop),
                     },
                 ]
 

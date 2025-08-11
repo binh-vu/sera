@@ -133,16 +133,31 @@ def make_python_search_api(
 
     func_name = "search"
 
-    queryable_fields = []
-    for propname in collection.get_queryable_fields():
-        queryable_fields.append(expr.ExprConstant(propname))
-
     program.root(
         stmt.LineBreak(),
-        lambda ast00: ast00.assign(
+        lambda ast: ast.assign(
             DeferredVar.simple("QUERYABLE_FIELDS"),
-            PredefinedFn.set(queryable_fields),
+            PredefinedFn.set(
+                [
+                    expr.ExprConstant(propname)
+                    for propname in collection.get_queryable_fields()
+                ]
+            ),
         ),
+        stmt.LineBreak(),
+        lambda ast: ast.assign(
+            DeferredVar.simple("JOIN_QUERYABLE_FIELDS"),
+            PredefinedFn.dict(
+                [
+                    (
+                        expr.ExprConstant(propname),
+                        PredefinedFn.set([expr.ExprConstant(f) for f in fields]),
+                    )
+                    for propname, fields in collection.get_join_queryable_fields().items()
+                ]
+            ),
+        ),
+        stmt.LineBreak(),
         stmt.PythonDecoratorStatement(
             expr.ExprFuncCall(
                 expr.ExprIdent("post"),
@@ -193,6 +208,7 @@ def make_python_search_api(
                             expr.ExprConstant(collection.cls.name),
                         ),
                         expr.ExprIdent("QUERYABLE_FIELDS"),
+                        expr.ExprIdent("JOIN_QUERYABLE_FIELDS"),
                         PredefinedFn.keyword_assignment(
                             "debug",
                             expr.ExprIdent("API_DEBUG"),

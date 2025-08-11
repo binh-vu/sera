@@ -192,9 +192,7 @@ export class Table<
     }
 
 
-    let resp = await axios.post(`${this.remoteURL}/q`, {
-      data: preparedQuery,
-    });
+    let resp = await axios.post(`${this.remoteURL}/q`, preparedQuery);
 
     const output = runInAction(() => {
       return this.db.populateData(resp.data);

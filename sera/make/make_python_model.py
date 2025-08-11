@@ -1333,6 +1333,39 @@ def make_python_relational_model(
                     expr.ExprIdent("mapped_column"), propvalargs
                 )
                 cls_ast(stmt.DefClassVarStatement(propname, proptype, propval))
+
+                if prop.db.foreign_key is not None:
+                    # add a relationship property for foreign key primary key so that we can do eager join in SQLAlchemy
+                    program.import_("sqlalchemy.orm.relationship", True)
+                    if prop.db.foreign_key.name != cls.name:
+                        ident_manager.python_import_for_hint(
+                            target_pkg.path
+                            + f".{prop.db.foreign_key.get_pymodule_name()}.{prop.db.foreign_key.name}",
+                            True,
+                        )
+                    cls_ast(
+                        stmt.DefClassVarStatement(
+                            propname + "_relobj",
+                            f"Mapped[{prop.db.foreign_key.name}]",
+                            expr.ExprFuncCall(
+                                expr.ExprIdent("relationship"),
+                                [
+                                    PredefinedFn.keyword_assignment(
+                                        "lazy",
+                                        expr.ExprConstant("raise_on_sql"),
+                                    ),
+                                    PredefinedFn.keyword_assignment(
+                                        "foreign_keys",
+                                        expr.ExprIdent(propname),
+                                    ),
+                                    PredefinedFn.keyword_assignment(
+                                        "init",
+                                        expr.ExprConstant(False),
+                                    ),
+                                ],
+                            ),
+                        )
+                    )
             else:
                 assert isinstance(prop, ObjectProperty)
                 make_python_relational_object_property(

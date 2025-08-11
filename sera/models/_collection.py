@@ -51,5 +51,19 @@ class DataCollection:
             output.append(propname)
         return output
 
+    def get_join_queryable_fields(self) -> dict[str, list[str]]:
+        """Get the fields of this collection that can be used in join queries."""
+        output = {}
+        for prop in self.cls.properties.values():
+            if isinstance(prop, DataProperty) and prop.db.foreign_key is not None:
+                # This property is a foreign key, so we add it to the output
+                output[prop.name] = DataCollection(
+                    prop.db.foreign_key
+                ).get_queryable_fields()
+            elif isinstance(prop, ObjectProperty) and prop.target.db is not None:
+                output[prop.name] = DataCollection(prop.target).get_queryable_fields()
+
+        return output
+
     def get_service_name(self):
         return f"{self.name}Service"

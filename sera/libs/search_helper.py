@@ -8,7 +8,8 @@ import msgspec
 from litestar import status_codes
 from litestar.exceptions import HTTPException
 
-from sera.models import Class, DataProperty, ObjectProperty
+from sera.misc import to_snake_case
+from sera.models import Cardinality, Class, DataProperty, ObjectProperty
 from sera.typing import FieldName, doc
 
 if TYPE_CHECKING:
@@ -156,17 +157,24 @@ class Query(msgspec.Struct):
 
             target_prop = cls.properties[join_clause.prop]
             if (
-                not isinstance(target_prop, ObjectProperty)
-                or target_prop.target.db is None
+                isinstance(target_prop, DataProperty)
+                and target_prop.db is not None
+                and target_prop.db.foreign_key is not None
             ):
+                # we have this case where ID is also a foreign key
+                target_class = target_prop.db.foreign_key
+            elif (
+                isinstance(target_prop, ObjectProperty)
+                and target_prop.target.db is not None
+            ):
+                target_class = target_prop.target
+            else:
                 if debug:
                     raise HTTPException(
                         status_code=status_codes.HTTP_400_BAD_REQUEST,
                         detail=f"Invalid join property: {join_clause.prop}",
                     )
                 continue
-
-            target_class = target_prop.target
 
             for field in join_clause.fields:
                 if field not in target_class.properties:
@@ -201,38 +209,51 @@ class Query(msgspec.Struct):
 
         for join_clause in self.join_conditions:
             prop = cls.properties[join_clause.prop]
-            assert isinstance(prop, ObjectProperty)
-            target_name = prop.target.name
+            if (
+                isinstance(prop, DataProperty)
+                and prop.db is not None
+                and prop.db.foreign_key is not None
+            ):
+                target_cls = prop.db.foreign_key
+                cardinality = Cardinality.ONE_TO_ONE
+                # the property storing the SQLAlchemy relationship of the foreign key
+                source_relprop = prop.name + "_relobj"
+            else:
+                assert isinstance(prop, ObjectProperty)
+                target_cls = prop.target
+                cardinality = prop.cardinality
+                source_relprop = prop.name
+
+            target_name = target_cls.name
             assoc_targetrel_name = to_snake_case(target_name)
-            propname = prop.name
 
             deser_func = dataschema[target_name].from_db
 
             if target_name not in output:
                 output[target_name] = []
 
-            if prop.cardinality == Cardinality.MANY_TO_MANY:
+            if cardinality == Cardinality.MANY_TO_MANY:
                 # for many-to-many, we have a middle object (association tables)
                 # because it's a list, we don't need to handle outer join because we don't have null values in the list
                 output[target_name].extend(
                     deser_func(getattr(item, assoc_targetrel_name))
                     for record in result.records
-                    for item in getattr(record, propname)
+                    for item in getattr(record, source_relprop)
                 )
-            elif prop.cardinality == Cardinality.ONE_TO_MANY:
+            elif cardinality == Cardinality.ONE_TO_MANY:
                 # A -> B is 1:N, A.id is stored in B, this does not supported in SERA yet so we do not need
                 # to implement it
                 raise NotImplementedError()
             else:
                 if join_clause.join_type != "inner":
                     output[target_name].extend(
-                        deser_func((val := getattr(record, propname)))
+                        deser_func((val := getattr(record, source_relprop)))
                         for record in result.records
                         if val is not None
                     )
                 else:
                     output[target_name].extend(
-                        deser_func(getattr(record, propname))
+                        deser_func(getattr(record, source_relprop))
                         for record in result.records
                     )
 

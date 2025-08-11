@@ -86,10 +86,10 @@ export class QueryProcessor<R> {
       offset: query.offset,
       unique: query.unique,
       return_total: query.returnTotal,
-      join_conditions: {
+      join_conditions: [{
         prop: query.joinConditions.prop.name,
         join_type: query.joinConditions.joinType || "inner",
-      }
+      }]
     };
 
     // normalize the selected field name
@@ -99,7 +99,7 @@ export class QueryProcessor<R> {
       );
     }
     if (query.joinConditions.fields !== undefined) {
-      params.join_conditions.fields = query.joinConditions.fields.map(
+      params.join_conditions[0].fields = query.joinConditions.fields.map(
         (field) => secondary.renameField[field] || field
       );
     }
@@ -141,7 +141,7 @@ export class QueryProcessor<R> {
       params.conditions = primary.prepareConditions(query.conditions);
     }
     if (query.joinConditions.conditions !== undefined) {
-      params.join_conditions.conditions = secondary.prepareConditions(query.joinConditions.conditions);
+      params.join_conditions[0].conditions = secondary.prepareConditions(query.joinConditions.conditions);
     }
 
     return params;
