@@ -126,7 +126,7 @@ def make_python_search_api(
         True,
     )
     program.import_(
-        app.models.data.path + ".dataschema",
+        app.models.path + ".data_schema.dataschema",
         True,
     )
     program.import_("sera.libs.search_helper.Query", True)

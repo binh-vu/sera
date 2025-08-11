@@ -39,6 +39,13 @@ class Package:
         """Create a module in this package"""
         return Module(self, name, self.language)
 
+    def parent(self) -> Package:
+        """Get the parent package"""
+        assert self.path.count(".") > 0, "Cannot get parent of top-level package"
+        return Package(
+            self.app, self.path.rsplit(".", 1)[0], self.dir.parent, self.language
+        )
+
 
 @dataclass
 class Module:

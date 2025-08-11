@@ -32,11 +32,12 @@ def make_python_service(collection: DataCollection, target_pkg: Package):
     program = Program()
     program.import_("__future__.annotations", True)
     program.import_(
-        app.models.db.path + f".{collection.get_pymodule_name()}.{collection.name}",
+        app.models.db.path + f".{collection.name}",
         True,
     )
     program.import_(app.config.path + f".schema", True)
     program.import_("sera.libs.base_service.BaseAsyncService", True)
+    program.import_(app.models.db.path + ".dbschema", True)
 
     program.root(
         stmt.LineBreak(),
@@ -55,7 +56,7 @@ def make_python_service(collection: DataCollection, target_pkg: Package):
                         expr.ExprIdent("super().__init__"),
                         [
                             expr.ExprRawPython(f"schema.classes['{cls.name}']"),
-                            expr.ExprIdent(cls.name),
+                            expr.ExprIdent("dbschema"),
                         ],
                     )
                 ),

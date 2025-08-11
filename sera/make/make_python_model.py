@@ -910,7 +910,7 @@ def make_python_data_model(
             ),
         )
 
-        target_pkg.module("__init__").write(program)
+        target_pkg.parent().module("data_schema").write(program)
 
     for cls in schema.topological_sort():
         if cls.name in reference_classes:
