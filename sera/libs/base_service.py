@@ -39,7 +39,7 @@ class BaseAsyncService(Generic[ID, R]):
         self.prop2orm: dict[str, type] = {
             prop.name: orm_classes[prop.target.name]
             for prop in cls.properties.values()
-            if isinstance(prop, ObjectProperty)
+            if isinstance(prop, ObjectProperty) and prop.target.db is not None
         }
 
         # figure out the join clauses so we can join the tables
