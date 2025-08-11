@@ -1446,6 +1446,10 @@ def make_python_relational_object_property(
                             expr.ExprConstant("raise_on_sql"),
                         ),
                         PredefinedFn.keyword_assignment(
+                            "foreign_keys",
+                            expr.ExprIdent(propname),
+                        ),
+                        PredefinedFn.keyword_assignment(
                             "init",
                             expr.ExprConstant(False),
                         ),
