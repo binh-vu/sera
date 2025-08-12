@@ -58,6 +58,12 @@ def make_python_api(app: App, collections: Sequence[DataCollection]):
                                     ]
                                 ),
                             ),
+                            PredefinedFn.keyword_assignment(
+                                "tags",
+                                PredefinedFn.list(
+                                    [expr.ExprConstant(collection.get_pymodule_name())]
+                                ),
+                            ),
                         ],
                     ),
                 ),
