@@ -1512,16 +1512,16 @@ def make_python_relational_object_property(
         program.import_("sqlalchemy.orm.composite", True)
         propvalargs: list[expr.Expr] = [expr.ExprIdent(prop.target.name)]
         for p in prop.target.properties.values():
+            pdtype = assert_isinstance(p, DataProperty).datatype.get_sqlalchemy_type()
+            for dep in pdtype.deps:
+                program.import_(dep, True)
+
             propvalargs.append(
                 expr.ExprFuncCall(
                     expr.ExprIdent("mapped_column"),
                     [
                         expr.ExprConstant(f"{prop.name}_{p.name}"),
-                        expr.ExprIdent(
-                            assert_isinstance(p, DataProperty)
-                            .datatype.get_sqlalchemy_type()
-                            .type
-                        ),
+                        expr.ExprIdent(pdtype.type),
                         PredefinedFn.keyword_assignment(
                             "nullable",
                             expr.ExprConstant(prop.is_optional or p.is_optional),

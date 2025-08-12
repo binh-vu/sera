@@ -156,7 +156,7 @@ class TsTypeWithDep:
         raise ValueError(f"Unknown type: {self.type}")
 
     def is_enum_type(self) -> bool:
-        return any(x.startswith(".models.enums.") for x in self.deps)
+        return any(x.startswith("@.models.enums.") for x in self.deps)
 
 
 @dataclass
