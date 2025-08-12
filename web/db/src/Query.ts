@@ -14,7 +14,7 @@ export type QueryOp =
   | number
   | boolean
   | {
-    op: "gt" | "lt" | "gte" | "lte" | "in";
+    op: "gt" | "lt" | "gte" | "lte" | "in" | "eq" | "ne" | "not_in" | "fuzzy";
     value: string | number | string[] | number[] | (string | number)[];
   };
 
@@ -191,8 +191,8 @@ export class QueryProcessor<R> {
 
   prepareConditions(
     conditions: QueryConditions<R>
-  ): object {
-    const params: any = {};
+  ): { field: string, op: string, value: any }[] {
+    const params: any = [];
     const it: [keyof R, QueryOp][] = Object.entries(conditions) as any;
 
     for (let [field, opOrVal] of it) {
@@ -200,9 +200,9 @@ export class QueryProcessor<R> {
         this.renameField[field as keyof R] || (field as string);
 
       if (typeof opOrVal === "object") {
-        params[serverField] = opOrVal;
+        params.push({ field: serverField, ...opOrVal });
       } else {
-        params[serverField] = { eq: opOrVal };
+        params.push({ field: serverField, op: "eq", value: opOrVal });
       }
     }
 

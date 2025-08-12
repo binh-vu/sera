@@ -25,7 +25,7 @@ class Constraint:
             # the UI will ensure to submit it in E.164 format
             return r"msgspec.Meta(pattern=r'^\+[1-9]\d{1,14}$')"
         elif self.name == "email":
-            return r"msgspec.Meta(min_length=3, max_length=254, pattern=r'^[^@]+@[^@]+\.[^@]+$')"
+            return r"msgspec.Meta(min_length=3, max_length=254, pattern=r'^[^@]+@[^@]+\.[a-zA-Z\.]+$')"
         elif self.name == "not_empty":
             return "msgspec.Meta(min_length=1)"
         elif self.name == "username":

@@ -1,4 +1,12 @@
-import { Alert, Button, Flex, Loader, Text } from "@mantine/core";
+import {
+  Alert,
+  Button,
+  Container,
+  Flex,
+  Loader,
+  Stack,
+  Text,
+} from "@mantine/core";
 import { useNavigate } from "react-router";
 import { IconInfoCircle } from "@tabler/icons-react";
 
@@ -6,17 +14,29 @@ export const NotFound = ({ message }: { message?: string }) => {
   const navigate = useNavigate();
 
   return (
-    <Alert
-      color="red"
-      title="Not Found"
-      variant="404 - Not Found"
-      icon={<IconInfoCircle size={12} stroke={1.5} />}
+    <Container
+      size="xs"
+      style={{
+        height: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
     >
-      {message || "Sorry, the page you are looking for does not exist."}
-      <Button variant="filled" onClick={() => navigate("/")}>
-        Back Home
-      </Button>
-    </Alert>
+      <Alert
+        color="red"
+        title="Not Found"
+        variant="404 - Not Found"
+        icon={<IconInfoCircle size={12} stroke={1.5} />}
+      >
+        <Stack align="flex-start">
+          {message || "Sorry, the page you are looking for does not exist."}
+          <Button variant="filled" onClick={() => navigate("/")} size="xs">
+            Back Home
+          </Button>
+        </Stack>
+      </Alert>
+    </Container>
   );
 };
 

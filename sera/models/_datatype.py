@@ -67,6 +67,9 @@ class PyTypeWithDep:
         """Clone the type with the same dependencies."""
         return PyTypeWithDep(type=self.type, deps=list(self.deps))
 
+    def is_enum_type(self) -> bool:
+        return any(x.find(".models.enums.") != -1 for x in self.deps)
+
 
 @dataclass
 class TsTypeWithDep:
@@ -126,7 +129,7 @@ class TsTypeWithDep:
             return value
         if self.type == "Date":
             return expr.ExprRawTypescript(f"new Date({value.to_typescript()})")
-        if any(x.startswith("@.models.enum") for x in self.deps):
+        if self.is_enum_type():
             # enum type, we don't need to do anything as we use strings for enums
             return value
         raise ValueError(f"Unknown type: {self.type}")
@@ -147,10 +150,13 @@ class TsTypeWithDep:
             return expr.ExprRawTypescript(f"{value.to_typescript()}.toISOString()")
         if self.type == "Date | undefined":
             return expr.ExprRawTypescript(f"{value.to_typescript()}?.toISOString()")
-        if any(x.startswith("@.models.enum") for x in self.deps):
+        if self.is_enum_type():
             # enum type, we don't need to do anything as we use strings for enums
             return value
         raise ValueError(f"Unknown type: {self.type}")
+
+    def is_enum_type(self) -> bool:
+        return any(x.startswith(".models.enums.") for x in self.deps)
 
 
 @dataclass

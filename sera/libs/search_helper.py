@@ -142,6 +142,9 @@ class Query(msgspec.Struct):
             # normalize the value based on the field type.
             prop = cls.properties[clause.field]
             assert isinstance(prop, DataProperty)
+            if prop.datatype.pytype.is_enum_type():
+                # skip enum types -- we directly use it as string.
+                continue
             clause.value = FieldTypeValidator.typemap[prop.datatype.pytype.type](
                 clause.field, clause.value
             )
@@ -196,6 +199,9 @@ class Query(msgspec.Struct):
                     # normalize the value based on the field type.
                     target_prop = target_class.properties[condition.field]
                     assert isinstance(target_prop, DataProperty)
+                    if target_prop.datatype.pytype.is_enum_type():
+                        # skip enum types -- we directly use it as string.
+                        continue
                     condition.value = FieldTypeValidator.typemap[
                         target_prop.datatype.pytype.type
                     ](condition.field, condition.value)
