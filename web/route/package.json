@@ -1,9 +1,11 @@
 {
   "name": "sera-route",
   "private": false,
-  "version": "1.3.2",
+  "version": "1.3.3",
   "type": "module",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.umd.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -15,9 +17,11 @@
   },
   "scripts": {
     "dev": "vite",
+    "clean": "rimraf dist",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prepublishOnly": "npm run clean && npm run build"
   },
   "dependencies": {
     "react": "^19.0.0",
@@ -34,6 +38,7 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^15.15.0",
+    "rimraf": "^6.0.1",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.24.1",
     "vite": "^6.2.1",

@@ -1,14 +1,7 @@
-import {
-  ClassName,
-  DraftRecord,
-  GenericRecord,
-  Schema,
-  SchemaType,
-  Table,
-} from "sera-db";
+import { DraftRecord, GenericRecord, Schema, SchemaType, Table } from "sera-db";
 import { Tabs } from "@mantine/core";
 import { FieldGroup, SeraView } from "./View";
-import { NoQueryArgsPathDef } from "sera-route";
+import { EntityRoutes } from "../data";
 
 export interface SeraViewTabProps<
   ID extends string | number,

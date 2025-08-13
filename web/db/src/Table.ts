@@ -206,7 +206,7 @@ export class Table<
 
   /** Fetch one record by query */
   async fetchOne(conditions: QueryConditions<R>): Promise<R | undefined> {
-    const result = await this.fetch({ conditions: this.queryProcessor.prepareConditions(conditions), limit: 1, offset: 0 });
+    const result = await this.fetch({ conditions, limit: 1, offset: 0 });
     return result.records[0];
   }
 
@@ -392,7 +392,7 @@ export class Table<
     const result = await this.fetch({
       offset: 0,
       limit: 10000, // Use a reasonable default limit
-      conditions: this.queryProcessor.prepareConditions(conditions),
+      conditions
     });
 
     // If no records are found, we will store an empty set in the index

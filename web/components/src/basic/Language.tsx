@@ -1,9 +1,8 @@
-import { createContext, useContext, useMemo } from "react";
+import { useContext, useMemo } from "react";
 import { IconCheck } from "@tabler/icons-react";
 import { MultiLingualString as MLS } from "sera-db";
 import { Button, Menu, Text } from "@mantine/core";
 import { CountryFlag, CountryFlagComponent, countryFlags } from "./CountryFlag";
-import { observer } from "mobx-react-lite";
 import { LocaleContext } from "./Locale";
 
 const chooseLanguage: MLS = {

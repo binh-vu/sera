@@ -1,6 +1,5 @@
 import { observer } from "mobx-react-lite";
 import {
-  ClassName,
   DataProperty,
   DraftRecord,
   GenericRecord,
@@ -9,8 +8,7 @@ import {
 } from "sera-db";
 import { Text } from "@mantine/core";
 import { MultiLingualString } from "../basic";
-import { DisplayInterface } from "../data/display";
-import { NoQueryArgsPathDef } from "sera-route";
+import { DisplayInterface, EntityRoutes } from "../data";
 
 export interface ViewNestedPropertyItemProps<
   ID extends string | number,

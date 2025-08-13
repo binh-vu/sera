@@ -24,6 +24,7 @@ export const BooleanDisplay = ({ value }: DisplayInterface<boolean>) => {
     <Checkbox
       checked={value}
       label={<MultiLingualString value={label[value ? "yes" : "no"]} />}
+      readOnly={true}
     />
   );
 };
