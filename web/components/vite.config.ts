@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+console.log(__dirname)
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -20,7 +21,7 @@ export default defineConfig(({ mode }) => {
   })();
 
   return {
-    plugins: [dts({ tsconfigPath: "./tsconfig.json" })],
+    plugins: [dts({ tsconfigPath: "./tsconfig.build.json" })],
     resolve: {
       alias: {
         ...localLibraryAlias
