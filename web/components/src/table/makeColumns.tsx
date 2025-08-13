@@ -64,10 +64,20 @@ export function makeTableColumn<R>(
   db: DB,
   entityRoutes: EntityRoutes,
   property: DOP,
-  { title, nestedKey }: { title?: React.ReactNode; nestedKey?: string } = {}
+  {
+    title,
+    nestedKey,
+    component,
+  }: {
+    title?: React.ReactNode;
+    nestedKey?: string;
+    component?: React.ComponentType<DisplayInterface<any>>;
+  } = {}
 ): SeraColumn<R> {
   let Component: React.ComponentType<DisplayInterface<any>>;
-  if (isObjectProperty(property)) {
+  if (component !== undefined) {
+    Component = component;
+  } else if (isObjectProperty(property)) {
     if (property.cardinality === "1:N" || property.cardinality === "N:N") {
       Component = MultiForeignKeyDisplay;
     } else {
@@ -126,10 +136,20 @@ export function makeTableColumnFromNestedProperty<R>(
   entityRoutes: EntityRoutes,
   property: DOP,
   nestedProperty: DOP,
-  { title, nestedKey }: { title?: React.ReactNode; nestedKey?: string } = {}
+  {
+    title,
+    nestedKey,
+    component,
+  }: {
+    title?: React.ReactNode;
+    nestedKey?: string;
+    component?: React.ComponentType<DisplayInterface<any>>;
+  } = {}
 ): SeraColumn<R> {
   let Component: React.ComponentType<DisplayInterface<any>>;
-  if (isObjectProperty(nestedProperty)) {
+  if (component !== undefined) {
+    Component = component;
+  } else if (isObjectProperty(nestedProperty)) {
     if (
       nestedProperty.cardinality === "1:N" ||
       nestedProperty.cardinality === "N:N"
