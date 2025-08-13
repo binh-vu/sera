@@ -12,6 +12,7 @@ from sera.misc._utils import (
     load_data_from_dir,
     replay_events,
     to_camel_case,
+    to_kebab_case,
     to_pascal_case,
     to_snake_case,
 )
@@ -34,4 +35,5 @@ __all__ = [
     "load_data_from_dir",
     "replay_events",
     "auto_import",
+    "to_kebab_case",
 ]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import re
 from collections import defaultdict
+from curses.ascii import isupper
 from functools import lru_cache
 from importlib import import_module
 from pathlib import Path
@@ -84,10 +85,11 @@ def import_attr(attr_ident: str):
 
 
 @lru_cache(maxsize=1280)
-def to_snake_case(camelcase: str) -> str:
+def to_snake_case(name: str) -> str:
     """Convert camelCase to snake_case."""
-    snake = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", camelcase)
+    snake = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
     snake = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", snake)
+    snake = snake.replace("-", "_")
     return snake.lower()
 
 
@@ -111,6 +113,15 @@ def to_pascal_case(snake: str) -> str:
     if snake.endswith("_") and snake[:-1] in reserved_keywords:
         out += "_"
     return out
+
+
+@lru_cache(maxsize=1280)
+def to_kebab_case(name: str) -> str:
+    """Convert a name to kebab-case."""
+    kebab = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1-\2", name)
+    kebab = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", kebab)
+    kebab = kebab.replace("_", "-")
+    return kebab.lower()
 
 
 def assert_isinstance(x: Any, cls: type[T]) -> T:

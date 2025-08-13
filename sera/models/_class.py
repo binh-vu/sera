@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from sera.misc import to_snake_case
+from sera.misc import to_kebab_case, to_snake_case
 from sera.models._multi_lingual_string import MultiLingualString
 from sera.models._property import DataProperty, ObjectProperty
 
@@ -80,4 +80,4 @@ class Class:
 
     def get_tsmodule_name(self) -> str:
         """Get the typescript module name of this class as if there is a typescript module created to store this class only."""
-        return self.name[0].lower() + self.name[1:]
+        return to_kebab_case(self.name)

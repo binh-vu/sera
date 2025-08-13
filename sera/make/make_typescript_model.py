@@ -1630,14 +1630,19 @@ def _inject_type_for_invalid_value(tstype: TsTypeWithDep) -> TsTypeWithDep:
     if m is not None:
         # This is an array type, add string to the inner type
         inner_type = m.group(1)
+        inner_spectype = assert_not_null(
+            re.match(r"(\(?[a-zA-Z \|]+\)?)(\[\])", tstype.spectype)
+        ).group(1)
         if "string" not in inner_type:
             if inner_type.startswith("(") and inner_type.endswith(")"):
                 # Already has parentheses
                 inner_type = f"{inner_type[:-1]} | string)"
+                inner_spectype = f"{inner_spectype[:-1]} | string)"
             else:
                 # Need to add parentheses
                 inner_type = f"({inner_type} | string)"
-        return TsTypeWithDep(inner_type + "[]", tstype.deps)
+                inner_spectype = f"({inner_spectype} | string)"
+        return TsTypeWithDep(inner_type + "[]", inner_spectype + "[]", tstype.deps)
 
     m = re.match(r"^\(?[a-zA-Z \|]+\)?$", tstype.type)
     if m is not None:
@@ -1645,10 +1650,12 @@ def _inject_type_for_invalid_value(tstype: TsTypeWithDep) -> TsTypeWithDep:
             if tstype.type.startswith("(") and tstype.type.endswith(")"):
                 # Already has parentheses
                 new_type = f"{tstype.type[:-1]} | string)"
+                new_spectype = f"{tstype.spectype[:-1]} | string)"
             else:
                 # Needs parentheses for clarity
                 new_type = f"({tstype.type} | string)"
-            return TsTypeWithDep(new_type, tstype.deps)
+                new_spectype = f"({tstype.spectype} | string)"
+            return TsTypeWithDep(new_type, new_spectype, tstype.deps)
         return tstype
 
     raise NotImplementedError(tstype.type)

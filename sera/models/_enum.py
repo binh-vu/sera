@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 
-from sera.misc import to_snake_case
+from sera.misc import to_kebab_case, to_snake_case
 from sera.models._multi_lingual_string import MultiLingualString
 
 
@@ -44,7 +44,7 @@ class Enum:
 
     def get_tsmodule_name(self) -> str:
         """Get the typescript module name of this enum as if there is a typescript module created to store this enum only."""
-        return self.name[0].lower() + self.name[1:]
+        return to_kebab_case(self.name)
 
     def is_str_enum(self) -> bool:
         """Check if this enum is a string enum."""
