@@ -11,6 +11,7 @@ from sera.models._multi_lingual_string import MultiLingualString
 class EnumValue:
     name: str
     value: str | int
+    label: MultiLingualString
     description: MultiLingualString
 
 
@@ -44,7 +45,7 @@ class Enum:
 
     def get_tsmodule_name(self) -> str:
         """Get the typescript module name of this enum as if there is a typescript module created to store this enum only."""
-        return to_kebab_case(self.name)
+        return self.name
 
     def is_str_enum(self) -> bool:
         """Check if this enum is a string enum."""

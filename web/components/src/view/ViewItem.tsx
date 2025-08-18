@@ -46,7 +46,7 @@ export const ViewItem = observer(
 
     return (
       <div>
-        <Text size="sm" fw={500}>
+        <Text size="sm" fw={550}>
           <MultiLingualString value={property.label} />
         </Text>
         <DisplayComponent

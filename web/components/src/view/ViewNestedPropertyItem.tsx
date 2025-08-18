@@ -83,7 +83,7 @@ export const ViewNestedPropertyItem = observer(
 
     return (
       <div>
-        <Text size="sm" fw={500}>
+        <Text size="sm" fw={550}>
           <MultiLingualString value={prop.label} />
         </Text>
         {value !== undefined && (

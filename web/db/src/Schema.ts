@@ -57,7 +57,11 @@ export interface DataProperty extends Property {
   // data type of the property
   datatype: DataType;
   // if the property is an enum, this will contain the enum class
-  enumType?: Enum;
+  enumType?: {
+    type: Enum,
+    label: { [value: string | number]: MultiLingualString },
+    description: { [value: string | number]: MultiLingualString }
+  };
   // if the property is a primary key, it can be foreign key to another table. If so, this property
   // indicates the target class that this foreign key references to
   foreignKeyTarget?: TargetClassName;

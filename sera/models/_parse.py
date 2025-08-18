@@ -91,13 +91,17 @@ def _parse_enum(schema: Schema, enum_name: str, enum: dict) -> Enum:
     for k, v in enum.items():
         if isinstance(v, (str, int)):
             values[k] = EnumValue(
-                name=k, value=v, description=MultiLingualString.en("")
+                name=k,
+                value=v,
+                label=MultiLingualString.en(""),
+                description=MultiLingualString.en(""),
             )
         else:
             try:
                 values[k] = EnumValue(
                     name=k,
                     value=v["value"],
+                    label=_parse_multi_lingual_string(v.get("label", "")),
                     description=_parse_multi_lingual_string(v.get("desc", "")),
                 )
             except KeyError as e:
