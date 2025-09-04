@@ -1,34 +1,48 @@
 import { useMemo } from "react";
-import {
-  createBrowserRouter,
-  createMemoryRouter,
-  RouteObject,
-  RouterProvider,
-} from "react-router";
 import { IRoute, PathDef, ReactComponent } from "./routing";
 import { NotFoundComponent } from "./components";
 import { PathDefChildren } from "./routing/route";
+import {
+  Outlet,
+  RouterProvider,
+  Link,
+  createRouter,
+  createRoute,
+  createRootRoute,
+  Route,
+} from "@tanstack/react-router";
+import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
-function toReactRouterRoute(
-  route: IRoute<any, any, PathDefChildren>
-): RouteObject {
+function toTanStackRoute(
+  route: IRoute<any, any, PathDefChildren>,
+  parentRoute?: Route<any, any>
+): Route<any, any> {
   const pathDef = route instanceof PathDef ? route : route.path;
 
   if (pathDef.routeDef.path === "") {
-    return {
-      index: true,
-      caseSensitive: pathDef.routeDef.caseSensitive,
-      Component: pathDef.routeDef.Component,
-    };
+    return createRootRoute({
+      component: pathDef.routeDef.Component as any,
+    });
   } else {
-    return {
+    if (parentRoute === undefined) {
+      throw new Error(
+        `Parent route is required for non-root routes (path: ${pathDef.routeDef.path})`
+      );
+    }
+
+    const route = createRoute({
+      getParentRoute: () => parentRoute,
       path: pathDef.routeDef.path,
-      caseSensitive: pathDef.routeDef.caseSensitive,
-      Component: pathDef.routeDef.Component,
-      children: Object.values(pathDef.children).map((child) =>
-        toReactRouterRoute(child)
-      ),
-    };
+      component: pathDef.routeDef.Component as any,
+    });
+
+    route.addChildren(
+      Object.values(pathDef.children).map((child) =>
+        toTanStackRoute(child, route)
+      )
+    );
+
+    return route;
   }
 }
 
@@ -43,22 +57,41 @@ export const Router = ({
   platform?: "native" | "web";
   notfound?: ReactComponent;
 }) => {
-  const config = useMemo(() => {
+  const routeTree = useMemo(() => {
+    const rootRoute = createRootRoute({
+      component: () => (
+        <>
+          <Outlet />
+          <TanStackRouterDevtools />
+        </>
+      ),
+    });
+
     const output = [];
     for (const route of Object.values(routes)) {
-      output.push(toReactRouterRoute(route));
+      output.push(toTanStackRoute(route));
     }
-    output.push({
-      path: "*",
-      Component: notfound || NotFoundComponent,
-    });
-    return output;
+
+    output.push(
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "$",
+        component: (notfound || NotFoundComponent) as any,
+      })
+    );
+
+    rootRoute.addChildren(output);
+    return rootRoute;
   }, [routes]);
 
-  const router =
-    platform === "native"
-      ? createMemoryRouter(config)
-      : createBrowserRouter(config);
+  // const router =
+  //   platform === "native"
+  //     ? createMemoryRouter(config)
+  //     : createBrowserRouter(config);
+
+  const router = createRouter({
+    routeTree,
+  });
 
   return <RouterProvider router={router} />;
 };
