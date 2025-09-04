@@ -7,7 +7,7 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
-import { useNavigate } from "react-router";
+import { useNavigate } from "sera-route";
 import { IconInfoCircle } from "@tabler/icons-react";
 
 export const NotFound = ({ message }: { message?: string }) => {

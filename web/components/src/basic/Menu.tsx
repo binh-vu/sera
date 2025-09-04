@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { IconChevronRight } from "@tabler/icons-react";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate } from "sera-route";
 import { NoArgsPathDef } from "sera-route";
 import { NavLink } from "@mantine/core";
 import { Trie } from "../misc";
