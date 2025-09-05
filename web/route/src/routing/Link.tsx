@@ -1,7 +1,7 @@
 import React from "react";
 import { ArgSchema, ArgType, PathDefChildren } from "./route";
 import { PathDef } from "./route";
-import { useNavigate } from "react-router";
+import { useNavigate } from "@tanstack/react-router";
 
 /**
  * This file contains all helper to dealing with Links and Navigation in the application so that we can handle it easier in different platforms

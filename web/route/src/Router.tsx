@@ -14,21 +14,17 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 function toTanStackRoute(
   route: IRoute<any, any, PathDefChildren>,
-  parentRoute?: Route<any, any>
+  parentRoute: Route<any, any>
 ): Route<any, any> {
   const pathDef = route instanceof PathDef ? route : route.path;
 
-  if (pathDef.routeDef.path === "") {
-    return createRootRoute({
+  if (pathDef.routeDef.path === "/") {
+    return createRoute({
+      path: "/",
+      getParentRoute: () => parentRoute,
       component: pathDef.routeDef.Component as any,
     });
   } else {
-    if (parentRoute === undefined) {
-      throw new Error(
-        `Parent route is required for non-root routes (path: ${pathDef.routeDef.path})`
-      );
-    }
-
     const route = createRoute({
       getParentRoute: () => parentRoute,
       path: pathDef.routeDef.path,
@@ -52,7 +48,6 @@ export const Router = ({
   routes: {
     [name: string]: IRoute<any, any, PathDefChildren>;
   };
-  platform?: "native" | "web";
   notfound?: ReactComponent;
 }) => {
   const routeTree = useMemo(() => {
@@ -67,7 +62,7 @@ export const Router = ({
 
     const output = [];
     for (const route of Object.values(routes)) {
-      output.push(toTanStackRoute(route));
+      output.push(toTanStackRoute(route, rootRoute));
     }
 
     output.push(
@@ -81,11 +76,6 @@ export const Router = ({
     rootRoute.addChildren(output);
     return rootRoute;
   }, [routes]);
-
-  // const router =
-  //   platform === "native"
-  //     ? createMemoryRouter(config)
-  //     : createBrowserRouter(config);
 
   const router = createRouter({
     routeTree,

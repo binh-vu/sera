@@ -1,9 +1,5 @@
 import {
-  matchPath,
-  Location,
-  Path as RRPath,
-  NavigateFunction,
-} from "react-router";
+} from "@tanstack/react-router";
 import React from "react";
 
 export type ReactComponent =
@@ -423,18 +419,18 @@ export const routeAPIs = {
   internalHTMLLinkClickFnId: "window._routeAPIs.internalHTMLLinkClick",
   internalHTMLLinkClick:
     (navigate: NavigateFunction) =>
-    (e: React.MouseEvent<HTMLAnchorElement>) => {
-      e.preventDefault();
+      (e: React.MouseEvent<HTMLAnchorElement>) => {
+        e.preventDefault();
 
-      let href = (e.target as any).getAttribute("href");
-      if (e.ctrlKey || e.metaKey) {
-        // holding ctrl or cmd key, we should open in new windows, even in native, because it is internal, another window still work
-        window.open(href, "_blank");
-        window.focus();
-      } else {
-        navigate(href);
-      }
-    },
+        let href = (e.target as any).getAttribute("href");
+        if (e.ctrlKey || e.metaKey) {
+          // holding ctrl or cmd key, we should open in new windows, even in native, because it is internal, another window still work
+          window.open(href, "_blank");
+          window.focus();
+        } else {
+          navigate(href);
+        }
+      },
   goBack: (navigate: NavigateFunction) => navigate(-1),
   goForward: (navigate: NavigateFunction) => navigate(1),
   openInternalLink: (navigate: NavigateFunction, href: string) => {
