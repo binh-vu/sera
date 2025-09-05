@@ -16,7 +16,6 @@ export default defineConfig(({ mode }) => {
     // Reference: https://github.com/vitejs/vite/discussions/7155#discussioncomment-4121062
     return {
       'sera-db': fileURLToPath(new URL('../db/src/index.ts', import.meta.url)),
-      'sera-route': fileURLToPath(new URL('../route/src/index.ts', import.meta.url)),
     }
   })();
 
@@ -46,7 +45,6 @@ export default defineConfig(({ mode }) => {
           "@tabler/icons-react",
           "@tanstack/react-table",
           "sera-db",
-          "sera-route",
           "mobx-react-lite"
         ],
         output: {
@@ -61,7 +59,6 @@ export default defineConfig(({ mode }) => {
             "@tabler/icons-react": "@tabler/icons-react",
             "@tanstack/react-table": "@tanstack/react-table",
             "sera-db": "sera-db",
-            "sera-route": "sera-route",
             "mobx-react-lite": "mobx-react-lite",
           },
         },

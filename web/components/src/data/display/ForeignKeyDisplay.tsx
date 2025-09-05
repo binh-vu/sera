@@ -1,8 +1,7 @@
-import { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { DisplayInterface, EntityRoute, EntityRoutes } from ".";
 import { observer } from "mobx-react-lite";
 import { DB, ObjectProperty } from "sera-db";
-import { InternalLink } from "sera-route";
 import { Group, Text } from "@mantine/core";
 import { NotFoundInline } from "../../basic/Transition";
 
@@ -26,13 +25,23 @@ function useForeignKeyDisplay<ID extends string | number>(
   return [records, route];
 }
 
+type LinkComponent = React.FunctionComponent<{
+  to: any;
+  params: { id: string | number };
+  openInNewPage?: boolean;
+  children: React.ReactNode;
+}>;
+
 export const SingleForeignKeyDisplay = observer(
   <ID extends string | number>({
     db,
     property,
     value,
     entityRoutes,
-  }: DisplayInterface<ID>) => {
+    LinkComponent,
+  }: DisplayInterface<ID> & {
+    LinkComponent: LinkComponent;
+  }) => {
     const ids = useMemo(() => {
       return [value];
     }, [value]);
@@ -58,14 +67,13 @@ export const SingleForeignKeyDisplay = observer(
     }
 
     return (
-      <InternalLink
-        path={route}
+      <LinkComponent
+        to={route.to}
         openInNewPage={false}
-        urlArgs={{ id: record.id }}
-        queryArgs={{}}
+        params={{ id: record.id }}
       >
         {record.name}
-      </InternalLink>
+      </LinkComponent>
     );
   }
 );
@@ -76,7 +84,8 @@ export const MultiForeignKeyDisplay = observer(
     property,
     value,
     entityRoutes,
-  }: DisplayInterface<ID[]>) => {
+    LinkComponent,
+  }: DisplayInterface<ID[]> & { LinkComponent: LinkComponent }) => {
     const [records, route] = useForeignKeyDisplay(
       db,
       property as ObjectProperty,
@@ -107,15 +116,14 @@ export const MultiForeignKeyDisplay = observer(
             );
           }
           return (
-            <InternalLink
+            <LinkComponent
               key={index}
-              path={route}
+              to={route.to}
               openInNewPage={false}
-              urlArgs={{ id: record.id }}
-              queryArgs={{}}
+              params={{ id: record.id }}
             >
               {record.name}
-            </InternalLink>
+            </LinkComponent>
           );
         })}
       </Group>

@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { IconChevronRight } from "@tabler/icons-react";
-import { useLocation, useNavigate } from "react-router";
-import { NoArgsPathDef } from "sera-route";
 import { NavLink } from "@mantine/core";
 import { Trie } from "../misc";
 
@@ -82,8 +80,9 @@ export class MenuTrie extends Trie {
 }
 
 export interface MenuRoute<R> {
-  path: NoArgsPathDef<any>;
+  url: string;
   role: R;
+  navigate: () => void;
 }
 
 export interface SeraMenuItem<R> {
@@ -136,8 +135,7 @@ function createMenuTrie<R>(items: SeraMenuItem<R>[]): MenuTrie {
   const traverseItems = (items: SeraMenuItem<R>[]) => {
     items.forEach((item) => {
       if (item.route !== undefined) {
-        const routePath = item.route.path.getURL();
-        menuTrie.insertRoute(routePath, item.key);
+        menuTrie.insertRoute(item.route.url, item.key);
       }
 
       if (item.children !== undefined && item.children.length > 0) {
@@ -191,8 +189,6 @@ export const SeraVerticalMenu = <R,>(props: {
   items: SeraMenuItem<R>[];
   checkPermission: (role: R) => Permission;
 }) => {
-  const navigate = useNavigate();
-  const location = useLocation();
   /// State to manage keys that are open on mouse hover
   const [hoverOpenKeys, setHoverOpenKeys] = useState<Set<string>>(new Set());
   /// State to manage keys that are open on click
@@ -216,7 +212,7 @@ export const SeraVerticalMenu = <R,>(props: {
 
   // get the selected keys from active routes
   useEffect(() => {
-    const currentPath = location.pathname;
+    const currentPath = window.location.pathname;
     const activateKey = menuTrie.findMatchingKey(currentPath);
     if (activateKey !== undefined) {
       setClickOpenKeys(new Set(key2fullpath[activateKey]));
@@ -259,7 +255,7 @@ export const SeraVerticalMenu = <R,>(props: {
             <NavLink
               key={item.key}
               active={selectedKey === item.key}
-              href={item.route?.path.getURL()}
+              href={item.route?.url}
               label={item.label}
               leftSection={item.icon}
               styles={{
@@ -317,7 +313,7 @@ export const SeraVerticalMenu = <R,>(props: {
           <NavLink
             key={item.key}
             active={selectedKey === item.key}
-            href={item.route?.path.getURL()}
+            href={item.route?.url}
             label={item.label}
             leftSection={item.icon}
             styles={{
@@ -343,7 +339,7 @@ export const SeraVerticalMenu = <R,>(props: {
               event.preventDefault();
               // open the link if it's a leaf node and have a route
               if (item.route != undefined) {
-                item.route.path.path().open(navigate);
+                item.route.navigate();
               }
             }}
           ></NavLink>
@@ -352,7 +348,7 @@ export const SeraVerticalMenu = <R,>(props: {
     }
     // Generate the menu items recursively
     return allowedItems.map((allowItem) => genNavLink(allowItem, 0));
-  }, [allowedItems, selectedKey, clickOpenKeys, hoverOpenKeys, navigate]);
+  }, [allowedItems, selectedKey, clickOpenKeys, hoverOpenKeys]);
 
   return <>{menu}</>;
 };
