@@ -5,7 +5,6 @@ import { PathDefChildren } from "./routing/route";
 import {
   Outlet,
   RouterProvider,
-  Link,
   createRouter,
   createRoute,
   createRootRoute,
@@ -48,7 +47,6 @@ function toTanStackRoute(
 
 export const Router = ({
   routes,
-  platform = "web",
   notfound,
 }: {
   routes: {
