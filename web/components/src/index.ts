@@ -4,4 +4,6 @@ export * from "./form";
 export * from "./table";
 export * from "./view";
 export * from "./misc";
+export * from "./types";
+
 export type { EntityRoute, EntityRoutes } from "./data/display";

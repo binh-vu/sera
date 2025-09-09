@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo } from "react";
+import { useContext, useEffect, useMemo } from "react";
 import { DisplayInterface, EntityRoute, EntityRoutes } from ".";
 import { observer } from "mobx-react-lite";
 import { DB, ObjectProperty } from "sera-db";
 import { Group, Text } from "@mantine/core";
 import { NotFoundInline } from "../../basic/Transition";
+import { ExternalComponentContext } from "../../basic/ExternalComponent";
 
 function useForeignKeyDisplay<ID extends string | number>(
   db: DB,
@@ -25,23 +26,15 @@ function useForeignKeyDisplay<ID extends string | number>(
   return [records, route];
 }
 
-type LinkComponent = React.FunctionComponent<{
-  to: any;
-  params: { id: string | number };
-  openInNewPage?: boolean;
-  children: React.ReactNode;
-}>;
-
 export const SingleForeignKeyDisplay = observer(
   <ID extends string | number>({
     db,
     property,
     value,
     entityRoutes,
-    LinkComponent,
-  }: DisplayInterface<ID> & {
-    LinkComponent: LinkComponent;
-  }) => {
+  }: DisplayInterface<ID>) => {
+    const { link: Link } = useContext(ExternalComponentContext);
+
     const ids = useMemo(() => {
       return [value];
     }, [value]);
@@ -67,13 +60,9 @@ export const SingleForeignKeyDisplay = observer(
     }
 
     return (
-      <LinkComponent
-        to={route.to}
-        openInNewPage={false}
-        params={{ id: record.id }}
-      >
+      <Link to={route.to} openInNewPage={false} params={{ id: record.id }}>
         {record.name}
-      </LinkComponent>
+      </Link>
     );
   }
 );
@@ -84,8 +73,8 @@ export const MultiForeignKeyDisplay = observer(
     property,
     value,
     entityRoutes,
-    LinkComponent,
-  }: DisplayInterface<ID[]> & { LinkComponent: LinkComponent }) => {
+  }: DisplayInterface<ID[]>) => {
+    const { link: Link } = useContext(ExternalComponentContext);
     const [records, route] = useForeignKeyDisplay(
       db,
       property as ObjectProperty,
@@ -116,14 +105,14 @@ export const MultiForeignKeyDisplay = observer(
             );
           }
           return (
-            <LinkComponent
+            <Link
               key={index}
               to={route.to}
               openInNewPage={false}
               params={{ id: record.id }}
             >
               {record.name}
-            </LinkComponent>
+            </Link>
           );
         })}
       </Group>
