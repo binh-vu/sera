@@ -6,4 +6,4 @@ export * from "./view";
 export * from "./misc";
 export * from "./types";
 
-export type { EntityRoute, EntityRoutes } from "./data/display";
+export type { EntityRoute, EntityRoutes, SeraContext, SeraContextProvider } from "./sera-context";

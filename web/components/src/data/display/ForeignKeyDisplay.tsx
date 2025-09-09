@@ -1,10 +1,10 @@
 import { useContext, useEffect, useMemo } from "react";
-import { DisplayInterface, EntityRoute, EntityRoutes } from ".";
+import { DisplayInterface } from ".";
 import { observer } from "mobx-react-lite";
 import { DB, ObjectProperty } from "sera-db";
 import { Group, Text } from "@mantine/core";
 import { NotFoundInline } from "../../basic/Transition";
-import { ExternalComponentContext } from "../../basic/ExternalComponent";
+import { EntityRoute, EntityRoutes, SeraContext } from "../../sera-context";
 
 function useForeignKeyDisplay<ID extends string | number>(
   db: DB,
@@ -23,7 +23,7 @@ function useForeignKeyDisplay<ID extends string | number>(
   for (const id of ids) {
     records[id] = table.get(id);
   }
-  return [records, route];
+  return [records, route.view];
 }
 
 export const SingleForeignKeyDisplay = observer(
@@ -31,9 +31,8 @@ export const SingleForeignKeyDisplay = observer(
     db,
     property,
     value,
-    entityRoutes,
   }: DisplayInterface<ID>) => {
-    const { link: Link } = useContext(ExternalComponentContext);
+    const { link: Link, entityRoutes } = useContext(SeraContext);
 
     const ids = useMemo(() => {
       return [value];
@@ -72,9 +71,8 @@ export const MultiForeignKeyDisplay = observer(
     db,
     property,
     value,
-    entityRoutes,
   }: DisplayInterface<ID[]>) => {
-    const { link: Link } = useContext(ExternalComponentContext);
+    const { link: Link, entityRoutes } = useContext(SeraContext);
     const [records, route] = useForeignKeyDisplay(
       db,
       property as ObjectProperty,
