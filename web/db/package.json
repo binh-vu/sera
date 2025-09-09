@@ -1,7 +1,7 @@
 {
   "name": "sera-db",
   "private": false,
-  "version": "1.12.0",
+  "version": "1.12.2",
   "type": "module",
   "files": [
     "dist"
@@ -30,7 +30,7 @@
     "vitest": "^3.2.4",
     "rimraf": "^6.0.1"
   },
-  "dependencies": {
+  "peerDependencies": {
     "@types/validator": "^13.15.0",
     "axios": "^1.8.4",
     "memoize-one": "^6.0.0",
