@@ -85,11 +85,20 @@ export function flattenGroupedRoutes<RT extends IRoute<any, any, PathDefChildren
 }
 
 /**
- * Update the component of specific routes -- often for applying layout to the component (add headers/footers)
+ * Update the component of specific routes — typically to apply a layout
+ * (for example, to add headers or footers).
  *
- * @param routes
- * @param applyFn: mapping from route a function that apply the layout to the component
- * @param ignoredRoutes
+ * Note: For some reason, using ReactComponent triggers a TypeScript error
+ * highlight in VSCode even though @types/react is available. To work around
+ * this, the React component types are duplicated here.
+ *
+ * @param routes - Route map to update
+ * @param applyFn - Either a function applied to every route's component or
+ *                  a partial mapping from route keys to such functions.
+ *                  Each function receives (component, routeKey, routes)
+ *                  and must return a component.
+ * @param ignoredRoutes - Optional list, set, or partial route map of routes
+ *                        to skip when applying the layout.
  */
 export function applyLayout<
   R extends Record<any, IRoute<any, any, PathDefChildren>>
@@ -100,17 +109,17 @@ export function applyLayout<
       Record<
         keyof R,
         (
-          component: ReactComponent,
+          component: React.FunctionComponent<any> | React.ComponentClass<any, any>,
           route: keyof R,
           routes: R
-        ) => ReactComponent
+        ) => React.FunctionComponent<any> | React.ComponentClass<any, any>
       >
     >
     | ((
-      component: ReactComponent,
+      component: React.FunctionComponent<any> | React.ComponentClass<any, any>,
       route: keyof R,
       routes: R
-    ) => ReactComponent),
+    ) => React.FunctionComponent<any> | React.ComponentClass<any, any>),
   ignoredRoutes?: (keyof R)[] | Set<keyof R> | Partial<R>
 ) {
   if (ignoredRoutes === undefined) {

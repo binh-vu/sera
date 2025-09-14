@@ -60,7 +60,12 @@ export const SingleForeignKeyDisplay = observer(
     }
 
     return (
-      <Link path={route} openInNewPage={false} urlArgs={{ id: record.id }}>
+      <Link
+        path={route}
+        openInNewPage={false}
+        urlArgs={{ id: record.id }}
+        queryArgs={{}}
+      >
         {record.name}
       </Link>
     );
@@ -109,6 +114,7 @@ export const MultiForeignKeyDisplay = observer(
               path={route}
               openInNewPage={false}
               urlArgs={{ id: record.id }}
+              queryArgs={{}}
             >
               {record.name}
             </Link>

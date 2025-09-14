@@ -5,6 +5,7 @@ export * from "./table";
 export * from "./view";
 export * from "./misc";
 export * from "./types";
+export * from "./sera-context";
 
-export type { SeraContext, SeraContextProvider } from "./sera-context";
-export type { LinkComponent, NavigateFunction } from "./types";
+export type { SeraContext } from "./sera-context";
+export type { LinkComponent } from "./types";

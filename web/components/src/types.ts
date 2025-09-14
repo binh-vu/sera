@@ -10,7 +10,24 @@ export enum Permission {
 }
 
 /// Typing for Routing
-export type NavigateFunction = (path: string) => void;
+export interface NavigateFunction {
+  // same as react-router NavigateFunction
+  (to: string | Partial<{
+    /**
+     * A URL pathname, beginning with a /.
+     */
+    pathname: string;
+    /**
+     * A URL search string, beginning with a ?.
+     */
+    search: string;
+    /**
+     * A URL fragment identifier, beginning with a #.
+     */
+    hash: string;
+  }>, options?: any): void | Promise<void>;
+  (delta: number): void | Promise<void>;
+}
 export interface NoArgsRoute {
   path(): {
     open: (navigate: NavigateFunction) => void;
@@ -30,6 +47,7 @@ export interface EntityRoutes extends Record<
 export type LinkComponent = React.FunctionComponent<{
   path: EntityRoute;
   urlArgs: { id: string | number };
+  queryArgs: {};
   openInNewPage?: boolean;
   children?: React.ReactNode;
 }>;
