@@ -43,7 +43,6 @@ export default defineConfig(({ mode }) => {
           "react-dom",
           "react-imask",
           "@tabler/icons-react",
-          "@tanstack/react-table",
           "sera-db",
           "mobx-react-lite"
         ],
@@ -57,7 +56,6 @@ export default defineConfig(({ mode }) => {
             "react-dom": "ReactDOM",
             "react-imask": "ReactIMask",
             "@tabler/icons-react": "@tabler/icons-react",
-            "@tanstack/react-table": "@tanstack/react-table",
             "sera-db": "sera-db",
             "mobx-react-lite": "mobx-react-lite",
           },
