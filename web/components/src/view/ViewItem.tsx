@@ -8,7 +8,7 @@ import {
 } from "sera-db";
 import { Text } from "@mantine/core";
 import { MultiLingualString } from "../basic";
-import { DisplayInterface, EntityRoutes } from "../data";
+import { DisplayInterface } from "../data";
 
 export interface ViewItemProps<
   ID extends string | number,
@@ -25,9 +25,6 @@ export interface ViewItemProps<
 
   /// The component used to render the field
   DisplayComponent: React.ComponentType<DisplayInterface<any>>;
-
-  /// Entity routes for navigation
-  entityRoutes: EntityRoutes;
 }
 
 export const ViewItem = observer(
@@ -40,7 +37,6 @@ export const ViewItem = observer(
     record,
     property,
     DisplayComponent,
-    entityRoutes,
   }: ViewItemProps<ID, R, DR>) => {
     const value = (record as any)[property.tsName];
 
@@ -49,12 +45,7 @@ export const ViewItem = observer(
         <Text size="sm" fw={550}>
           <MultiLingualString value={property.label} />
         </Text>
-        <DisplayComponent
-          db={store.db}
-          entityRoutes={entityRoutes}
-          property={property}
-          value={value}
-        />
+        <DisplayComponent db={store.db} property={property} value={value} />
       </div>
     );
   }

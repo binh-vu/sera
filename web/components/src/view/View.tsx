@@ -13,7 +13,6 @@ import { Grid, Stack } from "@mantine/core";
 import {
   DataType2DisplayComponent,
   DisplayInterface,
-  EntityRoutes,
   MultiForeignKeyDisplay,
   SingleForeignKeyDisplay,
 } from "../data/display";
@@ -65,9 +64,6 @@ export interface SeraViewProps<
   // styling for the form
   styles?: React.CSSProperties;
   className?: string;
-
-  // entity routes for foreign key navigation
-  entityRoutes: EntityRoutes;
 }
 
 export const SeraView = <
@@ -84,14 +80,7 @@ export const SeraView = <
 
   const viewItems = useMemo(() => {
     return props.fieldGroups.map((group, index) => {
-      return makeFieldGroup(
-        schema,
-        props.store,
-        props.record,
-        index,
-        group,
-        props.entityRoutes
-      );
+      return makeFieldGroup(schema, props.store, props.record, index, group);
     });
   }, [schema, props.store, props.record, props.fieldGroups]);
 
@@ -114,8 +103,7 @@ function makeFieldGroup<
   store: Table<ID, R, DR>,
   record: R,
   key: string | number,
-  group: FieldGroup<ID, R, DR, PF, F, ST>,
-  entityRoutes: EntityRoutes
+  group: FieldGroup<ID, R, DR, PF, F, ST>
 ) {
   const fields = group.fields;
   const cols = [];
@@ -141,7 +129,6 @@ function makeFieldGroup<
             record={record}
             property={prop}
             DisplayComponent={displayComponent}
-            entityRoutes={entityRoutes}
           />
         );
       } else {
@@ -168,7 +155,6 @@ function makeFieldGroup<
             record={record}
             property={prop}
             DisplayComponent={displayComponent}
-            entityRoutes={entityRoutes}
           />
         );
       }
@@ -194,7 +180,6 @@ export function makeFieldDisplay<
   DR extends DraftRecord<ID>
 >(
   props: (DataProperty | ObjectProperty)[],
-  entityRoutes: EntityRoutes,
   display?: React.ComponentType<DisplayInterface<any>>
 ): (store: Table<ID, R, DR>, record: R) => React.ReactNode {
   const property = props[props.length - 1];
@@ -222,7 +207,6 @@ export function makeFieldDisplay<
         record={record}
         properties={props}
         DisplayComponent={displayComponent}
-        entityRoutes={entityRoutes}
       />
     );
   };

@@ -7,12 +7,16 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
-import { useNavigate } from "react-router";
 import { IconInfoCircle } from "@tabler/icons-react";
+import { NavigateFunction } from "../types";
 
-export const NotFound = ({ message }: { message?: string }) => {
-  const navigate = useNavigate();
-
+export const NotFound = ({
+  message,
+  navigate,
+}: {
+  message?: string;
+  navigate: NavigateFunction;
+}) => {
   return (
     <Container
       size="xs"

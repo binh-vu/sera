@@ -1,10 +1,11 @@
-import { useEffect, useMemo } from "react";
-import { DisplayInterface, EntityRoute, EntityRoutes } from ".";
+import { useContext, useEffect, useMemo } from "react";
+import { DisplayInterface } from ".";
 import { observer } from "mobx-react-lite";
 import { DB, ObjectProperty } from "sera-db";
-import { InternalLink } from "sera-route";
 import { Group, Text } from "@mantine/core";
 import { NotFoundInline } from "../../basic/Transition";
+import { EntityRoute, EntityRoutes } from "../../types";
+import { SeraContext } from "../../sera-context";
 
 function useForeignKeyDisplay<ID extends string | number>(
   db: DB,
@@ -23,7 +24,7 @@ function useForeignKeyDisplay<ID extends string | number>(
   for (const id of ids) {
     records[id] = table.get(id);
   }
-  return [records, route];
+  return [records, route.view];
 }
 
 export const SingleForeignKeyDisplay = observer(
@@ -31,8 +32,9 @@ export const SingleForeignKeyDisplay = observer(
     db,
     property,
     value,
-    entityRoutes,
   }: DisplayInterface<ID>) => {
+    const { link: Link, entityRoutes } = useContext(SeraContext);
+
     const ids = useMemo(() => {
       return [value];
     }, [value]);
@@ -58,25 +60,20 @@ export const SingleForeignKeyDisplay = observer(
     }
 
     return (
-      <InternalLink
-        path={route}
-        openInNewPage={false}
-        urlArgs={{ id: record.id }}
-        queryArgs={{}}
-      >
+      <Link path={route} openInNewPage={false} urlArgs={{ id: record.id }}>
         {record.name}
-      </InternalLink>
+      </Link>
     );
   }
 );
-
 export const MultiForeignKeyDisplay = observer(
   <ID extends string | number>({
     db,
     property,
     value,
-    entityRoutes,
   }: DisplayInterface<ID[]>) => {
+    const { link: Link, entityRoutes } = useContext(SeraContext);
+
     const [records, route] = useForeignKeyDisplay(
       db,
       property as ObjectProperty,
@@ -107,15 +104,14 @@ export const MultiForeignKeyDisplay = observer(
             );
           }
           return (
-            <InternalLink
+            <Link
               key={index}
               path={route}
               openInNewPage={false}
               urlArgs={{ id: record.id }}
-              queryArgs={{}}
             >
               {record.name}
-            </InternalLink>
+            </Link>
           );
         })}
       </Group>

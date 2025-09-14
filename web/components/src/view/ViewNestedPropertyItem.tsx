@@ -8,7 +8,7 @@ import {
 } from "sera-db";
 import { Text } from "@mantine/core";
 import { MultiLingualString } from "../basic";
-import { DisplayInterface, EntityRoutes } from "../data";
+import { DisplayInterface } from "../data";
 
 export interface ViewNestedPropertyItemProps<
   ID extends string | number,
@@ -25,9 +25,6 @@ export interface ViewNestedPropertyItemProps<
 
   /// The component used to render the field
   DisplayComponent: React.ComponentType<DisplayInterface<any>>;
-
-  // entity routes for foreign key navigation
-  entityRoutes: EntityRoutes;
 }
 
 /**
@@ -71,7 +68,6 @@ export const ViewNestedPropertyItem = observer(
     record,
     properties,
     DisplayComponent,
-    entityRoutes,
   }: ViewNestedPropertyItemProps<ID, R, DR>) => {
     const prop = properties[properties.length - 1];
     const value = properties.reduce((currentValue, property) => {
@@ -87,12 +83,7 @@ export const ViewNestedPropertyItem = observer(
           <MultiLingualString value={prop.label} />
         </Text>
         {value !== undefined && (
-          <DisplayComponent
-            db={store.db}
-            property={prop}
-            value={value}
-            entityRoutes={entityRoutes}
-          />
+          <DisplayComponent db={store.db} property={prop} value={value} />
         )}
       </div>
     );

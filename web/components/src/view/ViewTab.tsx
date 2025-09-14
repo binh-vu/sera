@@ -1,7 +1,6 @@
 import { DraftRecord, GenericRecord, Schema, SchemaType, Table } from "sera-db";
 import { Tabs } from "@mantine/core";
 import { FieldGroup, SeraView } from "./View";
-import { EntityRoutes } from "../data";
 
 export interface SeraViewTabProps<
   ID extends string | number,
@@ -30,9 +29,6 @@ export interface SeraViewTabProps<
   tabStyles?: React.CSSProperties;
 
   tabClassName?: string;
-
-  // entity routes for foreign key navigation
-  entityRoutes: EntityRoutes;
 }
 
 export const SeraViewTab = <
@@ -63,7 +59,6 @@ export const SeraViewTab = <
             fieldGroups={tab.fieldGroups}
             styles={props.tabStyles}
             className={props.tabClassName}
-            entityRoutes={props.entityRoutes}
           />
         </Tabs.Panel>
       ))}

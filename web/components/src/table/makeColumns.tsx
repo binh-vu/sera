@@ -15,7 +15,6 @@ import { MultiLingualString } from "../basic";
 import {
   DataType2DisplayComponent,
   DisplayInterface,
-  EntityRoutes,
   MultiForeignKeyDisplay,
   SingleForeignKeyDisplay,
 } from "../data/display";
@@ -41,7 +40,6 @@ export interface SeraColumn<R> {
  *
  * @template R - The type of the record/row data
  * @param db - The database instance used for data operations
- * @param entityRoutes - Configuration object containing routing information for entities
  * @param property - The data object property (DOP) that defines the column's data type and behavior
  * @param nestedKey - Optional string indicating if this is a nested property path
  * @returns A SeraColumn configuration object with key, title, accessor function, and render component
@@ -62,7 +60,6 @@ export interface SeraColumn<R> {
  */
 export function makeTableColumn<R>(
   db: DB,
-  entityRoutes: EntityRoutes,
   property: DOP,
   {
     title,
@@ -100,14 +97,7 @@ export function makeTableColumn<R>(
     },
     render: (record: any) => {
       const value = record[property.tsName];
-      return (
-        <Component
-          db={db}
-          property={property}
-          value={value}
-          entityRoutes={entityRoutes}
-        />
-      );
+      return <Component db={db} property={property} value={value} />;
     },
   };
 
@@ -117,14 +107,7 @@ export function makeTableColumn<R>(
     };
     cfg.render = (record: any) => {
       const value = record[nestedKey][property.tsName];
-      return (
-        <Component
-          db={db}
-          property={property}
-          value={value}
-          entityRoutes={entityRoutes}
-        />
-      );
+      return <Component db={db} property={property} value={value} />;
     };
   }
 
@@ -133,7 +116,6 @@ export function makeTableColumn<R>(
 
 export function makeTableColumnFromNestedProperty<R>(
   db: DB,
-  entityRoutes: EntityRoutes,
   property: DOP,
   nestedProperty: DOP,
   {
@@ -175,14 +157,7 @@ export function makeTableColumnFromNestedProperty<R>(
     },
     render: (record: any) => {
       const value = record[property.tsName][nestedProperty.tsName];
-      return (
-        <Component
-          db={db}
-          property={nestedProperty}
-          value={value}
-          entityRoutes={entityRoutes}
-        />
-      );
+      return <Component db={db} property={nestedProperty} value={value} />;
     },
   };
 
@@ -192,14 +167,7 @@ export function makeTableColumnFromNestedProperty<R>(
     };
     cfg.render = (record: any) => {
       const value = record[nestedKey][property.tsName][nestedProperty.tsName];
-      return (
-        <Component
-          db={db}
-          property={nestedProperty}
-          value={value}
-          entityRoutes={entityRoutes}
-        />
-      );
+      return <Component db={db} property={nestedProperty} value={value} />;
     };
   }
 
@@ -217,7 +185,6 @@ export function makeTableColumns<
 >(
   db: DB,
   schema: Schema<ID, R, DR, PF, F, ST> | EmbeddedSchema<R, DR, PF, F>,
-  entityRoutes: EntityRoutes,
   selectedColumns: (PF | SeraColumn<OR>)[],
   options: { nestedKey?: string } = {}
 ): SeraColumn<OR>[] {
@@ -227,12 +194,7 @@ export function makeTableColumns<
       return columnDef;
     }
 
-    return makeTableColumn(
-      db,
-      entityRoutes,
-      schema.publicProperties[columnDef],
-      options
-    );
+    return makeTableColumn(db, schema.publicProperties[columnDef], options);
   });
 }
 
@@ -245,7 +207,6 @@ export function makeEmbeddedTableColumns<
 >(
   db: DB,
   schema: EmbeddedSchema<R, DR, PF, F>,
-  entityRoutes: EntityRoutes,
   selectedColumns: (PF | SeraColumn<OR>)[] = [],
   options: { nestedKey?: string } = {}
 ): SeraColumn<OR>[] {
@@ -254,12 +215,7 @@ export function makeEmbeddedTableColumns<
       // If it's already a SeraColumn, return it directly
       return columnDef;
     }
-    return makeTableColumn(
-      db,
-      entityRoutes,
-      schema.publicProperties[columnDef],
-      options
-    );
+    return makeTableColumn(db, schema.publicProperties[columnDef], options);
   });
 }
 

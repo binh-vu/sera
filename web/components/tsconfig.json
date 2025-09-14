@@ -5,9 +5,6 @@
       "sera-db": [
         "../db/src/index.ts"
       ],
-      "sera-route": [
-        "../route/src/index.ts"
-      ]
     },
   }
 }
