@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from copy import deepcopy
+from operator import index
 from pathlib import Path
 from typing import Sequence
 
@@ -30,6 +31,7 @@ from sera.models._property import (
     ForeignKeyOnDelete,
     ForeignKeyOnUpdate,
     GetSCPropValueFunc,
+    IndexType,
     ObjectPropDBInfo,
     ObjectProperty,
     PropDataAttrs,
@@ -150,7 +152,7 @@ def _parse_property(
 
     assert isinstance(prop, dict), prop
     if "datatype" in prop:
-        return DataProperty(
+        return_prop = DataProperty(
             name=prop_name,
             label=_parse_multi_lingual_string(prop.get("label", prop_name)),
             description=_parse_multi_lingual_string(prop.get("desc", "")),
@@ -164,6 +166,9 @@ def _parse_property(
                     is_indexed=db.get("is_indexed", False)
                     or db.get("is_unique", False)
                     or db.get("is_primary_key", False),
+                    index_type=(
+                        IndexType(db["index_type"]) if "index_type" in db else None
+                    ),
                     foreign_key=schema.classes.get(db.get("foreign_key")),
                 )
                 if "db" in prop
@@ -173,6 +178,10 @@ def _parse_property(
             default_value=_parse_default_value(prop.get("default_value", None)),
             default_factory=_parse_default_factory(prop.get("default_factory", None)),
         )
+        if return_prop.db is not None and return_prop.db.is_indexed:
+            if return_prop.db.index_type is None:
+                return_prop.db.index_type = IndexType.DEFAULT
+        return return_prop
 
     assert "target" in prop, prop
     return ObjectProperty(

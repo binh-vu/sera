@@ -22,6 +22,7 @@ from sera.models import (
     Cardinality,
     Class,
     DataProperty,
+    IndexType,
     ObjectProperty,
     Package,
     PyTypeWithDep,
@@ -1207,14 +1208,79 @@ def make_python_relational_model(
         )
 
         index_stmts = []
-        if len(cls.db.indices) > 0:
+
+        if len(cls.db.indices) > 0 or any(
+            isinstance(prop, DataProperty)
+            and prop.db is not None
+            and prop.db.is_indexed
+            and (
+                prop.db.index_type == IndexType.POSTGRES_FTS_SEVI
+                or prop.db.index_type == IndexType.POSTGRES_TRIGRAM
+            )
+            for prop in cls.properties.values()
+        ):
             program.import_("sqlalchemy.Index", True)
+
+            fts_index = []
+            for prop in cls.properties.values():
+                if (
+                    not isinstance(prop, DataProperty)
+                    or prop.db is None
+                    or not prop.db.is_indexed
+                ):
+                    continue
+                if prop.db.index_type == IndexType.POSTGRES_FTS_SEVI:
+                    fts_index.append(
+                        expr.ExprFuncCall(
+                            expr.ExprIdent("Index"),
+                            [
+                                expr.ExprConstant(
+                                    f"ix_{cls.db.table_name}_{get_property_name(prop)}_gin"
+                                ),
+                                expr.ExprFuncCall(
+                                    ident_manager.use("text"),
+                                    [
+                                        expr.ExprConstant(
+                                            f"to_tsvector('sevi', {get_property_name(prop)})"
+                                        )
+                                    ],
+                                ),
+                                PredefinedFn.keyword_assignment(
+                                    "postgresql_using", expr.ExprConstant("gin")
+                                ),
+                            ],
+                        )
+                    )
+                if prop.db.index_type == IndexType.POSTGRES_TRIGRAM:
+                    fts_index.append(
+                        expr.ExprFuncCall(
+                            expr.ExprIdent("Index"),
+                            [
+                                expr.ExprConstant(
+                                    f"ix_{cls.db.table_name}_{get_property_name(prop)}_gist"
+                                ),
+                                expr.ExprFuncCall(
+                                    expr.ExprIdent("text"),
+                                    [
+                                        expr.ExprConstant(
+                                            f"f_unaccent({get_property_name(prop)}) gist_trgm_ops(siglen=256)"
+                                        )
+                                    ],
+                                ),
+                                PredefinedFn.keyword_assignment(
+                                    "postgresql_using", expr.ExprConstant("gist")
+                                ),
+                            ],
+                        )
+                    )
+
             index_stmts.append(
                 stmt.DefClassVarStatement(
                     "_table_args__",
                     None,
                     PredefinedFn.tuple(
-                        [
+                        fts_index
+                        + [
                             expr.ExprFuncCall(
                                 expr.ExprIdent("Index"),
                                 [expr.ExprConstant(index.name)]
@@ -1317,7 +1383,8 @@ def make_python_relational_model(
                                 "unique", expr.ExprConstant(True)
                             )
                         )
-                    elif prop.db.is_indexed:
+                    elif prop.db.is_indexed and prop.db.index_type == IndexType.DEFAULT:
+                        # only add index=True for default index type
                         propvalargs.append(
                             PredefinedFn.keyword_assignment(
                                 "index", expr.ExprConstant(True)

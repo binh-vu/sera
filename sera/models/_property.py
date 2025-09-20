@@ -156,7 +156,7 @@ class DataPropDBInfo:
     is_unique: bool = False
     # whether this property is indexed or not
     is_indexed: bool = False
-    # type of the index if it is indexed
+    # type of the index if it is indexed --- if is_indexed is True, this must be not None
     index_type: Optional[IndexType] = None
     # this is used in conjunction with is_primary_key = True for the case of
     # extending a table with frequently updated properties. The value for the `foreign_key`

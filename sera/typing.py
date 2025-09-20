@@ -39,4 +39,5 @@ GLOBAL_IDENTS = {
     "UNSET": "sera.typing.UNSET",
     "ForeignKey": "sqlalchemy.ForeignKey",
     "Optional": "typing.Optional",
+    "text": "sqlalchemy.text",
 }
