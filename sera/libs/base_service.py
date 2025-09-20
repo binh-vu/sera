@@ -20,6 +20,7 @@ SqlResult = TypeVar("SqlResult", bound=Result)
 
 class QueryResult(NamedTuple, Generic[R]):
     records: Sequence[R]
+    extra_columns: Sequence[dict]
     total: Optional[int]
 
 
@@ -259,9 +260,8 @@ class BaseAsyncService(Generic[ID, R]):
                     full=join_condition.join_type == "full",
                 ).options(contains_eager(join_clause["contains_eager"]))
 
-                print(">>>", join_clause)
-
         cq = select(func.count()).select_from(q.subquery())
+        # TODO: remove sorted by if possible to reduce the query runtime.
         rq = q.limit(query.limit).offset(query.offset)
         records = self._process_result(await session.execute(rq)).scalars().all()
         if query.return_total:
