@@ -265,6 +265,8 @@ class Query(msgspec.Struct):
 
         deser_func = dataschema[cls.name].from_db
         output[cls.name] = [deser_func(record) for record in result.records]
+        # include extra columns such as fuzzy search scores
+        output.update(result.extra_columns)
 
         return output
 

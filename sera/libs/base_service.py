@@ -20,7 +20,7 @@ SqlResult = TypeVar("SqlResult", bound=Result)
 
 class QueryResult(NamedTuple, Generic[R]):
     records: Sequence[R]
-    extra_columns: Sequence[dict]
+    extra_columns: Mapping[str, Sequence]
     total: Optional[int]
 
 
@@ -105,15 +105,15 @@ class BaseAsyncService(Generic[ID, R]):
                 # A -> B is either 1:1 or N:1, we will store the foreign key is in A
                 # .join(B, A.<foreign_key> == B.id)
                 self.join_clauses[prop.name] = [
-                    {
-                        "class": target_tbl,
-                        "condition": getattr(
-                            target_tbl,
-                            assert_not_null(target_cls.get_id_property()).name,
-                        )
-                        == getattr(self.orm_cls, source_fk),
-                        "contains_eager": getattr(self.orm_cls, source_relprop),
-                    },
+                    #     {
+                    #         "class": target_tbl,
+                    #         "condition": getattr(
+                    #             target_tbl,
+                    #             assert_not_null(target_cls.get_id_property()).name,
+                    #         )
+                    #         == getattr(self.orm_cls, source_fk),
+                    #         "contains_eager": getattr(self.orm_cls, source_relprop),
+                    #     },
                 ]
 
     @classmethod
@@ -137,6 +137,7 @@ class BaseAsyncService(Generic[ID, R]):
             session: The database session
         """
         q = self._select()
+        extra_cols = []
 
         if len(query.fields) > 0:
             q = q.options(
@@ -202,6 +203,7 @@ class BaseAsyncService(Generic[ID, R]):
                     isinstance(clause_prop, DataProperty) and clause_prop.db is not None
                 )
                 clause_orm_field = getattr(self.orm_cls, clause.field)
+                extra_cols.append(f"{clause.field}_score")
 
                 if clause_prop.db.index_type == IndexType.POSTGRES_FTS_SEVI:
                     # fuzzy search is implemented using Postgres Full-Text Search
@@ -260,15 +262,29 @@ class BaseAsyncService(Generic[ID, R]):
                     full=join_condition.join_type == "full",
                 ).options(contains_eager(join_clause["contains_eager"]))
 
-        cq = select(func.count()).select_from(q.subquery())
-        # TODO: remove sorted by if possible to reduce the query runtime.
+        # Create count query without order_by clause to improve performance
+        cq = select(func.count()).select_from(q.order_by(None).subquery())
         rq = q.limit(query.limit).offset(query.offset)
-        records = self._process_result(await session.execute(rq)).scalars().all()
+
+        if len(extra_cols) == 0:
+            records = self._process_result(await session.execute(rq)).scalars().all()
+            extra_columns = {}
+        else:
+            records = []
+            raw_extra_columns = [[] for col in extra_cols]
+            for row in self._process_result(await session.execute(rq)):
+                records.append(row[0])
+                for i in range(len(extra_cols)):
+                    raw_extra_columns[i].append(row[i + 1])
+            extra_columns = {
+                col: raw_extra_columns[i] for i, col in enumerate(extra_cols)
+            }
+
         if query.return_total:
             total = (await session.execute(cq)).scalar_one()
         else:
             total = None
-        return QueryResult(records, total)
+        return QueryResult(records, extra_columns, total)
 
     async def get_by_id(self, id: ID, session: AsyncSession) -> Optional[R]:
         """Retrieving a record by ID."""
