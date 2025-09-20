@@ -10,8 +10,8 @@ from sqlalchemy.orm import contains_eager, load_only
 
 from sera.libs.base_orm import BaseORM
 from sera.libs.search_helper import Query, QueryOp
-from sera.misc import assert_not_null, to_snake_case
-from sera.models import Cardinality, Class, DataProperty, ObjectProperty
+from sera.misc import assert_isinstance, assert_not_null, to_snake_case
+from sera.models import Cardinality, Class, DataProperty, IndexType, ObjectProperty
 
 R = TypeVar("R", bound=BaseORM)
 ID = TypeVar("ID")  # ID of a class
@@ -36,6 +36,7 @@ class BaseAsyncService(Generic[ID, R]):
         self._cls_id_prop = getattr(self.orm_cls, self.id_prop.name)
         self.is_id_auto_increment = assert_not_null(self.id_prop.db).is_auto_increment
 
+        # mapping from property name to ORM class for object properties
         self.prop2orm: dict[str, type] = {
             prop.name: orm_classes[prop.target.name]
             for prop in cls.properties.values()
@@ -195,12 +196,59 @@ class BaseAsyncService(Generic[ID, R]):
                 q = q.where(~getattr(self.orm_cls, clause.field).in_(clause.value))
             else:
                 assert clause.op == QueryOp.fuzzy
-                # Assuming fuzzy search is implemented as a full-text search
-                q = q.where(
-                    func.to_tsvector(getattr(self.orm_cls, clause.field)).match(
-                        clause.value
-                    )
+                clause_prop = self.cls.properties[clause.field]
+                assert (
+                    isinstance(clause_prop, DataProperty) and clause_prop.db is not None
                 )
+                clause_orm_field = getattr(self.orm_cls, clause.field)
+
+                if clause_prop.db.index_type == IndexType.POSTGRES_FTS_SEVI:
+                    # fuzzy search is implemented using Postgres Full-Text Search
+                    # sevi is a custom text search configuration that we defined in `configs/postgres-fts.sql`
+                    q = q.where(
+                        func.to_tsvector("sevi", clause_orm_field).bool_op("@@")(
+                            func.plainto_tsquery("sevi", clause.value)
+                        )
+                    )
+                    # TODO: figure out which rank function is better
+                    # https://www.postgresql.org/docs/current/textsearch-controls.html#TEXTSEARCH-RANKING
+                    q = q.order_by(
+                        func.ts_rank_cd(
+                            func.to_tsvector("sevi", clause_orm_field),
+                            func.plainto_tsquery("sevi", clause.value),
+                        ).desc()
+                    )
+                    q = q.add_columns(
+                        func.ts_rank_cd(
+                            func.to_tsvector("sevi", clause_orm_field),
+                            func.plainto_tsquery("sevi", clause.value),
+                        ).label(f"{clause.field}_score")
+                    )
+                elif clause_prop.db.index_type == IndexType.POSTGRES_TRIGRAM:
+                    # fuzzy search is implemented using Postgres trigram index
+                    # using a custom function f_unaccent to ignore accents -- see `configs/postgres-fts.sql`
+                    q = q.where(
+                        func.f_unaccent(clause_orm_field).bool_op("%>")(
+                            func.f_unaccent(clause.value)
+                        )
+                    )
+                    q = q.order_by(
+                        func.f_unaccent(clause_orm_field).op("<->>")(
+                            func.f_unaccent(clause.value)
+                        )
+                    )
+                    q = q.add_columns(
+                        (
+                            1
+                            - func.f_unaccent(clause_orm_field).op("<->>")(
+                                func.f_unaccent(clause.value)
+                            )
+                        ).label(f"{clause.field}_score")
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"Fuzzy search is not implemented for index type {clause_prop.db.index_type}"
+                    )
 
         for join_condition in query.join_conditions:
             for join_clause in self.join_clauses[join_condition.prop]:

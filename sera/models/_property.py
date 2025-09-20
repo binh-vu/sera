@@ -16,6 +16,12 @@ if TYPE_CHECKING:
     from sera.models._class import Class
 
 
+class IndexType(str, Enum):
+    DEFAULT = "default"
+    POSTGRES_FTS_SEVI = "postgres_fts_sevi"
+    POSTGRES_TRIGRAM = "postgres_trigram"
+
+
 class ForeignKeyOnDelete(str, Enum):
     CASCADE = "cascade"
     SET_NULL = "set null"
@@ -150,6 +156,8 @@ class DataPropDBInfo:
     is_unique: bool = False
     # whether this property is indexed or not
     is_indexed: bool = False
+    # type of the index if it is indexed
+    index_type: Optional[IndexType] = None
     # this is used in conjunction with is_primary_key = True for the case of
     # extending a table with frequently updated properties. The value for the `foreign_key`
     # will be a target class. The cardinality is one-to-one, on target class deletion,

@@ -5,7 +5,7 @@ from typing import Optional
 
 from sera.misc import to_kebab_case, to_snake_case
 from sera.models._multi_lingual_string import MultiLingualString
-from sera.models._property import DataProperty, ObjectProperty
+from sera.models._property import DataProperty, IndexType, ObjectProperty
 
 
 @dataclass(kw_only=True)
@@ -13,6 +13,7 @@ class Index:
     name: str
     columns: list[str]
     unique: bool = False
+    index_type: IndexType = IndexType.DEFAULT
 
 
 @dataclass(kw_only=True)

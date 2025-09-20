@@ -253,9 +253,9 @@ class Query(msgspec.Struct):
             else:
                 if join_clause.join_type != "inner":
                     output[target_name].extend(
-                        deser_func((val := getattr(record, source_relprop)))
+                        deser_func(val)
                         for record in result.records
-                        if val is not None
+                        if (val := getattr(record, source_relprop)) is not None
                     )
                 else:
                     output[target_name].extend(

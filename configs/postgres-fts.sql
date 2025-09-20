@@ -19,3 +19,19 @@ ALTER TEXT SEARCH CONFIGURATION public.sevi
    ALTER MAPPING
       FOR word, numword, hword, numhword, hword_part, hword_numpart
       WITH unaccent, english_stem;
+
+-- Setup for Trigram search
+-- unaccent need to be patched to mark it as immutable to be used in index
+-- https://stackoverflow.com/questions/11005036/does-postgresql-support-accent-insensitive-collations/11007216#11007216
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE OR REPLACE FUNCTION public.immutable_unaccent(regdictionary, text)
+  RETURNS text
+  LANGUAGE c IMMUTABLE PARALLEL SAFE STRICT AS
+'$libdir/unaccent', 'unaccent_dict';
+
+CREATE OR REPLACE FUNCTION public.f_unaccent(text)
+  RETURNS text
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT
+RETURN public.immutable_unaccent(regdictionary 'public.unaccent', $1);
