@@ -183,4 +183,3 @@ class App:
     def name(self) -> str:
         """Get the name of the application"""
         return self.root.dir.name
-        return self.root.dir.name
