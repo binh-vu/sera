@@ -12,6 +12,7 @@ from codegen.models import (
     stmt,
 )
 
+from sera.make.py_backend.misc import get_python_property_name
 from sera.misc import (
     assert_isinstance,
     assert_not_null,
@@ -110,21 +111,21 @@ def make_python_data_model(
             ), "If value_pass_as_args is provided, record should not be used as a dummy value should be passed instead."
         else:
             value = PredefinedFn.attr_getter(record, expr.ExprIdent(prop.name))
+
+        propname = get_python_property_name(prop)
         if isinstance(prop, ObjectProperty) and prop.target.db is not None:
             if prop.cardinality.is_star_to_many():
                 value = PredefinedFn.map_list(
                     value,
                     lambda item: PredefinedFn.attr_getter(
-                        item, expr.ExprIdent(prop.name + "_id")
+                        item, expr.ExprIdent(propname)
                     ),
                 )
             else:
                 assert (
                     value_pass_as_args is None
                 ), "Cannot use value_pass_as_args for a single object property."
-                value = PredefinedFn.attr_getter(
-                    record, expr.ExprIdent(prop.name + "_id")
-                )
+                value = PredefinedFn.attr_getter(record, expr.ExprIdent(propname))
 
             target_idprop = assert_not_null(prop.target.get_id_property())
             conversion_fn = get_data_conversion(
@@ -147,10 +148,8 @@ def make_python_data_model(
         mode: Literal["create", "update"],
         prop: DataProperty | ObjectProperty,
     ):
-        if isinstance(prop, ObjectProperty) and prop.target.db is not None:
-            propname = prop.name + "_id"
-        else:
-            propname = prop.name
+        propname = get_python_property_name(prop)
+
         value = PredefinedFn.attr_getter(slf, expr.ExprIdent(propname))
         if isinstance(prop, ObjectProperty):
             if (
@@ -178,7 +177,7 @@ def make_python_data_model(
                         expr.ExprIdent(AssociationTable),
                         [
                             PredefinedFn.keyword_assignment(
-                                f"{prop.name}_id", conversion_fn(item)
+                                propname, conversion_fn(item)
                             )
                         ],
                     ),
@@ -235,6 +234,8 @@ def make_python_data_model(
         for prop in cls.properties.values():
             if prop.data.system_controlled is None:
                 continue
+
+            propname = get_python_property_name(prop)
 
             update_func = None
             if mode == "create":
@@ -294,7 +295,7 @@ def make_python_data_model(
 
             smt = stmt.AssignStatement(
                 PredefinedFn.attr_getter(
-                    expr.ExprIdent("self"), expr.ExprIdent(prop.name)
+                    expr.ExprIdent("self"), expr.ExprIdent(propname)
                 ),
                 epr,
             )
@@ -374,6 +375,7 @@ def make_python_data_model(
             ):
                 continue
 
+            propname = get_python_property_name(prop)
             if isinstance(prop, DataProperty):
                 pytype = prop.get_data_model_datatype().get_python_type().clone()
                 if len(prop.data.constraints) > 0:
@@ -419,21 +421,17 @@ def make_python_data_model(
                     )
 
                 cls_ast(
-                    stmt.DefClassVarStatement(
-                        prop.name, pytype.type, prop_default_value
-                    )
+                    stmt.DefClassVarStatement(propname, pytype.type, prop_default_value)
                 )
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
                     # if the target class is in the database, we expect the user to pass the foreign key for it.
-                    propname = prop.name + "_id"
                     pytype = (
                         assert_not_null(prop.target.get_id_property())
                         .get_data_model_datatype()
                         .get_python_type()
                     )
                 else:
-                    propname = prop.name
                     pytype = PyTypeWithDep(
                         f"Create{prop.target.name}",
                         [
@@ -561,6 +559,8 @@ def make_python_data_model(
             ):
                 continue
 
+            propname = get_python_property_name(prop)
+
             if isinstance(prop, DataProperty):
                 pytype = prop.get_data_model_datatype().get_python_type().clone()
 
@@ -605,13 +605,10 @@ def make_python_data_model(
                     )
 
                 cls_ast(
-                    stmt.DefClassVarStatement(
-                        prop.name, pytype.type, prop_default_value
-                    )
+                    stmt.DefClassVarStatement(propname, pytype.type, prop_default_value)
                 )
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
-                    propname = prop.name + "_id"
                     # if the target class is in the database, we expect the user to pass the foreign key for it.
                     pytype = (
                         assert_not_null(prop.target.get_id_property())
@@ -620,7 +617,6 @@ def make_python_data_model(
                     )
 
                 else:
-                    propname = prop.name
                     pytype = PyTypeWithDep(
                         f"Update{prop.target.name}",
                         [
@@ -686,7 +682,9 @@ def make_python_data_model(
                                     [
                                         PredefinedFn.attr_getter(
                                             expr.ExprIdent("self"),
-                                            expr.ExprIdent(prop.name),
+                                            expr.ExprIdent(
+                                                get_python_property_name(prop)
+                                            ),
                                         )
                                     ],
                                 )
@@ -750,7 +748,7 @@ def make_python_data_model(
                 # skip private fields as this is for APIs exchange
                 continue
 
-            propname = prop.name
+            propname = get_python_property_name(prop)
             if isinstance(prop, DataProperty):
                 pytype = prop.get_data_model_datatype().get_python_type()
                 if prop.is_optional:
@@ -759,10 +757,9 @@ def make_python_data_model(
                 for dep in pytype.deps:
                     program.import_(dep, True)
 
-                cls_ast(stmt.DefClassVarStatement(prop.name, pytype.type))
+                cls_ast(stmt.DefClassVarStatement(propname, pytype.type))
             elif isinstance(prop, ObjectProperty):
                 if prop.target.db is not None:
-                    propname = prop.name + "_id"
                     pytype = (
                         assert_not_null(prop.target.get_id_property())
                         .get_data_model_datatype()
@@ -823,12 +820,14 @@ def make_python_data_model(
             as_composite_args = [DeferredVar.simple("cls")]
             as_composite_null_condition = []
             for prop in cls.properties.values():
+                propname = get_python_property_name(prop)
+
                 assert (
                     not prop.data.is_private
-                ), f"Embedded classes should not have private properties: {cls.name}.{prop.name}"
-                as_composite_args.append(DeferredVar.simple(prop.name))
+                ), f"Embedded classes should not have private properties: {cls.name}.{propname}"
+                as_composite_args.append(DeferredVar.simple(propname))
                 as_composite_null_condition.append(
-                    expr.ExprIs(expr.ExprIdent(prop.name), expr.ExprConstant(None))
+                    expr.ExprIs(expr.ExprIdent(propname), expr.ExprConstant(None))
                 )
 
             # For simplicity, we assume that this embedded class can be used in a nullable field (check if all properties are None and return None).
@@ -855,7 +854,9 @@ def make_python_data_model(
                             expr.ExprIdent("cls"),
                             [
                                 from_db_type_conversion(
-                                    expr.ExprIdent(""), prop, expr.ExprIdent(prop.name)
+                                    expr.ExprIdent(""),
+                                    prop,
+                                    expr.ExprIdent(get_python_property_name(prop)),
                                 )
                                 for prop in cls.properties.values()
                             ],
@@ -945,12 +946,6 @@ def make_python_relational_model(
         reference_classes: A dictionary of class names to their references (e.g., the ones that are defined outside and used as referenced such as Tenant).
     """
     app = target_pkg.app
-
-    def get_property_name(prop: DataProperty | ObjectProperty):
-        if isinstance(prop, ObjectProperty):
-            if prop.target.db is not None:
-                return f"{prop.name}_id"
-        return prop.name
 
     def make_base(custom_types: Sequence[ObjectProperty]):
         """Make a base class for our database."""
@@ -1229,19 +1224,20 @@ def make_python_relational_model(
                     or not prop.db.is_indexed
                 ):
                     continue
+                propname = get_python_property_name(prop)
                 if prop.db.index_type == IndexType.POSTGRES_FTS_SEVI:
                     fts_index.append(
                         expr.ExprFuncCall(
                             expr.ExprIdent("Index"),
                             [
                                 expr.ExprConstant(
-                                    f"ix_{cls.db.table_name}_{get_property_name(prop)}_gin"
+                                    f"ix_{cls.db.table_name}_{propname}_gin"
                                 ),
                                 expr.ExprFuncCall(
                                     ident_manager.use("text"),
                                     [
                                         expr.ExprConstant(
-                                            f"to_tsvector('sevi', {get_property_name(prop)})"
+                                            f"to_tsvector('sevi', {propname})"
                                         )
                                     ],
                                 ),
@@ -1257,13 +1253,13 @@ def make_python_relational_model(
                             expr.ExprIdent("Index"),
                             [
                                 expr.ExprConstant(
-                                    f"ix_{cls.db.table_name}_{get_property_name(prop)}_gist"
+                                    f"ix_{cls.db.table_name}_{propname}_gist"
                                 ),
                                 expr.ExprFuncCall(
                                     expr.ExprIdent("text"),
                                     [
                                         expr.ExprConstant(
-                                            f"f_unaccent({get_property_name(prop)}) gist_trgm_ops(siglen=256)"
+                                            f"f_unaccent({propname}) gist_trgm_ops(siglen=256)"
                                         )
                                     ],
                                 ),
@@ -1286,7 +1282,7 @@ def make_python_relational_model(
                                 [expr.ExprConstant(index.name)]
                                 + [
                                     expr.ExprConstant(
-                                        get_property_name(cls.properties[prop])
+                                        get_python_property_name(cls.properties[prop])
                                     )
                                     for prop in index.columns
                                 ]
@@ -1496,7 +1492,7 @@ def make_python_relational_object_property(
             )
 
         # we store this class in the database
-        propname = f"{prop.name}_id"
+        propname = get_python_property_name(prop)
         idprop = prop.target.get_id_property()
         assert idprop is not None
         idprop_pytype = idprop.datatype.get_sqlalchemy_type()
