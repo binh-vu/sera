@@ -1,7 +1,7 @@
 import { isObjectProperty } from "sera-db";
 import { DisplayInterface } from ".";
 import { Text } from "@mantine/core";
-import { MultiLingualString } from "../../basic";
+import { MultiLingualString } from "../../misc";
 
 export const EnumDisplay = ({
   nestedProperty,

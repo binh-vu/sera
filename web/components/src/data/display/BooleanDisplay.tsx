@@ -1,6 +1,6 @@
 import { DisplayInterface } from ".";
 import { Checkbox } from "@mantine/core";
-import { MultiLingualString } from "../../basic";
+import { MultiLingualString } from "../../misc";
 
 const label = {
   yes: {

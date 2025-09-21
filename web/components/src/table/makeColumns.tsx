@@ -11,7 +11,7 @@ import {
   Schema,
   SchemaType,
 } from "sera-db";
-import { MultiLingualString } from "../basic";
+import { MultiLingualString } from "../misc";
 import {
   DataType2DisplayComponent,
   DisplayInterface,

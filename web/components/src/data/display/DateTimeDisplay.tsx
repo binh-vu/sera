@@ -1,7 +1,7 @@
 import { useContext, useMemo } from "react";
 import { DisplayInterface } from ".";
 import { Text } from "@mantine/core";
-import { LocaleContext } from "../../basic";
+import { LocaleContext } from "../../misc";
 
 function formatDate(locale: Intl.Locale, value: Date): string {
   const day = value.getDate().toString().padStart(2, "0");
