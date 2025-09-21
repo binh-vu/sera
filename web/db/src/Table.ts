@@ -341,7 +341,7 @@ export class Table<
 
     // Fetch from remote
     const conditions: QueryConditions<R> = {};
-    conditions[foreignKey] = foreignKeyValue;
+    conditions[foreignKey] = { op: "eq", value: foreignKeyValue };
 
     const result = await this.fetchOne(conditions);
     if (result === undefined) {
@@ -387,11 +387,11 @@ export class Table<
 
     // Fetch from remote
     const conditions: QueryConditions<R> = {};
-    conditions[foreignKey] = foreignKeyValue;
+    conditions[foreignKey] = { op: "eq", value: foreignKeyValue };
 
     const result = await this.fetch({
       offset: 0,
-      limit: 10000, // Use a reasonable default limit
+      limit: 1000, // Use a reasonable default limit
       conditions
     });
 
