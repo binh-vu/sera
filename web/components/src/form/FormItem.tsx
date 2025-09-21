@@ -11,7 +11,7 @@ import {
   validators,
 } from "sera-db";
 import { Grid, Group, Input, Stack, Tooltip } from "@mantine/core";
-import { MultiLingualString } from "../basic";
+import { MultiLingualString } from "../misc";
 import { InputInterface } from "../data/inputs";
 import { FormItemLabel } from "./FormItemLabel";
 

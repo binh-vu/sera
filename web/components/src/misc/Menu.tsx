@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { IconChevronRight } from "@tabler/icons-react";
 import { NavLink } from "@mantine/core";
-import { Trie } from "../misc";
+import { Trie } from "../utils";
 import { NavigateFunction, Permission, NoArgsRoute } from "../types";
 
 type MenuKey = string;

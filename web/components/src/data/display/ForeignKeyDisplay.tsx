@@ -3,7 +3,7 @@ import { DisplayInterface } from ".";
 import { observer } from "mobx-react-lite";
 import { DB, ObjectProperty } from "sera-db";
 import { Group, Text } from "@mantine/core";
-import { NotFoundInline } from "../../basic/Transition";
+import { NotFoundInline } from "../../misc/Transition";
 import { EntityRoute, EntityRoutes } from "../../types";
 import { SeraContext } from "../../sera-context";
 

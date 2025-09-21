@@ -55,7 +55,11 @@ class DataCollection:
         """Get the fields of this collection that can be used in join queries."""
         output = {}
         for prop in self.cls.properties.values():
-            if isinstance(prop, DataProperty) and prop.db.foreign_key is not None:
+            if (
+                isinstance(prop, DataProperty)
+                and prop.db is not None
+                and prop.db.foreign_key is not None
+            ):
                 # This property is a foreign key, so we add it to the output
                 output[prop.name] = DataCollection(
                     prop.db.foreign_key

@@ -4,29 +4,28 @@ import { DataProperty, ObjectProperty } from "./Schema";
 type DOP = DataProperty | ObjectProperty;
 
 /**
- * For each field, you can either choose to filter by exact value matching (typeof string, number, boolean),
- * or choose to be max of a group (records are grouped by multiple fields in the value (hence value is (keyof R)[])),
- * or choose to be greater, less than (gt, lt, gte, lte) than a value (number only), or choose to be in an array of
- * values (string[] or number[])
+ * For each field, you can either choose to:
+ *  - gt, lt, gte, lte than a value (number only)
+ *  - eq, ne, fuzzy for string 
+ *  - eq, ne for boolean
+ *  - in an array of values (string[] or number[])
  */
 export type QueryOp =
-  | string
-  | number
-  | boolean
-  | {
-    op: "gt" | "lt" | "gte" | "lte" | "in" | "eq" | "ne" | "not_in" | "fuzzy";
-    value: string | number | string[] | number[] | (string | number)[];
-  };
+  | { op: "eq" | "ne" | "fuzzy", value: string }
+  | { op: "gt" | "lt" | "gte" | "lte" | "eq" | "ne", value: number }
+  | { op: "eq" | "ne", value: boolean }
+  | { op: "in", value: string[] | number[] | (string | number)[] }
+  | { op: "not_in", value: string[] | number[] | (string | number)[] };
 
 export type QueryConditions<R> = Partial<Record<keyof R, QueryOp>>;
 
-export interface Query<R> {
+export interface Query<R, QC extends QueryConditions<R> = QueryConditions<R>> {
   limit: number;
   offset: number;
   /// List of fields to return in the result
   fields?: (keyof R)[];
   /// Conditions to filter the records
-  conditions?: QueryConditions<R>;
+  conditions?: QC;
   /// Whether to return unique records (no duplicates)
   unique?: boolean;
   /// Sort the records by a field or multiple fields, the order by default is asc
@@ -148,7 +147,7 @@ export class QueryProcessor<R> {
   }
 
   /// Prepare a query to send to the server
-  prepare(query: Query<R>): object {
+  prepare<QC extends QueryConditions<R>>(query: Query<R, QC>): object {
     let params: any = {
       limit: query.limit,
       offset: query.offset,

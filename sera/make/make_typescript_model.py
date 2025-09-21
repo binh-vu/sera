@@ -8,6 +8,7 @@ from codegen.models.var import DeferredVar
 from loguru import logger
 
 from sera.make.ts_frontend.make_class_schema import make_class_schema
+from sera.make.ts_frontend.make_query import make_query
 from sera.make.ts_frontend.misc import TS_GLOBAL_IDENTS, get_normalizer
 from sera.misc import (
     assert_isinstance,
@@ -1144,50 +1145,6 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
 
         outmod.write(program)
 
-    def make_query_processor(cls: Class, pkg: Package):
-        if not cls.is_public:
-            # skip classes that are not public
-            return
-
-        outmod = pkg.module(cls.name + "Query")
-
-        program = Program()
-        program.import_(f"@.models.{pkg.dir.name}.{cls.name}.{cls.name}", True)
-        program.import_(f"sera-db.QueryProcessor", True)
-
-        query_args = []
-        for prop in cls.properties.values():
-            pypropname = prop.name
-            tspropname = to_camel_case(prop.name)
-
-            if isinstance(prop, ObjectProperty) and prop.target.db is not None:
-                tspropname = tspropname + "Id"
-                pypropname = prop.name + "_id"
-
-            if tspropname != pypropname:
-                query_args.append(
-                    (
-                        expr.ExprIdent(tspropname),
-                        expr.ExprConstant(pypropname),
-                    )
-                )
-
-        program.root(
-            stmt.LineBreak(),
-            stmt.TypescriptStatement(
-                f"export const query = "
-                + expr.ExprNewInstance(
-                    expr.ExprIdent(f"QueryProcessor<{cls.name}>"),
-                    [
-                        PredefinedFn.dict(query_args),
-                    ],
-                ).to_typescript()
-                + ";",
-            ),
-        )
-
-        outmod.write(program)
-
     def make_index(pkg: Package):
         outmod = pkg.module("index")
         if outmod.exists():
@@ -1209,7 +1166,11 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         program.import_(
             f"@.models.{pkg.dir.name}.{cls.name}Schema.{cls.name}Schema", True
         )
+        program.import_(
+            f"@.models.{pkg.dir.name}.{cls.name}Query.{cls.name}Query", True
+        )
         export_types.append(f"{cls.name}Schema")
+        export_iso_types.append(f"{cls.name}Query")
         program.import_(
             f"@.models.{pkg.dir.name}.{cls.name}Schema.{cls.name}SchemaType", True
         )
@@ -1241,7 +1202,7 @@ def make_typescript_data_model(schema: Schema, target_pkg: Package):
         pkg = target_pkg.pkg(cls.get_tsmodule_name())
         make_normal(cls, pkg)
         make_draft(cls, pkg)
-        make_query_processor(cls, pkg)
+        make_query(schema, cls, pkg)
         make_table(cls, pkg)
         make_class_schema(schema, cls, pkg)
 

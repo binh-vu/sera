@@ -7,7 +7,7 @@ import {
   Table,
 } from "sera-db";
 import { Text } from "@mantine/core";
-import { MultiLingualString } from "../basic";
+import { MultiLingualString } from "../misc";
 import { DisplayInterface } from "../data";
 
 export interface ViewItemProps<

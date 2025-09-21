@@ -15,9 +15,9 @@ import {
   CountryFlag,
   CountryFlagComponent,
   countryFlags,
-} from "../../basic/CountryFlag";
-import { MultiLingualString } from "../../basic";
-import { Trie } from "../../misc";
+} from "../../misc/CountryFlag";
+import { MultiLingualString } from "../../misc";
+import { Trie } from "../../utils";
 
 const leadingZeroMessage: MLS = {
   lang2value: {
