@@ -2,17 +2,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from codegen.models import AST, ImportHelper, PredefinedFn, Program, expr, stmt
+from codegen.models import ImportHelper, expr
 
-from sera.models import (
-    Class,
-    DataProperty,
-    Enum,
-    ObjectProperty,
-    Package,
-    Schema,
-    TsTypeWithDep,
-)
+from sera.models import TsTypeWithDep
 
 TS_GLOBAL_IDENTS = {
     "normalizers.normalizeNumber": "sera-db.normalizers",
