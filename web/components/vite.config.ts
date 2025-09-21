@@ -44,7 +44,8 @@ export default defineConfig(({ mode }) => {
           "react-imask",
           "@tabler/icons-react",
           "sera-db",
-          "mobx-react-lite"
+          "mobx-react-lite",
+          "throttle-debounce",
         ],
         output: {
           // Provide global variables to use in the UMD build
@@ -58,6 +59,7 @@ export default defineConfig(({ mode }) => {
             "@tabler/icons-react": "@tabler/icons-react",
             "sera-db": "sera-db",
             "mobx-react-lite": "mobx-react-lite",
+            "throttle-debounce": "throttle-debounce",
           },
         },
       },
