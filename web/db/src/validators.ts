@@ -43,6 +43,7 @@ export function memoizeOneValidators<KV extends { [key: string]: ValueValidator 
  * - pattern: Value must match the regular expression pattern
  * 
  * @param constraints - Array of constraints to validate against
+ * @param is_optional - If true, the value can be empty string or undefined and will be considered valid
  * @returns A validation function that returns true if the value meets all constraints, false otherwise
  * @example
  * const validator = getValidator([
@@ -52,26 +53,39 @@ export function memoizeOneValidators<KV extends { [key: string]: ValueValidator 
  * validator('abc'); // returns true
  * validator(''); // returns false
  */
-export function getValidator(constraints: Constraint[]): ValueValidator {
+export function getValidator(constraints: Constraint[], is_optional: boolean): ValueValidator {
   if (constraints.length === 0) {
     return alwaysValid;
   }
 
+  let func;
+
   if (constraints.length === 1) {
-    return constraintToValidator(constraints[0]);
+    func = constraintToValidator(constraints[0]);
+  } else {
+    // For multiple constraints, create a composite validator for AND logic
+    func = (value: any): ValidationResult => {
+      for (const constraint of constraints) {
+        const validator = constraintToValidator(constraint);
+        const result = validator(value);
+        if (!result.isValid) {
+          return result;
+        }
+      }
+      return { isValid: true };
+    };
   }
 
-  // For multiple constraints, create a composite validator for AND logic
-  return (value: any): ValidationResult => {
-    for (const constraint of constraints) {
-      const validator = constraintToValidator(constraint);
-      const result = validator(value);
-      if (!result.isValid) {
-        return result;
+  if (is_optional) {
+    return (value: any | undefined): ValidationResult => {
+      if (value === undefined || (typeof value === "string" && value.trim() === "")) {
+        return { isValid: true };
       }
-    }
-    return { isValid: true };
-  };
+      return func(value);
+    };
+  }
+
+  return func;
 }
 
 export function constraintToValidator(constraint: Constraint): ValueValidator {
@@ -103,8 +117,9 @@ export function alwaysValid(_value: any): ValidationResult {
  * @param value - The value to validate.
  * @returns An object with `isValid` set to true if the value is not empty, false otherwise.
  */
-export function notEmpty(value: any): ValidationResult {
-  const isValid = value !== undefined && value !== null && value !== "";
+export function notEmpty(value: string): ValidationResult {
+  const isValid = value.trim() !== "";
+
   return {
     isValid,
     errorMessage: isValid ? undefined : new DynamicMultiLingualString("validator.not_empty"),
@@ -125,7 +140,7 @@ export function notEmpty(value: any): ValidationResult {
  *          - isValid: boolean indicating if the password meets all requirements
  *          - errorMessage: undefined if valid, otherwise a DynamicMultiLingualString with the error
  */
-export function validatePassword(value: any): ValidationResult {
+export function validatePassword(value: string): ValidationResult {
   const hasMinLength = value.length >= 8;
   const hasValidLength = value.length <= 32;
   const hasUppercase = /[A-Z]/.test(value);
@@ -156,7 +171,7 @@ export function validatePassword(value: any): ValidationResult {
  * const result = validateEmail("invalid-email");
  * // result: { isValid: false, errorMessage: DynamicMultiLingualString("validator.email") }
  */
-export function validateEmail(value: any): ValidationResult {
+export function validateEmail(value: string): ValidationResult {
   const isValid = validator.isEmail(value);
   return {
     isValid,
@@ -164,7 +179,7 @@ export function validateEmail(value: any): ValidationResult {
   };
 }
 
-export function validateURL(value: any): ValidationResult {
+export function validateURL(value: string): ValidationResult {
   const isValid = validator.isURL(value);
   return {
     isValid,
@@ -181,7 +196,7 @@ export function validateURL(value: any): ValidationResult {
  *   - isValid: boolean indicating if the value is a valid phone number
  *   - errorMessage: undefined if valid, otherwise a DynamicMultiLingualString with the error key
  */
-export function validatePhoneNumber(value: any): ValidationResult {
+export function validatePhoneNumber(value: string): ValidationResult {
   // Accept any locale for more flexible validation
   const isValid = validator.isMobilePhone(String(value), 'any');
   return {
@@ -202,8 +217,7 @@ export function validatePhoneNumber(value: any): ValidationResult {
  *   - isValid: boolean indicating if the username is valid
  *   - errorMessage: undefined if valid, or a DynamicMultiLingualString with error key if invalid
  */
-export function validateUsername(value: any): ValidationResult {
-
+export function validateUsername(value: string): ValidationResult {
   const regex = /^[a-zA-Z][a-zA-Z0-9-_.]{2,19}$/;
   const isValid = regex.test(value);
   return {
@@ -221,7 +235,15 @@ export function validateUsername(value: any): ValidationResult {
  *   - isValid: boolean indicating if the value is a positive number
  *   - errorMessage: undefined if valid, otherwise a DynamicMultiLingualString with the error key
  */
-export function validatePositiveNumber(value: any): ValidationResult {
+export function validatePositiveNumber(value: string | number): ValidationResult {
+  if (typeof value === "string" && value.trim() === "") {
+    // Empty string is considered empty value, thus invalid
+    return {
+      isValid: false,
+      errorMessage: new DynamicMultiLingualString("validator.positive_number"),
+    };
+  }
+
   const num = Number(value);
   const isValid = !isNaN(num) && isFinite(num) && num > 0;
   return {
@@ -239,7 +261,15 @@ export function validatePositiveNumber(value: any): ValidationResult {
  *   - isValid: boolean indicating if the value is a non-negative number
  *   - errorMessage: undefined if valid, otherwise a DynamicMultiLingualString with the error key
  */
-export function validateNonNegativeNumber(value: any): ValidationResult {
+export function validateNonNegativeNumber(value: string | number): ValidationResult {
+  if (typeof value === "string" && value.trim() === "") {
+    // Empty string is considered empty value, thus invalid
+    return {
+      isValid: false,
+      errorMessage: new DynamicMultiLingualString("validator.non_negative_number"),
+    };
+  }
+
   const num = Number(value);
   const isValid = !isNaN(num) && isFinite(num) && num >= 0;
   return {

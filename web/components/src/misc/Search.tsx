@@ -4,7 +4,7 @@ import {
   IconKeyboard,
   IconSearch,
 } from "@tabler/icons-react";
-import { useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 import { MultiLingualString as MLS } from "sera-db";
 import { debounce } from "throttle-debounce";
@@ -15,8 +15,6 @@ interface SearchInputProps {
   query?: string;
   // Callback when the query changes
   onChange: (query: string) => void;
-  // Callback when the advanced search button is clicked
-  onAdvancedSearchClick?: () => void;
   // Debounce time in milliseconds
   debounceTime?: number;
   // Customizable search text in the placeholder, this goes before the searchField
@@ -35,11 +33,42 @@ const DEFAULT_SEARCH_TEXT: MLS = {
   lang: "en",
 };
 
+export const SearchComponentContext = createContext({
+  hasAdvancedSearch: false,
+  setHasAdvancedSearch: (value: boolean) => {},
+  isAdvancedSearchOpen: false,
+  toggleAdvancedSearch: () => {},
+});
+
+export const SeraSearch = (props: {
+  hasAdvancedSearch?: boolean;
+  children: React.ReactNode;
+}) => {
+  const [hasAdvancedSearch, setHasAdvancedSearch] = useState(
+    props.hasAdvancedSearch || false
+  );
+  const [isAdvancedSearchOpen, setIsAdvancedSearchOpen] = useState(false);
+
+  return (
+    <SearchComponentContext.Provider
+      value={{
+        hasAdvancedSearch,
+        setHasAdvancedSearch,
+        isAdvancedSearchOpen,
+        toggleAdvancedSearch: () => {
+          setIsAdvancedSearchOpen(!isAdvancedSearchOpen);
+        },
+      }}
+    >
+      {props.children}
+    </SearchComponentContext.Provider>
+  );
+};
+
 /// An input component for full-text search with debounce functionality.
 export const SearchInput = ({
   query,
   onChange,
-  onAdvancedSearchClick,
   debounceTime = 250,
   searchText,
   searchField,
@@ -47,6 +76,9 @@ export const SearchInput = ({
   const [value, setValue] = useState(query);
   const [isDelaying, setIsDelaying] = useState(false);
   const locale = useContext(LocaleContext);
+  const { hasAdvancedSearch, toggleAdvancedSearch } = useContext(
+    SearchComponentContext
+  );
 
   // Create a debounced version of the onChange handler
   const debouncedOnChange = useMemo(() => {
@@ -69,6 +101,10 @@ export const SearchInput = ({
     };
   }, [setValue, setIsDelaying, debouncedOnChange]);
 
+  if (searchText === undefined && searchField !== undefined) {
+    searchText = DEFAULT_SEARCH_TEXT;
+  }
+
   let placeholder = "";
   if (searchText !== undefined) {
     placeholder =
@@ -90,12 +126,12 @@ export const SearchInput = ({
       placeholder={placeholder}
       leftSection={isDelaying ? keyboardIcon : searchIcon}
       rightSection={
-        onAdvancedSearchClick !== undefined && (
+        hasAdvancedSearch && (
           <IconAdjustmentsHorizontal
             size={16}
             stroke={1.5}
             cursor={"pointer"}
-            onClick={onAdvancedSearchClick}
+            onClick={toggleAdvancedSearch}
           />
         )
       }
@@ -105,6 +141,20 @@ export const SearchInput = ({
   );
 };
 
-export const SearchPanel = ({}: {}) => {
+export const SearchPanel = ({}: {
+  // props: (Data)
+}) => {
+  const { setHasAdvancedSearch, isAdvancedSearchOpen } = useContext(
+    SearchComponentContext
+  );
+
+  useEffect(() => {
+    setHasAdvancedSearch(true);
+  }, []);
+
+  if (!isAdvancedSearchOpen) {
+    return <></>;
+  }
+
   return <div>SearchPanel</div>;
 };
