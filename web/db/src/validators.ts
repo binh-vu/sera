@@ -78,7 +78,7 @@ export function getValidator(constraints: Constraint[], is_optional: boolean): V
 
   if (is_optional) {
     return (value: any | undefined): ValidationResult => {
-      if (value === undefined || (typeof value === "string" && value.trim() === "")) {
+      if (isEmpty(value)) {
         return { isValid: true };
       }
       return func(value);
@@ -86,6 +86,10 @@ export function getValidator(constraints: Constraint[], is_optional: boolean): V
   }
 
   return func;
+}
+
+export function isEmpty(value: any | undefined): boolean {
+  return value === undefined || (typeof value === "string" && value.trim() === "");
 }
 
 export function constraintToValidator(constraint: Constraint): ValueValidator {

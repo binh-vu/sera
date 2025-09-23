@@ -587,7 +587,19 @@ def make_draft(
         is_empty_func.append(
             lambda ast14: ast14.func(
                 "isEmpty",
-            ),
+                [],
+                expr.ExprIdent("boolean"),
+                comment="Check if this draft is empty",
+            )(
+                stmt.ReturnStatement(
+                    expr.ExprRawTypescript(
+                        " && ".join(
+                            f"validators.isEmpty(this.{prop2tsname[prop.name]})"
+                            for prop in cls.properties.values()
+                        )
+                    )
+                )
+            )
         )
 
     program.root(
