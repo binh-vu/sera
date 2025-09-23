@@ -13,7 +13,6 @@ from sera.models import (
     Schema,
     TsTypeWithDep,
 )
-from sera.typing import is_set
 
 
 def make_class_schema(schema: Schema, cls: Class, pkg: Package):
