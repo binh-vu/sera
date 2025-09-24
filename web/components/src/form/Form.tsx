@@ -10,7 +10,7 @@ import {
   Table,
 } from "sera-db";
 import { Button, Fieldset, Grid, Group, Stack } from "@mantine/core";
-import { DataType2Component, InputInterface } from "../data/inputs";
+import { DataType2InputComponent, InputInterface } from "../data/inputs";
 import {
   MultiForeignKeyInput,
   SingleForeignKeyInput,
@@ -262,12 +262,12 @@ function makeFieldGroup<
             ? MultiForeignKeyInput
             : SingleForeignKeyInput;
       } else {
-        if (DataType2Component[prop.datatype] === undefined) {
+        if (DataType2InputComponent[prop.datatype] === undefined) {
           throw new Error(
             `No input component found for datatype ${prop.datatype}`
           );
         }
-        inputComponent = DataType2Component[prop.datatype]!;
+        inputComponent = DataType2InputComponent[prop.datatype]!;
       }
 
       cols.push(

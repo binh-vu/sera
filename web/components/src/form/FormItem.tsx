@@ -15,14 +15,14 @@ import { MultiLingualString } from "../misc";
 import { InputInterface } from "../data/inputs";
 import { FormItemLabel } from "./FormItemLabel";
 
-interface FormItemHorizontalLayout {
+export interface FormItemHorizontalLayout {
   type: "horizontal";
   labelCol: number;
   itemCol: number;
   align?: "left" | "right";
 }
 
-interface FormItemVerticalLayout {
+export interface FormItemVerticalLayout {
   type: "vertical";
   helpAlwaysVisible?: boolean;
 }

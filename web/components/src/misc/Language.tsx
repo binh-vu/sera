@@ -125,3 +125,9 @@ export const MultiLingualString = ({ value }: { value: MLS }) => {
   const locale = useContext(LocaleContext);
   return value.lang2value[locale.language] || value.lang2value[value.lang];
 };
+
+/// A hook to get the string value from a MultiLingualString based on the current locale
+export const useMultiLingualString = (value: MLS): string => {
+  const locale = useContext(LocaleContext);
+  return value.lang2value[locale.language] || value.lang2value[value.lang];
+};

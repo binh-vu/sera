@@ -39,6 +39,8 @@ export default defineConfig(({ mode }) => {
         external: [
           "@mantine/core",
           "@mantine/form",
+          "@mantine/dates",
+          "dayjs",
           "react",
           "react-dom",
           "react-imask",
@@ -53,6 +55,8 @@ export default defineConfig(({ mode }) => {
           globals: {
             "@mantine/core": "@mantine/core",
             "@mantine/form": "@mantine/form",
+            "@mantine/dates": "@mantine/dates",
+            "dayjs": "dayjs",
             "react": "React",
             "react-dom": "ReactDOM",
             "react-imask": "ReactIMask",

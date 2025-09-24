@@ -8,6 +8,8 @@ import { DataProperty, DataType, DB, ObjectProperty } from "sera-db";
 import { BooleanInput } from "./BooleanInput";
 import { NumberInput } from "./NumberInput";
 import { TextInput } from "./TextInput";
+export { SingleForeignKeyInput, MultiForeignKeyInput } from "./ForeignKeyInput";
+export { DateRangeInput } from "./DateRangeInput";
 
 /**
  * Interface for input components in forms
@@ -29,7 +31,7 @@ export type InputInterface<T> = {
 /**
  * Mapping of data types to their corresponding input components
  */
-export const DataType2Component: Partial<Record<DataType, React.FC<InputInterface<any>>>> = {
+export const DataType2InputComponent: Partial<Record<DataType, React.FC<InputInterface<any>>>> = {
   integer: NumberInput,
   float: NumberInput,
   string: TextInput,
@@ -37,3 +39,5 @@ export const DataType2Component: Partial<Record<DataType, React.FC<InputInterfac
   "string[]": TextInput,
   enum: TextInput,
 };
+
+export { NumberInput, BooleanInput, TextInput };
