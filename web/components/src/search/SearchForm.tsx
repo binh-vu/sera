@@ -1,4 +1,4 @@
-import { Button, Grid, Group, Stack } from "@mantine/core";
+import { Button, Grid, Group, Input, Stack } from "@mantine/core";
 import { useMemo, useState } from "react";
 
 import {
@@ -7,6 +7,7 @@ import {
   isObjectProperty,
   MultiLingualString as MLS,
   ObjectProperty,
+  validators,
 } from "sera-db";
 import { FormItemHorizontalLayout, FormItemLabel } from "../form";
 import { MultiLingualString } from "../misc";
@@ -24,6 +25,8 @@ export interface SearchFormItemProps {
   InputComponent?:
     | React.FC<InputInterface<any>>
     | React.ComponentType<InputInterface<any>>;
+  /// validator function for the form item
+  validator?: validators.ValueValidator;
   layout: FormItemHorizontalLayout;
   value: any;
   onChange: (value: any) => void;
@@ -34,6 +37,7 @@ export const SearchFormItem = ({
   property,
   InputComponent,
   layout,
+  validator,
   value,
   onChange,
 }: SearchFormItemProps) => {
@@ -53,6 +57,13 @@ export const SearchFormItem = ({
       InputComponent = DataType2SearchComponent[property.datatype]!;
     }
   }
+
+  const error = useMemo(() => {
+    if (validator === undefined) return undefined;
+
+    const res = validator(value);
+    return res.errorMessage?.t({ args: { name: property.label } });
+  }, [validator, value, property.label]);
 
   return (
     <Stack gap={5}>
@@ -84,6 +95,14 @@ export const SearchFormItem = ({
             onChange={onChange}
           />
         </Grid.Col>
+        {error !== undefined && (
+          <Grid gutter="sm">
+            <Grid.Col span={layout.labelCol} />
+            <Grid.Col span={layout.itemCol}>
+              <Input.Error>{error}</Input.Error>
+            </Grid.Col>
+          </Grid>
+        )}
       </Grid>
     </Stack>
   );

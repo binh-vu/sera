@@ -8,6 +8,7 @@ import { DataProperty, DataType, DB, ObjectProperty } from "sera-db";
 import { BooleanInput } from "./BooleanInput";
 import { NumberInput } from "./NumberInput";
 import { TextInput } from "./TextInput";
+import { DateInput } from "./DateInput";
 export { SingleForeignKeyInput, MultiForeignKeyInput } from "./ForeignKeyInput";
 export { DateRangeInput } from "./DateRangeInput";
 
@@ -38,6 +39,7 @@ export const DataType2InputComponent: Partial<Record<DataType, React.FC<InputInt
   boolean: BooleanInput,
   "string[]": TextInput,
   enum: TextInput,
+  date: DateInput,
 };
 
-export { NumberInput, BooleanInput, TextInput };
+export { NumberInput, BooleanInput, TextInput, DateInput };
