@@ -44,6 +44,9 @@ export const SearchFormItem = ({
   if (InputComponent === undefined) {
     // use default input component
     if (isObjectProperty(property)) {
+      if (property.isEmbedded) {
+        throw new Error("You should use nested property for embedded object");
+      }
       InputComponent =
         property.cardinality === "N:N" || property.cardinality === "1:N"
           ? MultiForeignKeyInput
@@ -60,7 +63,6 @@ export const SearchFormItem = ({
 
   const error = useMemo(() => {
     if (validator === undefined) return undefined;
-
     const res = validator(value);
     return res.errorMessage?.t({ args: { name: property.label } });
   }, [validator, value, property.label]);
@@ -95,15 +97,15 @@ export const SearchFormItem = ({
             onChange={onChange}
           />
         </Grid.Col>
-        {error !== undefined && (
-          <Grid gutter="sm">
-            <Grid.Col span={layout.labelCol} />
-            <Grid.Col span={layout.itemCol}>
-              <Input.Error>{error}</Input.Error>
-            </Grid.Col>
-          </Grid>
-        )}
       </Grid>
+      {error !== undefined && (
+        <Grid gutter="sm">
+          <Grid.Col span={layout.labelCol} />
+          <Grid.Col span={layout.itemCol}>
+            <Input.Error>{error}</Input.Error>
+          </Grid.Col>
+        </Grid>
+      )}
     </Stack>
   );
 };
@@ -127,6 +129,16 @@ export const SearchForm = ({
   const searchItems = useMemo(() => {
     const output = [];
     for (const prop of properties) {
+      let validator = undefined;
+
+      if (
+        prop.property.datatype === "date" ||
+        prop.property.datatype === "datetime"
+      ) {
+        // Date & DateTime search will have a validator that validate the start time is before the end time
+        validator = validators.validateTimeRange;
+      }
+
       output.push(
         <SearchFormItem
           key={prop.property.name}
@@ -138,6 +150,7 @@ export const SearchForm = ({
             setValue({ ...value, [prop.property.tsName]: val });
           }}
           layout={layout}
+          validator={validator}
         />
       );
     }

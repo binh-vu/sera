@@ -5,6 +5,7 @@
         "validator.email": "Email must be a valid email address",
         "validator.username": "Username must be between 3 and 20 characters, start with a letter, and contain only alphanumeric characters, hyphens, underscores, or periods",
         "validator.url": "URL must be a valid URL",
-        "validator.phone_number": "Phone number must be a valid phone number"
+        "validator.phone_number": "Phone number must be a valid phone number",
+        "validator.time_range": "The start time must be before the end time"
     }
 }

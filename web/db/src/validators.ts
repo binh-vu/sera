@@ -281,3 +281,23 @@ export function validateNonNegativeNumber(value: string | number): ValidationRes
     errorMessage: isValid ? undefined : new DynamicMultiLingualString("validator.non_negative_number"),
   };
 }
+
+/**
+ * Validates a time range by ensuring that the `from` date is not later than the `to` date.
+ *
+ * @param value - An optional object containing the time range to validate.
+ * @param value.from - The starting date of the time range (optional).
+ * @param value.to - The ending date of the time range (optional).
+ * @returns A `ValidationResult` object indicating whether the time range is valid.
+ *          - If valid, `isValid` is `true`.
+ *          - If invalid, `isValid` is `false` and `errorMessage` contains a localized error message.
+ */
+export function validateTimeRange(value: { from?: Date, to?: Date } | undefined): ValidationResult {
+  if (value?.from !== undefined && value?.to !== undefined && value.from > value.to) {
+    return {
+      isValid: false,
+      errorMessage: new DynamicMultiLingualString("validator.time_range"),
+    };
+  }
+  return { isValid: true };
+}
