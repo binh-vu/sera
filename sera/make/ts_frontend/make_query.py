@@ -96,29 +96,47 @@ def make_query(schema: Schema, cls: Class, pkg: Package):
         for dep in tstype.deps:
             program.import_(dep, is_import_attr=True)
 
+        query_ops = []
+
         if tstype.type == "string":
-            op = '"fuzzy"'
-        elif tstype.type in "number" or tstype.type == "Date":
-            op = '"eq" | "ne" | "lt" | "lte" | "gt" | "gte"'
+            query_ops.append(('"fuzzy"', tstype.type))
+        elif tstype.type == "number":
+            if (
+                isinstance(prop, DataProperty)
+                and prop.db is not None
+                and prop.db.is_primary_key
+            ) or (isinstance(prop, ObjectProperty) and prop.target.db is not None):
+                # primary key or foreign key, we only support a limited set of operations
+                query_ops.append(('"eq" | "ne"', tstype.type))
+            else:
+                query_ops.append(
+                    ('"eq" | "ne" | "lt" | "lte" | "gt" | "gte"', tstype.type)
+                )
+                query_ops.append(('"bti"', "[number, number]"))
         elif tstype.is_enum_type():
-            op = '"eq" | "ne"'
+            query_ops.append(('"eq" | "ne"', tstype.type))
+        elif tstype.type == "Date":
+            # for date type, we use iso string as the value
+            query_ops.append(('"eq" | "ne" | "lt" | "lte" | "gt" | "gte"', "string"))
+            query_ops.append(('"bti"', "[string, string]"))
         else:
             raise NotImplementedError(tstype.type)
-
-        if tstype.type == "Date":
-            # for date type, we use timestamp (number) for comparison
-            value = "number"
-        else:
-            value = tstype.type
 
         query_condition_args.append(
             (
                 expr.ExprIdent(tspropname + "?"),
-                PredefinedFn.dict(
-                    [
-                        (expr.ExprIdent("op"), expr.ExprIdent(op)),
-                        (expr.ExprIdent("value"), expr.ExprIdent(value)),
-                    ]
+                expr.ExprRawTypescript(
+                    " | ".join(
+                        [
+                            PredefinedFn.dict(
+                                [
+                                    (expr.ExprIdent("op"), expr.ExprIdent(op)),
+                                    (expr.ExprIdent("value"), expr.ExprIdent(value)),
+                                ]
+                            ).to_typescript()
+                            for op, value in query_ops
+                        ]
+                    )
                 ),
             )
         )

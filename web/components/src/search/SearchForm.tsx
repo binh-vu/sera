@@ -1,5 +1,5 @@
 import { Button, Grid, Group, Input, Stack } from "@mantine/core";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   DataProperty,
@@ -146,6 +146,7 @@ export interface SearchFormProps {
   styles?: React.CSSProperties;
   className?: string;
   onChange: (value: QueryConditions<any>) => void;
+  queryConditions: QueryConditions<any>;
 }
 
 export const SearchForm = ({
@@ -155,8 +156,45 @@ export const SearchForm = ({
   className,
   layout,
   onChange,
+  queryConditions,
 }: SearchFormProps) => {
   const [value, setValue] = useState<any>({});
+
+  useEffect(() => {
+    const newvalue: any = {};
+    for (const prop of properties) {
+      const condition = queryConditions[prop.property.tsName];
+      if (condition === undefined) continue;
+
+      if (
+        prop.property.datatype === "date" ||
+        prop.property.datatype === "datetime"
+      ) {
+        if (condition.op === "bti") {
+          newvalue[prop.property.tsName] = {
+            start: condition.value[0]
+              ? new Date(condition.value[0])
+              : undefined,
+            end: condition.value[1] ? new Date(condition.value[1]) : undefined,
+          };
+        } else if (condition.op === "gte") {
+          newvalue[prop.property.tsName] = {
+            start: condition.value ? new Date(condition.value) : undefined,
+            end: undefined,
+          };
+        } else if (condition.op === "lte") {
+          newvalue[prop.property.tsName] = {
+            start: undefined,
+            end: condition.value ? new Date(condition.value) : undefined,
+          };
+        }
+      } else {
+        newvalue[prop.property.tsName] = condition.value;
+      }
+    }
+
+    setValue(newvalue);
+  }, [properties, queryConditions]);
 
   const [searchItems, toQueryOps] = useMemo(() => {
     const output = [];
@@ -180,12 +218,12 @@ export const SearchForm = ({
           if (val.start !== undefined && val.end !== undefined) {
             return {
               op: "bti",
-              value: [val.start.getTime(), val.end.getTime()],
+              value: [val.start.toISOString(), val.end.toISOString()],
             };
           } else if (val.start !== undefined) {
-            return { op: "gte", value: val.start.getTime() };
+            return { op: "gte", value: val.start.toISOString() };
           } else if (val.end !== undefined) {
-            return { op: "lte", value: val.end.getTime() };
+            return { op: "lte", value: val.end.toISOString() };
           } else {
             return undefined;
           }

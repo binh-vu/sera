@@ -134,7 +134,6 @@ export const SeraSearch = ({
       shadow="md"
       opened={opened[0]}
       onDismiss={() => {
-        console.log("dismiss");
         setOpened([false, Date.now()]);
       }}
     >
@@ -175,6 +174,7 @@ export const SeraSearch = ({
           styles={advancedSearch.styles}
           className={advancedSearch.className}
           onChange={advancedSearch.onChange}
+          queryConditions={advancedSearch.queryConditions}
         />
       </Popover.Dropdown>
     </Popover>
