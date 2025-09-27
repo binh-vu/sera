@@ -44,7 +44,7 @@
     "react-dom": "^19.0.0",
     "react-imask": "^7.6.1",
     "react-router": "^7.7.1",
-    "sera-db": "^1.12.2",
+    "sera-db": "^1.12.6",
     "throttle-debounce": "^5.0.2",
     "dayjs": "^1.11.18"
   }

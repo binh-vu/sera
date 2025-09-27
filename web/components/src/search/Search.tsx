@@ -6,11 +6,10 @@ import {
 } from "@tabler/icons-react";
 import { useContext, useMemo, useState } from "react";
 
-import { DB, MultiLingualString as MLS, QueryConditions } from "sera-db";
+import { MultiLingualString as MLS } from "sera-db";
 import { debounce } from "throttle-debounce";
 import { LocaleContext } from "../misc/Locale";
-import { FormItemHorizontalLayout } from "../form";
-import { SearchForm, SearchFormItemProps, SearchFormProps } from "./SearchForm";
+import { SearchForm, SearchFormProps } from "./SearchForm";
 
 interface SearchInputProps {
   // The current value of the search input
