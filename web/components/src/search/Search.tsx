@@ -10,7 +10,7 @@ import { DB, MultiLingualString as MLS, QueryConditions } from "sera-db";
 import { debounce } from "throttle-debounce";
 import { LocaleContext } from "../misc/Locale";
 import { FormItemHorizontalLayout } from "../form";
-import { SearchForm, SearchFormItemProps } from "./SearchForm";
+import { SearchForm, SearchFormItemProps, SearchFormProps } from "./SearchForm";
 
 interface SearchInputProps {
   // The current value of the search input
@@ -25,15 +25,7 @@ interface SearchInputProps {
   searchField?: MLS;
 
   // advanced search configuration
-  advancedSearch?: {
-    db: DB;
-    properties: Pick<SearchFormItemProps, "property" | "InputComponent">[];
-    layout: FormItemHorizontalLayout;
-    // styling for the form
-    styles?: React.CSSProperties;
-    className?: string;
-    onChange?: (value: QueryConditions<any>) => void;
-  };
+  advancedSearch?: SearchFormProps;
 }
 
 const keyboardIcon = <IconKeyboard size={16} stroke={1.5} />;

@@ -130,6 +130,24 @@ export const SearchFormItem = ({
   );
 };
 
+export interface SearchFormProps {
+  db: DB;
+  properties: {
+    property: DataProperty | ObjectProperty;
+    /// The component used to render the input field
+    InputComponent?:
+      | React.FC<InputInterface<any>>
+      | React.ComponentType<InputInterface<any>>;
+    // We also need a converter that converts the item value into a query operation
+    toQueryOp?: (value: any) => QueryOp | undefined;
+  }[];
+  layout: FormItemHorizontalLayout;
+  // styling for the form
+  styles?: React.CSSProperties;
+  className?: string;
+  onChange: (value: QueryConditions<any>) => void;
+}
+
 export const SearchForm = ({
   db,
   properties,
@@ -137,18 +155,7 @@ export const SearchForm = ({
   className,
   layout,
   onChange,
-}: {
-  db: DB;
-  properties: (Pick<SearchFormItemProps<any>, "property" | "InputComponent"> & {
-    // We also need a converter that converts the item value into a query operation
-    toQueryOp: (value: any) => QueryOp | undefined;
-  })[];
-  layout: FormItemHorizontalLayout;
-  // styling for the form
-  styles?: React.CSSProperties;
-  className?: string;
-  onChange?: (value: QueryConditions<any>) => void;
-}) => {
+}: SearchFormProps) => {
   const [value, setValue] = useState<any>({});
 
   const [searchItems, toQueryOps] = useMemo(() => {
@@ -212,7 +219,7 @@ export const SearchForm = ({
         value[prop.property.tsName]
       );
     }
-    onChange?.(conditions);
+    onChange(conditions);
   };
 
   return (
