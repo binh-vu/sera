@@ -6,11 +6,10 @@ import {
 } from "@tabler/icons-react";
 import { useContext, useMemo, useState } from "react";
 
-import { DB, MultiLingualString as MLS } from "sera-db";
+import { MultiLingualString as MLS } from "sera-db";
 import { debounce } from "throttle-debounce";
 import { LocaleContext } from "../misc/Locale";
-import { FormItemHorizontalLayout } from "../form";
-import { SearchForm, SearchFormItemProps } from "./SearchForm";
+import { SearchForm, SearchFormProps } from "./SearchForm";
 
 interface SearchInputProps {
   // The current value of the search input
@@ -25,14 +24,7 @@ interface SearchInputProps {
   searchField?: MLS;
 
   // advanced search configuration
-  advancedSearch?: {
-    db: DB;
-    properties: Pick<SearchFormItemProps, "property" | "InputComponent">[];
-    layout: FormItemHorizontalLayout;
-    // styling for the form
-    styles?: React.CSSProperties;
-    className?: string;
-  };
+  advancedSearch?: SearchFormProps;
 }
 
 const keyboardIcon = <IconKeyboard size={16} stroke={1.5} />;
@@ -141,7 +133,6 @@ export const SeraSearch = ({
       shadow="md"
       opened={opened[0]}
       onDismiss={() => {
-        console.log("dismiss");
         setOpened([false, Date.now()]);
       }}
     >
@@ -181,6 +172,8 @@ export const SeraSearch = ({
           layout={advancedSearch.layout}
           styles={advancedSearch.styles}
           className={advancedSearch.className}
+          onChange={advancedSearch.onChange}
+          queryConditions={advancedSearch.queryConditions}
         />
       </Popover.Dropdown>
     </Popover>

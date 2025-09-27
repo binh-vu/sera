@@ -9,10 +9,16 @@ type DOP = DataProperty | ObjectProperty;
  *  - eq, ne, fuzzy for string 
  *  - eq, ne for boolean
  *  - in an array of values (string[] or number[])
+ *  - bti (between inclusive) for number
+ *  - bti (between inclusive) for date/datetime is represented as a ISO string
+ *  - gte, lte for date/datetime is represented as a ISO string
  */
 export type QueryOp =
   | { op: "eq" | "ne" | "fuzzy", value: string }
   | { op: "gt" | "lt" | "gte" | "lte" | "eq" | "ne", value: number }
+  | { op: "bti", value: [number, number] }
+  | { op: "bti", value: [string, string] }
+  | { op: "gte" | "lte", value: string }
   | { op: "eq" | "ne", value: boolean }
   | { op: "in", value: string[] | number[] | (string | number)[] }
   | { op: "not_in", value: string[] | number[] | (string | number)[] };
@@ -194,14 +200,15 @@ export class QueryProcessor<R> {
     const params: any = [];
     const it: [keyof R, QueryOp][] = Object.entries(conditions) as any;
 
-    for (let [field, opOrVal] of it) {
+    for (let [field, op] of it) {
       let serverField: string =
         this.renameField[field as keyof R] || (field as string);
 
-      if (typeof opOrVal === "object") {
-        params.push({ field: serverField, ...opOrVal });
+      if (op.op === "bti") {
+        params.push({ field: serverField, op: "gte", value: op.value[0] });
+        params.push({ field: serverField, op: "lte", value: op.value[1] });
       } else {
-        params.push({ field: serverField, op: "eq", value: opOrVal });
+        params.push({ field: serverField, ...op });
       }
     }
 

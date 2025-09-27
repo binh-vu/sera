@@ -4,17 +4,11 @@ import { Text } from "@mantine/core";
 import { LocaleContext } from "../../misc";
 
 function formatDate(locale: Intl.Locale, value: Date): string {
-  const day = value.getDate().toString().padStart(2, "0");
-  const month = (value.getMonth() + 1).toString().padStart(2, "0");
-  const year = value.getFullYear();
-
-  if (locale.baseName === "en-US") {
-    return `${month}/${day}/${year}`;
-  } else if (locale.baseName === "vi-VN") {
-    return `${day}/${month}/${year}`;
-  } else {
-    return `${month}/${day}/${year}`;
-  }
+  return value.toLocaleDateString(locale.baseName, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 }
 
 export const DateTimeDisplay = ({ value }: DisplayInterface<Date>) => {

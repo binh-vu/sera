@@ -1,5 +1,5 @@
-import { Button, Grid, Group, Stack } from "@mantine/core";
-import { useMemo, useState } from "react";
+import { Button, Grid, Group, Input, Stack } from "@mantine/core";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   DataProperty,
@@ -7,6 +7,9 @@ import {
   isObjectProperty,
   MultiLingualString as MLS,
   ObjectProperty,
+  QueryConditions,
+  QueryOp,
+  validators,
 } from "sera-db";
 import { FormItemHorizontalLayout, FormItemLabel } from "../form";
 import { MultiLingualString } from "../misc";
@@ -16,30 +19,54 @@ import {
   MultiForeignKeyInput,
   SingleForeignKeyInput,
 } from "../data/inputs/ForeignKeyInput";
+import { isEmpty } from "../../../db/src/validators";
 
-export interface SearchFormItemProps {
+export interface SearchFormItemProps<T> {
   db: DB;
   property: DataProperty | ObjectProperty;
   /// The component used to render the input field
   InputComponent?:
-    | React.FC<InputInterface<any>>
-    | React.ComponentType<InputInterface<any>>;
+    | React.FC<InputInterface<T>>
+    | React.ComponentType<InputInterface<T>>;
+  /// validator function for the form item
+  validator?: validators.ValueValidator;
   layout: FormItemHorizontalLayout;
-  value: any;
-  onChange: (value: any) => void;
+  /// value and onChange handler are set automatically by the form.
+  value: T;
+  onChange: (value: T) => void;
 }
+
+const UPDATE_BUTTON_TEXT: MLS = {
+  lang2value: {
+    en: "Update",
+    vi: "Cập Nhật",
+  },
+  lang: "en",
+};
+
+const CLEAR_BUTTON_TEXT: MLS = {
+  lang2value: {
+    en: "Clear",
+    vi: "Xóa",
+  },
+  lang: "en",
+};
 
 export const SearchFormItem = ({
   db,
   property,
   InputComponent,
   layout,
+  validator,
   value,
   onChange,
-}: SearchFormItemProps) => {
+}: SearchFormItemProps<any>) => {
   if (InputComponent === undefined) {
     // use default input component
     if (isObjectProperty(property)) {
+      if (property.isEmbedded) {
+        throw new Error("You should use nested property for embedded object");
+      }
       InputComponent =
         property.cardinality === "N:N" || property.cardinality === "1:N"
           ? MultiForeignKeyInput
@@ -53,6 +80,12 @@ export const SearchFormItem = ({
       InputComponent = DataType2SearchComponent[property.datatype]!;
     }
   }
+
+  const error = useMemo(() => {
+    if (validator === undefined) return undefined;
+    const res = validator(value);
+    return res.errorMessage?.t({ args: { name: property.label } });
+  }, [validator, value, property.label]);
 
   return (
     <Stack gap={5}>
@@ -85,9 +118,36 @@ export const SearchFormItem = ({
           />
         </Grid.Col>
       </Grid>
+      {error !== undefined && (
+        <Grid gutter="sm">
+          <Grid.Col span={layout.labelCol} />
+          <Grid.Col span={layout.itemCol}>
+            <Input.Error>{error}</Input.Error>
+          </Grid.Col>
+        </Grid>
+      )}
     </Stack>
   );
 };
+
+export interface SearchFormProps {
+  db: DB;
+  properties: {
+    property: DataProperty | ObjectProperty;
+    /// The component used to render the input field
+    InputComponent?:
+      | React.FC<InputInterface<any>>
+      | React.ComponentType<InputInterface<any>>;
+    // We also need a converter that converts the item value into a query operation
+    toQueryOp?: (value: any) => QueryOp | undefined;
+  }[];
+  layout: FormItemHorizontalLayout;
+  // styling for the form
+  styles?: React.CSSProperties;
+  className?: string;
+  onChange: (value: QueryConditions<any>) => void;
+  queryConditions: QueryConditions<any>;
+}
 
 export const SearchForm = ({
   db,
@@ -95,19 +155,83 @@ export const SearchForm = ({
   styles,
   className,
   layout,
-}: {
-  db: DB;
-  properties: Pick<SearchFormItemProps, "property" | "InputComponent">[];
-  layout: FormItemHorizontalLayout;
-  // styling for the form
-  styles?: React.CSSProperties;
-  className?: string;
-}) => {
+  onChange,
+  queryConditions,
+}: SearchFormProps) => {
   const [value, setValue] = useState<any>({});
 
-  const searchItems = useMemo(() => {
-    const output = [];
+  useEffect(() => {
+    const newvalue: any = {};
     for (const prop of properties) {
+      const condition = queryConditions[prop.property.tsName];
+      if (condition === undefined) continue;
+
+      if (
+        prop.property.datatype === "date" ||
+        prop.property.datatype === "datetime"
+      ) {
+        if (condition.op === "bti") {
+          newvalue[prop.property.tsName] = {
+            start: condition.value[0]
+              ? new Date(condition.value[0])
+              : undefined,
+            end: condition.value[1] ? new Date(condition.value[1]) : undefined,
+          };
+        } else if (condition.op === "gte") {
+          newvalue[prop.property.tsName] = {
+            start: condition.value ? new Date(condition.value) : undefined,
+            end: undefined,
+          };
+        } else if (condition.op === "lte") {
+          newvalue[prop.property.tsName] = {
+            start: undefined,
+            end: condition.value ? new Date(condition.value) : undefined,
+          };
+        }
+      } else {
+        newvalue[prop.property.tsName] = condition.value;
+      }
+    }
+
+    setValue(newvalue);
+  }, [properties, queryConditions]);
+
+  const [searchItems, toQueryOps] = useMemo(() => {
+    const output = [];
+    const toQueryOps: { [key: string]: (value: any) => QueryOp | undefined } =
+      {};
+
+    for (const prop of properties) {
+      let validator = undefined;
+      let toQueryOp: (value: any) => QueryOp | undefined = (val: any) => {
+        if (isEmpty(val)) return undefined;
+        return { op: "eq", value: val };
+      };
+
+      if (
+        prop.property.datatype === "date" ||
+        prop.property.datatype === "datetime"
+      ) {
+        // Date & DateTime search will have a validator that validate the start time is before the end time
+        validator = validators.validateTimeRange;
+        toQueryOp = (val: { start?: Date; end?: Date }) => {
+          if (val.start !== undefined && val.end !== undefined) {
+            return {
+              op: "bti",
+              value: [val.start.toISOString(), val.end.toISOString()],
+            };
+          } else if (val.start !== undefined) {
+            return { op: "gte", value: val.start.toISOString() };
+          } else if (val.end !== undefined) {
+            return { op: "lte", value: val.end.toISOString() };
+          } else {
+            return undefined;
+          }
+        };
+      }
+
+      toQueryOps[prop.property.tsName] = toQueryOp;
+
       output.push(
         <SearchFormItem
           key={prop.property.name}
@@ -119,21 +243,44 @@ export const SearchForm = ({
             setValue({ ...value, [prop.property.tsName]: val });
           }}
           layout={layout}
+          validator={validator}
         />
       );
     }
-    return output;
+    return [output, toQueryOps];
   }, [properties, value, setValue]);
+
+  const updateSearchForm = (value: any) => {
+    const conditions: QueryConditions<any> = {};
+    for (const prop of properties) {
+      conditions[prop.property.tsName] = toQueryOps[prop.property.tsName](
+        value[prop.property.tsName]
+      );
+    }
+    onChange(conditions);
+  };
 
   return (
     <Stack gap="sm" className={className} style={styles}>
       {searchItems}
       <Group gap="sm" justify="flex-end">
-        <Button variant="light" size="xs" color="gray">
-          Clear
+        <Button
+          variant="light"
+          size="xs"
+          color="gray"
+          onClick={() => {
+            setValue({});
+            updateSearchForm({});
+          }}
+        >
+          <MultiLingualString value={CLEAR_BUTTON_TEXT} />
         </Button>
-        <Button variant="light" size="xs">
-          Update
+        <Button
+          variant="light"
+          size="xs"
+          onClick={() => updateSearchForm(value)}
+        >
+          <MultiLingualString value={UPDATE_BUTTON_TEXT} />
         </Button>
       </Group>
     </Stack>
