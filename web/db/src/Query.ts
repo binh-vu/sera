@@ -9,10 +9,12 @@ type DOP = DataProperty | ObjectProperty;
  *  - eq, ne, fuzzy for string 
  *  - eq, ne for boolean
  *  - in an array of values (string[] or number[])
+ *  - bti (between inclusive) for number
  */
 export type QueryOp =
   | { op: "eq" | "ne" | "fuzzy", value: string }
   | { op: "gt" | "lt" | "gte" | "lte" | "eq" | "ne", value: number }
+  | { op: "bti", value: [number, number] }
   | { op: "eq" | "ne", value: boolean }
   | { op: "in", value: string[] | number[] | (string | number)[] }
   | { op: "not_in", value: string[] | number[] | (string | number)[] };

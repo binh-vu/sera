@@ -6,7 +6,7 @@ import {
 } from "@tabler/icons-react";
 import { useContext, useMemo, useState } from "react";
 
-import { DB, MultiLingualString as MLS } from "sera-db";
+import { DB, MultiLingualString as MLS, QueryConditions } from "sera-db";
 import { debounce } from "throttle-debounce";
 import { LocaleContext } from "../misc/Locale";
 import { FormItemHorizontalLayout } from "../form";
@@ -32,6 +32,7 @@ interface SearchInputProps {
     // styling for the form
     styles?: React.CSSProperties;
     className?: string;
+    onChange?: (value: QueryConditions<any>) => void;
   };
 }
 
@@ -181,6 +182,7 @@ export const SeraSearch = ({
           layout={advancedSearch.layout}
           styles={advancedSearch.styles}
           className={advancedSearch.className}
+          onChange={advancedSearch.onChange}
         />
       </Popover.Dropdown>
     </Popover>

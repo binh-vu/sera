@@ -4,18 +4,18 @@ import { DatePickerInput } from "@mantine/dates";
 import { Flex } from "@mantine/core";
 
 export const DateRangeInput: React.FC<
-  InputInterface<{ from?: Date; to?: Date } | undefined>
+  InputInterface<{ start?: Date; end?: Date } | undefined>
 > = ({ property, value, onChange }) => {
   return (
     <Flex gap="sm" justify="space-between" direction="row" align="center">
       <DatePickerInput
         id={property.tsName}
-        value={value?.from || null}
+        value={value?.start || null}
         onChange={(date) => {
           onChange({
-            from:
+            start:
               date === null ? undefined : dayjs(date).startOf("day").toDate(),
-            to: value?.to,
+            end: value?.end,
           });
         }}
         valueFormat="YYYY MMM DD"
@@ -27,11 +27,12 @@ export const DateRangeInput: React.FC<
       <span style={{ flexGrow: 0 }}>–</span>
       <DatePickerInput
         id={property.tsName}
-        value={value?.to || null}
+        value={value?.end || null}
         onChange={(date) => {
           onChange({
-            from: value?.from,
-            to: date === null ? undefined : dayjs(date).startOf("day").toDate(),
+            start: value?.start,
+            end:
+              date === null ? undefined : dayjs(date).startOf("day").toDate(),
           });
         }}
         valueFormat="YYYY MMM DD"
