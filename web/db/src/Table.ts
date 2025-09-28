@@ -152,7 +152,7 @@ export class Table<
   }
 
   /** Fetch records by query */
-  async fetch<S>(query: Query<R> | Query2J<R, S>): Promise<FetchResult<R>> {
+  async fetch<S, QC extends QueryConditions<R> = QueryConditions<R>>(query: Query<R, QC> | Query2J<R, S>): Promise<FetchResult<R>> {
     let preparedQuery: object;
 
     if ("joinConditions" in query) {
@@ -205,7 +205,7 @@ export class Table<
   }
 
   /** Fetch one record by query */
-  async fetchOne(conditions: QueryConditions<R>): Promise<R | undefined> {
+  async fetchOne<QC extends QueryConditions<R> = QueryConditions<R>>(conditions: QC): Promise<R | undefined> {
     const result = await this.fetch({ conditions, limit: 1, offset: 0 });
     return result.records[0];
   }

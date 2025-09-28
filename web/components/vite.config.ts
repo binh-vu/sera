@@ -20,7 +20,10 @@ export default defineConfig(({ mode }) => {
   })();
 
   return {
-    plugins: [dts({ tsconfigPath: "./tsconfig.build.json" })],
+    plugins: [dts({
+      tsconfigPath: "./tsconfig.build.json",
+      entryRoot: resolve(__dirname, 'src'),
+    })],
     resolve: {
       alias: {
         ...localLibraryAlias

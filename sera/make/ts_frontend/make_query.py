@@ -117,7 +117,7 @@ def make_query(schema: Schema, cls: Class, pkg: Package):
             query_ops.append(('"eq" | "ne"', tstype.type))
         elif tstype.type == "Date":
             # for date type, we use iso string as the value
-            query_ops.append(('"eq" | "ne" | "lt" | "lte" | "gt" | "gte"', "string"))
+            query_ops.append(('"lte" | "gte"', "string"))
             query_ops.append(('"bti"', "[string, string]"))
         else:
             raise NotImplementedError(tstype.type)
