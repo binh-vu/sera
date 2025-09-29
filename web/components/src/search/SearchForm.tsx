@@ -161,6 +161,86 @@ export function getNumberOfFilters(
   }, 0);
 }
 
+export function ReadableFilters({
+  properties,
+  queryConditions,
+}: {
+  properties: SearchFormProps["properties"];
+  queryConditions: QueryConditions<any>;
+}): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  for (const prop of properties) {
+    const condition = queryConditions[prop.property.tsName];
+    if (condition === undefined) continue;
+
+    if (
+      prop.property.datatype === "date" ||
+      prop.property.datatype === "datetime"
+    ) {
+      if (condition.op === "bti") {
+        parts.push(
+          <span key={`${prop.property.tsName}-start`}>
+            {condition.value[0]}
+          </span>
+        );
+        parts.push(<span key={`${prop.property.tsName}-start-op`}> ≤ </span>);
+        parts.push(
+          <MultiLingualString
+            key={`${prop.property.tsName}-label`}
+            value={prop.property.label}
+          />
+        );
+        parts.push(<span key={`${prop.property.tsName}-end-op`}> ≤ </span>);
+        parts.push(
+          <span key={`${prop.property.tsName}-end`}>{condition.value[1]}</span>
+        );
+      } else if (condition.op === "gte") {
+        parts.push(
+          <MultiLingualString
+            key={`${prop.property.tsName}-label`}
+            value={prop.property.label}
+          />
+        );
+        parts.push(<span key={`${prop.property.tsName}-op`}> ≥ </span>);
+        parts.push(
+          <span key={`${prop.property.tsName}-value`}>{condition.value}</span>
+        );
+      } else if (condition.op === "lte") {
+        parts.push(
+          <MultiLingualString
+            key={`${prop.property.tsName}-label`}
+            value={prop.property.label}
+          />
+        );
+        parts.push(<span key={`${prop.property.tsName}-op`}> ≤ </span>);
+        parts.push(
+          <span key={`${prop.property.tsName}-value`}>{condition.value}</span>
+        );
+      }
+    } else {
+      parts.push(
+        <MultiLingualString
+          key={`${prop.property.tsName}-label`}
+          value={prop.property.label}
+        />
+      );
+      if (condition.op === "eq") {
+        parts.push(<span key={`${prop.property.tsName}-op`}> = </span>);
+      } else {
+        parts.push(
+          <span key={`${prop.property.tsName}-op`}> {condition.op} </span>
+        );
+      }
+
+      parts.push(
+        <span key={`${prop.property.tsName}-value`}>{condition.value}</span>
+      );
+    }
+  }
+
+  return <>{parts}</>;
+}
+
 export const SearchForm = ({
   db,
   properties,

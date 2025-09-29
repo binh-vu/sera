@@ -1,10 +1,4 @@
-import {
-  ActionIcon,
-  Group,
-  Indicator,
-  Popover,
-  TextInput,
-} from "@mantine/core";
+import { ActionIcon, Text, Indicator, Popover, TextInput } from "@mantine/core";
 import {
   IconAdjustmentsHorizontal,
   IconCircleX,
@@ -16,7 +10,12 @@ import { useContext, useMemo, useState } from "react";
 import { MultiLingualString as MLS } from "sera-db";
 import { debounce } from "throttle-debounce";
 import { LocaleContext } from "../misc/Locale";
-import { getNumberOfFilters, SearchForm, SearchFormProps } from "./SearchForm";
+import {
+  getNumberOfFilters,
+  ReadableFilters,
+  SearchForm,
+  SearchFormProps,
+} from "./SearchForm";
 
 interface SearchInputProps {
   // The current value of the search input
@@ -130,44 +129,6 @@ export const SeraSearch = ({
     );
   }
 
-  const numAdvancedFilters = getNumberOfFilters(
-    advancedSearch.properties,
-    advancedSearch.queryConditions
-  );
-
-  let settingIcon = (
-    <ActionIcon variant="transparent" aria-label="Extra Filters">
-      <IconAdjustmentsHorizontal
-        size={16}
-        stroke={1.5}
-        cursor={"pointer"}
-        style={{
-          position: "relative",
-        }}
-        onClick={() => {
-          if (opened[1] + 200 >= Date.now()) {
-            // workaround to close the popover when clicking
-            // the icon again because mantine still detects that
-            // clicking the icon is outside the popover
-            return;
-          }
-          setOpened([true, Date.now()]);
-        }}
-      />
-    </ActionIcon>
-  );
-
-  // settingIcon = (
-  //   <Indicator
-  //     label={10}
-  //     // disabled={numAdvancedFilters === 0}
-  //     inline={true}
-  //     size={9}
-  //   >
-  //     {settingIcon}
-  //   </Indicator>
-  // );
-
   // otherwise, return the text input with advanced search popover
   return (
     <Popover
@@ -192,12 +153,37 @@ export const SeraSearch = ({
               <ActionIcon variant="transparent" aria-label="Clear Query">
                 <IconCircleX size={16} stroke={1.5} cursor={"pointer"} />
               </ActionIcon>
-              {settingIcon}
+              <ActionIcon variant="transparent" aria-label="Extra Filters">
+                <IconAdjustmentsHorizontal
+                  size={16}
+                  stroke={1.5}
+                  cursor={"pointer"}
+                  style={{
+                    position: "relative",
+                  }}
+                  onClick={() => {
+                    if (opened[1] + 200 >= Date.now()) {
+                      // workaround to close the popover when clicking
+                      // the icon again because mantine still detects that
+                      // clicking the icon is outside the popover
+                      return;
+                    }
+                    setOpened([true, Date.now()]);
+                  }}
+                />
+              </ActionIcon>
             </>
           }
           rightSectionWidth={68}
           value={value}
           onChange={onQueryChange}
+          description={
+            <ReadableFilters
+              properties={advancedSearch.properties}
+              queryConditions={advancedSearch.queryConditions}
+            />
+          }
+          inputWrapperOrder={["label", "input", "description", "error"]}
         />
       </Popover.Target>
       <Popover.Dropdown>
