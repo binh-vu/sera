@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   DataProperty,
   DB,
+  I18NStore,
   isObjectProperty,
   MultiLingualString as MLS,
   ObjectProperty,
@@ -12,7 +13,7 @@ import {
   validators,
 } from "sera-db";
 import { FormItemHorizontalLayout, FormItemLabel } from "../form";
-import { MultiLingualString } from "../misc";
+import { MultiLingualString, translateMultiLingualString } from "../misc";
 import { InputInterface } from "../data";
 import { DataType2SearchComponent } from "./search-input-components";
 import {
@@ -20,6 +21,8 @@ import {
   SingleForeignKeyInput,
 } from "../data/inputs/ForeignKeyInput";
 import { isEmpty } from "../../../db/src/validators";
+import { formatDate, formatDateTime } from "../data/display/DateTimeDisplay";
+import dayjs from "dayjs";
 
 export interface SearchFormItemProps<T> {
   db: DB;
@@ -161,84 +164,64 @@ export function getNumberOfFilters(
   }, 0);
 }
 
-export function ReadableFilters({
+const formatDateTimeWithoutSeconds = (locale: Intl.Locale, value: Date) =>
+  formatDateTime(locale, value, false);
+
+export function getReadableFilters({
   properties,
   queryConditions,
 }: {
   properties: SearchFormProps["properties"];
   queryConditions: QueryConditions<any>;
-}): React.ReactNode {
-  const parts: React.ReactNode[] = [];
+}): string {
+  const locale = I18NStore.getInstance().getLocale();
+
+  const parts: string[] = [];
   for (const prop of properties) {
     const condition = queryConditions[prop.property.tsName];
     if (condition === undefined) continue;
+
+    if (parts.length > 0) {
+      parts.push(" & ");
+    }
 
     if (
       prop.property.datatype === "date" ||
       prop.property.datatype === "datetime"
     ) {
+      const formatFn =
+        prop.property.datatype === "date"
+          ? formatDate
+          : formatDateTimeWithoutSeconds;
+
       if (condition.op === "bti") {
-        parts.push(
-          <span key={`${prop.property.tsName}-start`}>
-            {condition.value[0]}
-          </span>
-        );
-        parts.push(<span key={`${prop.property.tsName}-start-op`}> ≤ </span>);
-        parts.push(
-          <MultiLingualString
-            key={`${prop.property.tsName}-label`}
-            value={prop.property.label}
-          />
-        );
-        parts.push(<span key={`${prop.property.tsName}-end-op`}> ≤ </span>);
-        parts.push(
-          <span key={`${prop.property.tsName}-end`}>{condition.value[1]}</span>
-        );
+        parts.push(formatFn(locale, dayjs(condition.value[0]).toDate()));
+        parts.push(" ≤ ");
+        parts.push(translateMultiLingualString(locale, prop.property.label));
+        parts.push(" ≤ ");
+        parts.push(formatFn(locale, dayjs(condition.value[1]).toDate()));
       } else if (condition.op === "gte") {
-        parts.push(
-          <MultiLingualString
-            key={`${prop.property.tsName}-label`}
-            value={prop.property.label}
-          />
-        );
-        parts.push(<span key={`${prop.property.tsName}-op`}> ≥ </span>);
-        parts.push(
-          <span key={`${prop.property.tsName}-value`}>{condition.value}</span>
-        );
+        parts.push(translateMultiLingualString(locale, prop.property.label));
+        parts.push(" ≥ ");
+        parts.push(formatFn(locale, dayjs(condition.value).toDate()));
       } else if (condition.op === "lte") {
-        parts.push(
-          <MultiLingualString
-            key={`${prop.property.tsName}-label`}
-            value={prop.property.label}
-          />
-        );
-        parts.push(<span key={`${prop.property.tsName}-op`}> ≤ </span>);
-        parts.push(
-          <span key={`${prop.property.tsName}-value`}>{condition.value}</span>
-        );
+        parts.push(translateMultiLingualString(locale, prop.property.label));
+        parts.push(" ≤ ");
+        parts.push(formatFn(locale, dayjs(condition.value).toDate()));
       }
     } else {
-      parts.push(
-        <MultiLingualString
-          key={`${prop.property.tsName}-label`}
-          value={prop.property.label}
-        />
-      );
+      parts.push(translateMultiLingualString(locale, prop.property.label));
       if (condition.op === "eq") {
-        parts.push(<span key={`${prop.property.tsName}-op`}> = </span>);
+        parts.push(" = ");
       } else {
-        parts.push(
-          <span key={`${prop.property.tsName}-op`}> {condition.op} </span>
-        );
+        parts.push(` ${condition.op} `);
       }
 
-      parts.push(
-        <span key={`${prop.property.tsName}-value`}>{condition.value}</span>
-      );
+      parts.push(condition.value.toString());
     }
   }
 
-  return <>{parts}</>;
+  return parts.join("");
 }
 
 export const SearchForm = ({

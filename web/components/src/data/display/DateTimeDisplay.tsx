@@ -3,24 +3,36 @@ import { DisplayInterface } from ".";
 import { Text } from "@mantine/core";
 import { LocaleContext } from "../../misc";
 
-function formatDate(locale: Intl.Locale, value: Date): string {
+export function formatDate(locale: Intl.Locale, value: Date): string {
   return value.toLocaleDateString(locale.baseName, {
     year: "numeric",
-    month: "2-digit",
+    month: "short",
     day: "2-digit",
   });
+}
+
+export function formatDateTime(
+  locale: Intl.Locale,
+  value: Date,
+  withSeconds: boolean = true
+): string {
+  const hours = value.getHours().toString().padStart(2, "0");
+  const minutes = value.getMinutes().toString().padStart(2, "0");
+  const seconds = value.getSeconds().toString().padStart(2, "0");
+
+  if (withSeconds) {
+    return formatDate(locale, value) + ` ${hours}:${minutes}:${seconds}`;
+  }
+  return formatDate(locale, value) + ` ${hours}:${minutes}`;
 }
 
 export const DateTimeDisplay = ({ value }: DisplayInterface<Date>) => {
   const locale = useContext(LocaleContext);
 
-  const formattedDt = useMemo(() => {
-    const hours = value.getHours().toString().padStart(2, "0");
-    const minutes = value.getMinutes().toString().padStart(2, "0");
-    const seconds = value.getSeconds().toString().padStart(2, "0");
-
-    return formatDate(locale, value) + `${hours}:${minutes}:${seconds}`;
-  }, [locale, value]);
+  const formattedDt = useMemo(
+    () => formatDateTime(locale, value),
+    [locale, value]
+  );
 
   return <Text size="sm">{formattedDt}</Text>;
 };

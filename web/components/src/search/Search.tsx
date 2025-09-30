@@ -10,12 +10,7 @@ import { useContext, useMemo, useState } from "react";
 import { MultiLingualString as MLS } from "sera-db";
 import { debounce } from "throttle-debounce";
 import { LocaleContext } from "../misc/Locale";
-import {
-  getNumberOfFilters,
-  ReadableFilters,
-  SearchForm,
-  SearchFormProps,
-} from "./SearchForm";
+import { getReadableFilters, SearchForm, SearchFormProps } from "./SearchForm";
 
 interface SearchInputProps {
   // The current value of the search input
@@ -177,12 +172,7 @@ export const SeraSearch = ({
           rightSectionWidth={68}
           value={value}
           onChange={onQueryChange}
-          description={
-            <ReadableFilters
-              properties={advancedSearch.properties}
-              queryConditions={advancedSearch.queryConditions}
-            />
-          }
+          description={getReadableFilters(advancedSearch)}
           inputWrapperOrder={["label", "input", "description", "error"]}
         />
       </Popover.Target>

@@ -47,7 +47,7 @@ export class I18NStore {
    * The current active locale for the application.
    * @private
    */
-  private locale: string = 'en';
+  private locale: Intl.Locale = new Intl.Locale('en-US');
 
   /**
    * Store for translation key-value pairs by locale.
@@ -65,7 +65,7 @@ export class I18NStore {
     initialTranslations?: Translations
   ) {
     if (initialLocale) {
-      this.locale = initialLocale;
+      this.locale = new Intl.Locale(initialLocale);
     }
 
     if (initialTranslations) {
@@ -89,7 +89,7 @@ export class I18NStore {
    * Gets the current locale.
    * @returns The current locale code
    */
-  getLocale(): string {
+  getLocale(): Intl.Locale {
     return this.locale;
   }
 
@@ -97,7 +97,7 @@ export class I18NStore {
    * Sets the active locale.
    * @param locale - The locale code to set as active
    */
-  setLocale(locale: string): void {
+  setLocale(locale: Intl.Locale): void {
     this.locale = locale;
   }
 
@@ -140,7 +140,7 @@ export class I18NStore {
    * 
    * @param key - The translation key to look up
    * @param options - Configuration options for the translation
-   * @param options.locale - Optional locale to use instead of the current locale
+   * @param options.language - Optional language to use instead of the current locale's language
    * @param options.count - Optional count for pluralization
    * @param options.ordinal - Whether to use ordinal pluralization rules
    * @param options.args - Optional arguments for string interpolation
@@ -167,7 +167,7 @@ export class I18NStore {
    * // With ordinal pluralization
    * t('position', { count: 1, ordinal: true }); // Uses 'position_ordinal_one'
    */
-  public t(key: string, options: { locale?: string, count?: number, ordinal?: boolean, args?: InterpolationArgs } = {}): string | undefined {
+  public t(key: string, options: { language?: string, count?: number, ordinal?: boolean, args?: InterpolationArgs } = {}): string | undefined {
     // Handle count-based pluralization and ordinals
     let translationKey = key;
     if (options.count !== undefined) {
@@ -177,7 +177,7 @@ export class I18NStore {
     }
 
     // Get the translation
-    let result = this.translations[options.locale || this.locale]?.[translationKey];
+    let result = this.translations[options.language || this.locale.language]?.[translationKey];
     if (result === undefined) {
       return undefined;
     }
@@ -194,7 +194,7 @@ export class I18NStore {
         let textvalue;
         if (isMultiLingualString(value)) {
           // If the value is a MultiLingualString, get the translation for the current locale
-          textvalue = value.lang2value[this.locale] || value.lang2value[value.lang];
+          textvalue = value.lang2value[this.locale.language] || value.lang2value[value.lang];
         } else {
           textvalue = value;
         }
@@ -221,19 +221,15 @@ export class DynamicMultiLingualString<K extends string | number | symbol> {
     this.key = key;
   }
 
-  public getLocale(): string {
-    return I18NStore.getInstance().getLocale();
-  }
-
   /**
    * Translates a key into a localized string with support for pluralization and interpolation.
    */
-  public t(options: { locale?: string, count?: number, ordinal?: boolean, args?: InterpolationArgs<K> } = {}): string {
+  public t(options: { language?: string, count?: number, ordinal?: boolean, args?: InterpolationArgs<K> } = {}): string {
     const i18n = I18NStore.getInstance();
     const text = i18n.t(this.key, options);
     if (text === undefined) {
       // Fallback to English if translation is not found
-      return i18n.t(this.key, { ...options, locale: "en" }) || this.key;
+      return i18n.t(this.key, { ...options, language: "en" }) || this.key;
     }
     return text;
   }
