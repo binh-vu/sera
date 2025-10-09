@@ -10,7 +10,7 @@ import { NumberInput } from "./NumberInput";
 import { TextInput } from "./TextInput";
 import { DateInput } from "./DateInput";
 export { SingleForeignKeyInput, MultiForeignKeyInput } from "./ForeignKeyInput";
-export { DateRangeInput } from "./DateRangeInput";
+export { DateRangeInput, DateTimeRangeInput } from "./DateRangeInput";
 
 /**
  * Interface for input components in forms

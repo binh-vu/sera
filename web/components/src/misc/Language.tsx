@@ -131,3 +131,19 @@ export const useMultiLingualString = (value: MLS): string => {
   const locale = useContext(LocaleContext);
   return value.lang2value[locale.language] || value.lang2value[value.lang];
 };
+
+/**
+ * Translates a multilingual string based on the provided locale.
+ *
+ * @param locale - The locale object containing language information.
+ * @param value - The multilingual string (MLS) object, which includes mappings
+ *                of languages to their respective string values.
+ * @returns The translated string corresponding to the locale's language, or
+ *          the default language value if the locale's language is not found.
+ */
+export function translateMultiLingualString(
+  locale: Intl.Locale,
+  value: MLS
+): string {
+  return value.lang2value[locale.language] || value.lang2value[value.lang];
+}
