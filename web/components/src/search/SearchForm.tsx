@@ -153,10 +153,13 @@ export interface SearchFormProps {
 }
 
 /// Get the number of active filters from the query conditions
-export function getNumberOfFilters(
-  properties: SearchFormProps["properties"],
-  queryConditions: QueryConditions<any>
-) {
+export function getNumberOfFilters({
+  properties,
+  queryConditions,
+}: {
+  properties: SearchFormProps["properties"];
+  queryConditions: QueryConditions<any>;
+}) {
   return properties.reduce((count, prop) => {
     const condition = queryConditions[prop.property.tsName];
     if (condition === undefined) return count;
