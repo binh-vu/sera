@@ -287,6 +287,14 @@ predefined_datatypes = {
         tstype=TsTypeWithDep(type="string", spectype="dict"),
         is_list=False,
     ),
+    "str2str": DataType(
+        pytype=PyTypeWithDep(type="dict[str, str]"),
+        sqltype=SQLTypeWithDep(
+            type="JSON", mapped_pytype="dict[str, str]", deps=["sqlalchemy.JSON"]
+        ),
+        tstype=TsTypeWithDep(type="Record<string, string>", spectype="str2str"),
+        is_list=False,
+    ),
 }
 
 predefined_py_datatypes = {"bytes": PyTypeWithDep(type="bytes")}
