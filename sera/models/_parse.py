@@ -275,6 +275,14 @@ def _parse_datatype(schema: Schema, datatype: dict | str) -> DataType:
     if isinstance(datatype, dict):
         is_list = datatype.get("is_list", False)
 
+        # Parse Python type and argument if present
+        if datatype["pytype"] in predefined_py_datatypes:
+            py_type = predefined_py_datatypes[datatype["pytype"]]
+        else:
+            py_type = PyTypeWithDep(
+                type=datatype["pytype"]["type"], deps=datatype["pytype"].get("deps", [])
+            )
+
         # Parse SQL type and argument if present
         m = re.match(r"^([a-zA-Z0-9_]+)(\([^)]+\))?$", datatype["sqltype"])
         if m is not None:
@@ -291,7 +299,7 @@ def _parse_datatype(schema: Schema, datatype: dict | str) -> DataType:
             raise ValueError(f"Invalid SQL type format: {datatype['sqltype']}")
 
         return DataType(
-            pytype=predefined_py_datatypes[datatype["pytype"]],
+            pytype=py_type,
             sqltype=sql_type,
             tstype=predefined_ts_datatypes[datatype["tstype"]],
             is_list=is_list,
