@@ -153,7 +153,15 @@ export const SeraSearch = ({
           rightSection={
             <>
               <ActionIcon variant="transparent" aria-label="Clear Query">
-                <IconCircleX size={16} stroke={1.5} cursor={"pointer"} />
+                <IconCircleX
+                  size={16}
+                  stroke={1.5}
+                  cursor={"pointer"}
+                  onClick={() => {
+                    setValue("");
+                    onChange("");
+                  }}
+                />
               </ActionIcon>
               <ActionIcon
                 variant="transparent"
