@@ -22,3 +22,27 @@ export function omit(obj: any, keys: string[]) {
   }
   return result;
 }
+
+/**
+ * Creates a new object with all properties from the input object, excluding properties with undefined values.
+ * 
+ * @template T - The type of the input object, must extend object
+ * @param obj - The source object to filter
+ * @returns A partial object containing only the properties from the input object that have defined values
+ * 
+ * @example
+ * ```ts
+ * const input = { a: 1, b: undefined, c: 'hello' };
+ * const result = omitUndefined(input);
+ * // result: { a: 1, c: 'hello' }
+ * ```
+ */
+export function omitUndefined<T extends object>(obj: T): Partial<T> {
+  const result: Partial<T> = {};
+  for (let key of Object.keys(obj) as (keyof T)[]) {
+    if (obj[key] !== undefined) {
+      result[key] = obj[key];
+    }
+  }
+  return result;
+}

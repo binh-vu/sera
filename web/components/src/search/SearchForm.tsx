@@ -331,9 +331,11 @@ export const SearchForm = ({
   const updateSearchForm = (value: any) => {
     const conditions: QueryConditions<any> = {};
     for (const prop of properties) {
-      conditions[prop.property.tsName] = toQueryOps[prop.property.tsName](
-        value[prop.property.tsName]
-      );
+      if (value[prop.property.tsName] === undefined) continue;
+      const con = toQueryOps[prop.property.tsName](value[prop.property.tsName]);
+      if (con !== undefined) {
+        conditions[prop.property.tsName] = con;
+      }
     }
     onChange(conditions);
   };
