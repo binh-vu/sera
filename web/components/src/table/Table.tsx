@@ -154,7 +154,7 @@ export const SeraTable = <
           <Flex justify="space-between" align="center">
             {pgnEl}
             <Text size="sm" c="dimmed">
-              Showing {pageIndex * pageSize + 1} to{" "}
+              Showing {Math.min(pageIndex * pageSize + 1, data.total)} to{" "}
               {Math.min((pageIndex + 1) * pageSize, data.total)} of {data.total}{" "}
               records
             </Text>
@@ -164,7 +164,7 @@ export const SeraTable = <
         bottomSection = (
           <Flex justify="space-between" align="center">
             <Text size="sm" c="dimmed">
-              Showing {pageIndex * pageSize + 1} to{" "}
+              Showing {Math.min(pageIndex * pageSize + 1, data.total)} to{" "}
               {Math.min((pageIndex + 1) * pageSize, data.total)} of {data.total}{" "}
               records
             </Text>

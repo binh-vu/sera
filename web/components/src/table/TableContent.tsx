@@ -1,5 +1,6 @@
 import { flexRender, Table as ReactTable } from "@tanstack/react-table";
-import { MantineStyleProp, Paper, Table } from "@mantine/core";
+import { MantineStyleProp, Paper, Text, Table, Stack } from "@mantine/core";
+import { IconDatabaseOff } from "@tabler/icons-react";
 
 export const COL_SELECT_ID = "__selectcol__";
 
@@ -12,6 +13,40 @@ export const SeraTableContent = <R,>(props: {
   hasTopSection?: boolean;
   hasBottomSection?: boolean;
 }) => {
+  let tbody;
+
+  if (props.table.getRowCount() === 0) {
+    tbody = (
+      <Tr key="empty-row">
+        <Td colSpan={props.table.getVisibleLeafColumns().length}>
+          <Stack justify="center" align="center" gap="xs">
+            <IconDatabaseOff color={"var(--mantine-color-dimmed)"} />
+            <Text c="dimmed" fz="sm">
+              No records found.
+            </Text>
+          </Stack>
+        </Td>
+      </Tr>
+    );
+  } else {
+    tbody = props.table.getRowModel().rows.map((row) => (
+      <Tr
+        key={row.id}
+        bg={
+          props.selectedRowKeys[row.id]
+            ? "var(--mantine-color-blue-light)"
+            : undefined
+        }
+      >
+        {row.getVisibleCells().map((cell) => (
+          <Td key={cell.id}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </Td>
+        ))}
+      </Tr>
+    ));
+  }
+
   const el = (
     <Table
       striped={true}
@@ -38,25 +73,7 @@ export const SeraTableContent = <R,>(props: {
           </Tr>
         ))}
       </Thead>
-
-      <Tbody pos="relative">
-        {props.table.getRowModel().rows.map((row) => (
-          <Tr
-            key={row.id}
-            bg={
-              props.selectedRowKeys[row.id]
-                ? "var(--mantine-color-blue-light)"
-                : undefined
-            }
-          >
-            {row.getVisibleCells().map((cell) => (
-              <Td key={cell.id}>
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </Td>
-            ))}
-          </Tr>
-        ))}
-      </Tbody>
+      <Tbody pos="relative">{tbody}</Tbody>
     </Table>
   );
 
