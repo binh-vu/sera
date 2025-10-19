@@ -274,10 +274,13 @@ export const SearchForm = ({
     setValue(newvalue);
   }, [properties, queryConditions]);
 
-  const [searchItems, toQueryOps] = useMemo(() => {
+  const [searchItems, toQueryOps, valueValidators] = useMemo(() => {
     const output = [];
     const toQueryOps: { [key: string]: (value: any) => QueryOp | undefined } =
       {};
+    const valueValidators: {
+      [key: string]: validators.ValueValidator | undefined;
+    } = {};
 
     for (const prop of properties) {
       let validator = undefined;
@@ -309,6 +312,7 @@ export const SearchForm = ({
       }
 
       toQueryOps[prop.property.tsName] = toQueryOp;
+      valueValidators[prop.property.tsName] = validator;
 
       output.push(
         <SearchFormItem
@@ -325,10 +329,11 @@ export const SearchForm = ({
         />
       );
     }
-    return [output, toQueryOps];
+
+    return [output, toQueryOps, valueValidators];
   }, [properties, value, setValue]);
 
-  const updateSearchForm = (value: any) => {
+  const updateSearchForm = (value: Record<string, any>) => {
     const conditions: QueryConditions<any> = {};
     for (const prop of properties) {
       if (value[prop.property.tsName] === undefined) continue;
@@ -339,6 +344,21 @@ export const SearchForm = ({
     }
     onChange(conditions);
   };
+
+  const isValueValid = useMemo(() => {
+    return (value: Record<string, any>) => {
+      for (const prop of properties) {
+        const validator = valueValidators[prop.property.tsName];
+        if (
+          validator !== undefined &&
+          !validator(value[prop.property.tsName]).isValid
+        ) {
+          return false;
+        }
+      }
+      return true;
+    };
+  }, [properties, valueValidators]);
 
   return (
     <Stack gap="sm" className={className} style={styles}>
@@ -352,6 +372,7 @@ export const SearchForm = ({
             setValue({});
             updateSearchForm({});
           }}
+          disabled={Object.keys(value).length === 0}
         >
           <MultiLingualString value={CLEAR_BUTTON_TEXT} />
         </Button>
@@ -359,6 +380,7 @@ export const SearchForm = ({
           variant="light"
           size="xs"
           onClick={() => updateSearchForm(value)}
+          disabled={!isValueValid(value)}
         >
           <MultiLingualString value={UPDATE_BUTTON_TEXT} />
         </Button>
