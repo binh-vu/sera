@@ -152,21 +152,29 @@ export const SeraSearch = ({
           leftSection={isDelaying ? keyboardIcon : searchIcon}
           rightSection={
             <>
-              <ActionIcon variant="transparent" aria-label="Clear Query">
-                <IconCircleX
-                  size={16}
-                  stroke={1.5}
-                  cursor={"pointer"}
-                  onClick={() => {
-                    setValue("");
-                    onChange("");
-                  }}
-                />
+              <ActionIcon
+                variant="transparent"
+                aria-label="Clear Query"
+                onClick={() => {
+                  setValue("");
+                  onChange("");
+                }}
+              >
+                <IconCircleX size={16} stroke={1.5} cursor={"pointer"} />
               </ActionIcon>
               <ActionIcon
                 variant="transparent"
                 aria-label="Extra Filters"
                 color={numberOfFilters > 0 ? "orange" : undefined}
+                onClick={() => {
+                  if (opened[1] + 200 >= Date.now()) {
+                    // workaround to close the popover when clicking
+                    // the icon again because mantine still detects that
+                    // clicking the icon is outside the popover
+                    return;
+                  }
+                  setOpened([true, Date.now()]);
+                }}
               >
                 <IconAdjustmentsHorizontal
                   size={16}
@@ -174,15 +182,6 @@ export const SeraSearch = ({
                   cursor={"pointer"}
                   style={{
                     position: "relative",
-                  }}
-                  onClick={() => {
-                    if (opened[1] + 200 >= Date.now()) {
-                      // workaround to close the popover when clicking
-                      // the icon again because mantine still detects that
-                      // clicking the icon is outside the popover
-                      return;
-                    }
-                    setOpened([true, Date.now()]);
                   }}
                 />
               </ActionIcon>
