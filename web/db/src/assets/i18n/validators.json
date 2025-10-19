@@ -2,10 +2,19 @@
     "en": {
         "validator.not_empty": "This field cannot be empty.",
         "validator.password": "Password must be between 8 and 32 characters and contain at least one uppercase letter and one number",
-        "validator.email": "Email must be a valid email address",
+        "validator.email": "Email is invalid",
         "validator.username": "Username must be between 3 and 20 characters, start with a letter, and contain only alphanumeric characters, hyphens, underscores, or periods",
-        "validator.url": "URL must be a valid URL",
-        "validator.phone_number": "Phone number must be a valid phone number",
+        "validator.url": "URL is invalid",
+        "validator.phone_number": "Phone number is invalid",
         "validator.time_range": "The start time must be before the end time"
+    },
+    "vi": {
+        "validator.not_empty": "Trường này không được để trống.",
+        "validator.password": "Mật khẩu phải từ 8 đến 32 ký tự và chứa ít nhất một chữ hoa và một số",
+        "validator.email": "Email không hợp lệ",
+        "validator.username": "Tên người dùng phải từ 3 đến 20 ký tự, bắt đầu bằng một chữ cái và chỉ chứa các ký tự chữ và số, dấu gạch ngang, dấu gạch dưới hoặc dấu chấm",
+        "validator.url": "URL không hợp lệ",
+        "validator.phone_number": "Số điện thoại không hợp lệ",
+        "validator.time_range": "Thời gian bắt đầu phải trước thời gian kết thúc"
     }
 }
