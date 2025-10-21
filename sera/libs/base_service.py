@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Generic, NamedTuple, Optional, Sequence, TypeVar
+from typing import Generic, Mapping, NamedTuple, Optional, Sequence, TypeVar
 
 from litestar.exceptions import HTTPException
 from sqlalchemy import Result, Select, delete, exists, func, select
