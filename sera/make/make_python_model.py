@@ -816,17 +816,18 @@ def make_python_data_model(
             ),
         )
 
+        # generate composite functions for classes that can be used as embedded functions
         if cls.db is None:
-            as_composite_args = [DeferredVar.simple("cls")]
-            as_composite_null_condition = []
+            from_tuple_args = [DeferredVar.simple("cls")]
+            from_tuple_null_condition = []
             for prop in cls.properties.values():
                 propname = get_python_property_name(prop)
 
                 assert (
                     not prop.data.is_private
                 ), f"Embedded classes should not have private properties: {cls.name}.{propname}"
-                as_composite_args.append(DeferredVar.simple(propname))
-                as_composite_null_condition.append(
+                from_tuple_args.append(DeferredVar.simple(propname))
+                from_tuple_null_condition.append(
                     expr.ExprIs(expr.ExprIdent(propname), expr.ExprConstant(None))
                 )
 
@@ -839,15 +840,15 @@ def make_python_data_model(
                     expr.ExprFuncCall(expr.ExprIdent("classmethod"), [])
                 ),
                 lambda ast: ast.func(
-                    "as_composite",
-                    vars=as_composite_args,
+                    "from_tuple",
+                    vars=from_tuple_args,
                     return_type=PredefinedFn.item_getter(
                         ident_manager.use("Optional"), expr.ExprIdent(cls.name)
                     ),
                     comment="Create an embedded instance from the embedded columns in the database table. If all properties of this embedded class are None (indicating that the parent field is None), then this function will return None.",
                 )(
                     lambda ast_l1: ast_l1.if_(
-                        expr.ExprLogicalAnd(as_composite_null_condition)
+                        expr.ExprLogicalAnd(from_tuple_null_condition)
                     )(lambda ast_l2: ast_l2.return_(expr.ExprConstant(None))),
                     lambda ast_l1: ast_l1.return_(
                         expr.ExprFuncCall(
