@@ -5,6 +5,7 @@ export const NumberInput: React.FC<InputInterface<number | undefined>> = ({
   property,
   value,
   onChange,
+  freeze = false,
 }) => {
   return (
     <Input
@@ -19,6 +20,8 @@ export const NumberInput: React.FC<InputInterface<number | undefined>> = ({
           onChange(Number(newValue));
         }
       }}
+      readOnly={freeze}
+      disabled={freeze}
     />
   );
 };

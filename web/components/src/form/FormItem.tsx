@@ -47,6 +47,7 @@ export interface FormItemProps<
   validator: validators.ValueValidator;
   /// Whether the form item should be displayed horizontal (label and input on the same line) or vertical.
   layout?: FormItemLayout;
+  freeze?: boolean;
 }
 
 const DEFAULT_LAYOUT: FormItemVerticalLayout = {
@@ -72,6 +73,7 @@ export const FormItem = observer(
     layout = DEFAULT_LAYOUT,
     InputComponent,
     validator,
+    freeze = false,
   }: FormItemProps<ID, R, DR>) => {
     const [error, setError] = useState<string | undefined>(undefined);
 
@@ -94,7 +96,6 @@ export const FormItem = observer(
         );
       }
     };
-
     if (isHorizontalLayout(layout)) {
       // we always need to use Stack because if the hierarchy changes, the input will lose focus
       // creating problem if users cannot keep typing
@@ -127,6 +128,7 @@ export const FormItem = observer(
                 value={value}
                 error={error !== undefined}
                 onChange={onChange}
+                freeze={freeze}
               />
             </Grid.Col>
           </Grid>
@@ -177,6 +179,7 @@ export const FormItem = observer(
           value={value}
           error={error}
           onChange={onChange}
+          freeze={freeze}
         />
       </Input.Wrapper>
     );

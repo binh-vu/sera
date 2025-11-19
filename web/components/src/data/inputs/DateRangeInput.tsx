@@ -6,7 +6,7 @@ import { IconCalendar } from "@tabler/icons-react";
 
 export const DateRangeInput: React.FC<
   InputInterface<{ start?: Date; end?: Date } | undefined>
-> = ({ property, value, onChange }) => {
+> = ({ property, value, onChange, freeze = false }) => {
   return (
     <Flex gap="sm" justify="space-between" direction="row" align="center">
       <DatePickerInput
@@ -21,7 +21,9 @@ export const DateRangeInput: React.FC<
         }}
         valueFormat="YYYY MMM DD"
         placeholder="Pick date range"
-        clearable={true}
+        clearable={!freeze}
+        disabled={freeze}
+        readOnly={freeze}
         popoverProps={{ withinPortal: false }}
         flex={1}
         leftSection={<IconCalendar size={16} stroke={1.5} />}
@@ -39,7 +41,9 @@ export const DateRangeInput: React.FC<
         }}
         valueFormat="YYYY MMM DD"
         placeholder="Pick date range"
-        clearable={true}
+        clearable={!freeze}
+        disabled={freeze}
+        readOnly={freeze}
         popoverProps={{ withinPortal: false }}
         flex={1}
         leftSection={<IconCalendar size={16} stroke={1.5} />}
@@ -50,7 +54,7 @@ export const DateRangeInput: React.FC<
 
 export const DateTimeRangeInput: React.FC<
   InputInterface<{ start?: Date; end?: Date } | undefined>
-> = ({ property, value, onChange }) => {
+> = ({ property, value, onChange, freeze = false }) => {
   return (
     <Flex gap="sm" justify="space-between" direction="row" align="center">
       <DateTimePicker
@@ -64,7 +68,9 @@ export const DateTimeRangeInput: React.FC<
         }}
         valueFormat="YYYY MMM DD HH:mm"
         placeholder="Pick date range"
-        clearable={true}
+        clearable={!freeze}
+        disabled={freeze}
+        readOnly={freeze}
         popoverProps={{ withinPortal: false }}
         flex={1}
         withSeconds={false}
@@ -82,7 +88,9 @@ export const DateTimeRangeInput: React.FC<
         }}
         valueFormat="YYYY MMM DD HH:mm"
         placeholder="Pick date range"
-        clearable={true}
+        clearable={!freeze}
+        disabled={freeze}
+        readOnly={freeze}
         popoverProps={{ withinPortal: false }}
         flex={1}
         withSeconds={false}

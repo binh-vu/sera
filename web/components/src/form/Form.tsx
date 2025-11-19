@@ -36,7 +36,19 @@ export interface FieldGroup<
   ST extends SchemaType<ID, R, DR, PF, F>
 > {
   name?: string;
-  fields: ST["allProperties"][][];
+  fields: (
+    | ST["allProperties"]
+    | {
+        prop: ST["allProperties"];
+        input?: React.ComponentType<InputInterface<any>>;
+        freeze?: boolean;
+      }
+    | ((
+        store: Table<ST["id"], ST["cls"], ST["draftCls"]>,
+        record: ST["draftCls"],
+        freeze?: boolean
+      ) => React.ReactNode)
+  )[][];
 }
 
 export interface SeraFormProps<
@@ -57,7 +69,7 @@ export interface SeraFormProps<
   layout?: FormItemLayout;
 
   // actions to be displayed at the bottom of the form
-  actions: {
+  actions?: {
     variant: "filled" | "light" | "outline";
     label?: React.ReactNode;
     disabled?: boolean;
@@ -158,7 +170,7 @@ export const SeraForm = <
       <Stack gap="sm" className={props.className} style={props.styles}>
         {formItems}
         <Group gap="sm">
-          {props.actions.map((action, index) => {
+          {props.actions?.map((action, index) => {
             return (
               <Button
                 key={index}
@@ -253,25 +265,57 @@ function makeFieldGroup<
 
     for (let j = 0; j < fields[i].length; j++) {
       const field = fields[i][j];
-      const prop = schema.allProperties[field];
+      let fieldElement: React.ReactNode;
 
-      let inputComponent: React.ComponentType<InputInterface<any>>;
-      if (isObjectProperty(prop)) {
-        inputComponent =
-          prop.cardinality === "N:N" || prop.cardinality === "1:N"
-            ? MultiForeignKeyInput
-            : SingleForeignKeyInput;
-      } else {
-        if (DataType2InputComponent[prop.datatype] === undefined) {
-          throw new Error(
-            `No input component found for datatype ${prop.datatype}`
-          );
+      if (typeof field === "function") {
+        fieldElement = field(store, record as ST["draftCls"]);
+      } else if (typeof field === "object" && "prop" in field) {
+        const prop = schema.allProperties[field.prop];
+        let inputComponent: React.ComponentType<InputInterface<any>>;
+
+        if (field.input !== undefined) {
+          inputComponent = field.input;
+        } else {
+          if (prop.datatype === undefined) {
+            throw new Error(
+              `The property is undefined, maybe the property name is wrong: ${String(
+                field.prop
+              )}`
+            );
+          }
+          inputComponent = DataType2InputComponent[prop.datatype]!;
         }
-        inputComponent = DataType2InputComponent[prop.datatype]!;
-      }
+        const isFreeze = field.freeze ?? false;
+        fieldElement = (
+          <FormItem
+            store={store}
+            record={record}
+            property={prop}
+            layout={updatedLayout}
+            InputComponent={inputComponent}
+            validator={schema.validators[field.prop]}
+            freeze={isFreeze}
+          />
+        );
+      } else {
+        const prop = schema.allProperties[field];
 
-      cols.push(
-        <Grid.Col key={`${i}-${j}`} span={span}>
+        let inputComponent: React.ComponentType<InputInterface<any>>;
+        if (isObjectProperty(prop)) {
+          inputComponent =
+            prop.cardinality === "N:N" || prop.cardinality === "1:N"
+              ? MultiForeignKeyInput
+              : SingleForeignKeyInput;
+        } else {
+          if (DataType2InputComponent[prop.datatype] === undefined) {
+            throw new Error(
+              `No input component found for datatype ${prop.datatype}`
+            );
+          }
+          inputComponent = DataType2InputComponent[prop.datatype]!;
+        }
+
+        fieldElement = (
           <FormItem
             store={store}
             record={record}
@@ -279,7 +323,14 @@ function makeFieldGroup<
             layout={updatedLayout}
             InputComponent={inputComponent}
             validator={schema.validators[field]}
+            freeze={false}
           />
+        );
+      }
+
+      cols.push(
+        <Grid.Col key={`${i}-${j}`} span={span}>
+          {fieldElement}
         </Grid.Col>
       );
     }

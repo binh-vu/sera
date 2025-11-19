@@ -66,6 +66,10 @@ export const countryFlags = {
     svgFlag: "https://flagcdn.com/in.svg",
     emojiFlag: "🇮🇳",
   },
+  CAM: {
+    svgFlag: "https://flagcdn.com/kh.svg",
+    emojiFlag: "🇰🇭",
+  },
 };
 
 export const SVGCountryFlag = ({ flag }: { flag: CountryFlag }) => {

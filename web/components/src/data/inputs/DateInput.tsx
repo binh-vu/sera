@@ -6,6 +6,7 @@ export const DateInput: React.FC<InputInterface<Date | undefined>> = ({
   property,
   value,
   onChange,
+  freeze = false,
 }) => {
   return (
     <DatePickerInput
@@ -21,6 +22,8 @@ export const DateInput: React.FC<InputInterface<Date | undefined>> = ({
       clearable={true}
       popoverProps={{ withinPortal: false }}
       flex={1}
+      disabled={freeze}
+      readOnly={freeze}
     />
   );
 };
