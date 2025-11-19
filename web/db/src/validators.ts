@@ -190,6 +190,22 @@ export function validateURL(value: string): ValidationResult {
     errorMessage: isValid ? undefined : new DynamicMultiLingualString("validator.url"),
   };
 }
+
+const landLineRegex = [
+  // Vietnam landline regex.
+  /^(?:\+84|0)(2[2-9]\d{7}|2(?:0[3-9]|1[0-689]|2[0-25-9]|3[2-9]|5[1-25-9]|6[0-39]|7[0-7]|9[0-46-79])[2-9]\d{6})$/,
+  // We can add more landline regex for other countries here.
+];
+
+function isLandlinePhoneNumber(value: string): boolean {
+  for (const regex of landLineRegex) {
+    if (regex.test(value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Validates whether a given value is a valid phone number.
  * 
@@ -202,7 +218,7 @@ export function validateURL(value: string): ValidationResult {
  */
 export function validatePhoneNumber(value: string): ValidationResult {
   // Accept any locale for more flexible validation
-  const isValid = validator.isMobilePhone(String(value), 'any');
+  const isValid = validator.isMobilePhone(String(value), 'any') || isLandlinePhoneNumber(value);
   return {
     isValid,
     errorMessage: isValid ? undefined : new DynamicMultiLingualString("validator.phone_number"),

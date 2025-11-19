@@ -8,6 +8,7 @@ export const TextInput: React.FC<InputInterface<string>> = ({
   error,
   value,
   onChange,
+  freeze = false,
 }) => {
   const [inputType, InputComponent] = useMemo(() => {
     // Handle different input types based on constraints
@@ -22,7 +23,6 @@ export const TextInput: React.FC<InputInterface<string>> = ({
       : property.constraints.includes("url")
         ? "url"
         : "text";
-
     return [inputType, Input];
   }, [property.constraints]);
 
@@ -33,6 +33,8 @@ export const TextInput: React.FC<InputInterface<string>> = ({
       type={inputType}
       onChange={(e) => onChange(e.target.value)}
       error={error}
+      disabled={freeze}
+      readOnly={freeze}
     />
   );
 };
