@@ -432,7 +432,7 @@ def make_draft(
                                         "ser",
                                         [],
                                     ),
-                                    expr.ExprIdent("undefined"),
+                                    expr.ExprIdent("null"),
                                 ),
                             )
                         )
