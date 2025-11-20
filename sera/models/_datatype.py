@@ -141,15 +141,22 @@ class TsTypeWithDep:
             "number",
             "boolean",
             "string[]",
+        }:
+            return value
+        if self.type in {
             "number | undefined",
             "boolean | undefined",
             "string | undefined",
         }:
-            return value
+            return expr.ExprRawTypescript(
+                f"{value.to_typescript()} ?? null"
+            )  # pass through
         if self.type == "Date":
             return expr.ExprRawTypescript(f"{value.to_typescript()}.toISOString()")
         if self.type == "Date | undefined":
-            return expr.ExprRawTypescript(f"{value.to_typescript()}?.toISOString()")
+            return expr.ExprRawTypescript(
+                f"{value.to_typescript()}?.toISOString() ?? null"
+            )
         if self.is_enum_type():
             # enum type, we don't need to do anything as we use strings for enums
             return value
