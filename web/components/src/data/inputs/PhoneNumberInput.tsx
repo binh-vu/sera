@@ -97,6 +97,10 @@ const COUNTRIES: Record<string, CountryData> = {
     name: "China",
     flags: [countryFlags.CN],
   },
+  "855": {
+    name: "Cambodia",
+    flags: [countryFlags.CAM],
+  },
 };
 
 const findCountryCodePrefix = (
@@ -140,6 +144,8 @@ export interface PhoneNumberInputProps {
   type: string;
   onChange: (e: { target: { value: string } }) => void;
   error?: boolean | React.ReactNode;
+  disabled?: boolean;
+  readonly?: boolean;
 }
 
 export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
@@ -147,6 +153,8 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
   onChange,
   error,
   id,
+  disabled = false,
+  readonly = false,
 }) => {
   const [search, setSearch] = useState("");
   const [showLeadingZeroWarning, setShowLeadingZeroWarning] = useState(false);
@@ -173,6 +181,15 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
         rawInput: remaining,
       };
     } catch (error) {
+      // Set the initial value for the countrycode when the value is empty or undefined.
+      // This allows to handle the case when the user add new record and the phone number field is currently undefined.
+      if (value === "" || value === undefined) {
+        setCountryCode("84");
+        setShowNoCountryCodeError(false);
+        return {
+          rawInput: "",
+        };
+      }
       setShowNoCountryCodeError(true);
       setCountryCode("");
       return {
@@ -195,6 +212,10 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
   const countryCodes = useMemo(() => Object.keys(COUNTRIES), [COUNTRIES]);
 
   const formatPhoneNumber = (digits: string, selectedCountryCode: string) => {
+    if (digits === undefined) {
+      return `+${selectedCountryCode}`;
+    }
+
     const cleanDigits = digits.replace(/[^\d]/g, "");
 
     if (cleanDigits.length === 0) {
@@ -245,6 +266,7 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
                   target: { value: formatPhoneNumber(rawInput, val) },
                 });
               }}
+              disabled={disabled}
             >
               <Combobox.Target>
                 <InputBase
@@ -252,9 +274,10 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
                   type="button"
                   pointer
                   rightSection={<Combobox.Chevron />}
-                  onClick={() => combobox.toggleDropdown()}
+                  onClick={() => !disabled && combobox.toggleDropdown()}
                   rightSectionPointerEvents="none"
                   w={110}
+                  disabled={disabled}
                 >
                   <TelephoneCountryCode value={countryCode} />
                 </InputBase>
@@ -266,6 +289,7 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
                   placeholder="....."
                   value={search}
                   onChange={(event) => setSearch(event.currentTarget.value)}
+                  disabled={disabled}
                 />
                 <Combobox.Options>
                   {options.length > 0 ? (
@@ -288,6 +312,8 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
                 }}
                 error={error}
                 flex={1}
+                disabled={disabled}
+                readOnly={readonly}
               />
             ) : (
               <Input
@@ -296,14 +322,20 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
                 type={"phone_number"}
                 onAccept={(val: string) => {
                   const digits = val.replace(/[^\d]/g, "");
+                  const nextValue = formatPhoneNumber(digits, countryCode);
+                  if (nextValue === value) {
+                    return;
+                  }
                   onChange({
-                    target: { value: formatPhoneNumber(digits, countryCode) },
+                    target: { value: nextValue },
                   });
                 }}
                 component={IMaskInput}
                 mask={`000-000-0000`}
                 error={error}
                 flex={1}
+                disabled={disabled}
+                readOnly={readonly}
               />
             )}
           </Group>
