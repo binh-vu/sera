@@ -23,7 +23,6 @@ export const DateInput: React.FC<InputInterface<Date | undefined>> = ({
       popoverProps={{ withinPortal: false }}
       flex={1}
       disabled={freeze}
-      readOnly={freeze}
     />
   );
 };

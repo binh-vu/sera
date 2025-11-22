@@ -145,7 +145,6 @@ export interface PhoneNumberInputProps {
   onChange: (e: { target: { value: string } }) => void;
   error?: boolean | React.ReactNode;
   disabled?: boolean;
-  readonly?: boolean;
 }
 
 export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
@@ -154,7 +153,6 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
   error,
   id,
   disabled = false,
-  readonly = false,
 }) => {
   const [search, setSearch] = useState("");
   const [showLeadingZeroWarning, setShowLeadingZeroWarning] = useState(false);
@@ -313,7 +311,6 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
                 error={error}
                 flex={1}
                 disabled={disabled}
-                readOnly={readonly}
               />
             ) : (
               <Input
@@ -335,7 +332,6 @@ export const PhoneNumberInput: React.FC<PhoneNumberInputProps> = ({
                 error={error}
                 flex={1}
                 disabled={disabled}
-                readOnly={readonly}
               />
             )}
           </Group>

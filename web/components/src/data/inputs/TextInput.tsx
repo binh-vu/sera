@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { InputInterface } from ".";
 import { Input, PasswordInput } from "@mantine/core";
 import { PhoneNumberInput } from "./PhoneNumberInput";
+import { UrlInput } from "./UrlInput";
 
 export const TextInput: React.FC<InputInterface<string>> = ({
   property,
@@ -18,11 +19,10 @@ export const TextInput: React.FC<InputInterface<string>> = ({
     if (property.constraints.includes("phone_number")) {
       return ["phone_number", PhoneNumberInput];
     }
-    const inputType = property.constraints.includes("email")
-      ? "email"
-      : property.constraints.includes("url")
-        ? "url"
-        : "text";
+    if (property.constraints.includes("url")) {
+      return ["url", UrlInput];
+    }
+    const inputType = property.constraints.includes("email") ? "email" : "text";
     return [inputType, Input];
   }, [property.constraints]);
 
@@ -34,7 +34,6 @@ export const TextInput: React.FC<InputInterface<string>> = ({
       onChange={(e) => onChange(e.target.value)}
       error={error}
       disabled={freeze}
-      readOnly={freeze}
     />
   );
 };

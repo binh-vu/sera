@@ -40,8 +40,10 @@ export interface FieldGroup<
     | ST["allProperties"]
     | {
         prop: ST["allProperties"];
-        input?: React.ComponentType<InputInterface<any>>;
-        freeze?: boolean;
+        args?: {
+          input?: React.ComponentType<InputInterface<any>>;
+          freeze?: boolean;
+        };
       }
     | ((
         store: Table<ST["id"], ST["cls"], ST["draftCls"]>,
@@ -69,7 +71,7 @@ export interface SeraFormProps<
   layout?: FormItemLayout;
 
   // actions to be displayed at the bottom of the form
-  actions?: {
+  actions: {
     variant: "filled" | "light" | "outline";
     label?: React.ReactNode;
     disabled?: boolean;
@@ -273,8 +275,8 @@ function makeFieldGroup<
         const prop = schema.allProperties[field.prop];
         let inputComponent: React.ComponentType<InputInterface<any>>;
 
-        if (field.input !== undefined) {
-          inputComponent = field.input;
+        if (field.args?.input !== undefined) {
+          inputComponent = field.args.input;
         } else {
           if (prop.datatype === undefined) {
             throw new Error(
@@ -285,7 +287,7 @@ function makeFieldGroup<
           }
           inputComponent = DataType2InputComponent[prop.datatype]!;
         }
-        const isFreeze = field.freeze ?? false;
+        const isFreeze = field.args?.freeze ?? false;
         fieldElement = (
           <FormItem
             store={store}

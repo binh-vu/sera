@@ -163,7 +163,6 @@ export const SearchInput = <ID extends string | number, R extends Record<ID>>({
             }
           }}
           disabled={freeze}
-          readOnly={freeze}
         />
       </Combobox.Target>
       <Combobox.Dropdown>

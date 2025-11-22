@@ -5,7 +5,7 @@ export const BooleanInput: React.FC<InputInterface<boolean>> = ({
   property,
   value,
   onChange,
-  freeze = false, 
+  freeze = false,
 }) => {
   return (
     <Checkbox
@@ -15,7 +15,6 @@ export const BooleanInput: React.FC<InputInterface<boolean>> = ({
         const newValue = e.target.checked;
         onChange(newValue);
       }}
-      readOnly={freeze}
       disabled={freeze}
     />
   );

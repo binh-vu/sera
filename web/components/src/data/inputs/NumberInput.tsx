@@ -20,7 +20,6 @@ export const NumberInput: React.FC<InputInterface<number | undefined>> = ({
           onChange(Number(newValue));
         }
       }}
-      readOnly={freeze}
       disabled={freeze}
     />
   );

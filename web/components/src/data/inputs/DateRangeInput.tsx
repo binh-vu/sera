@@ -23,7 +23,6 @@ export const DateRangeInput: React.FC<
         placeholder="Pick date range"
         clearable={!freeze}
         disabled={freeze}
-        readOnly={freeze}
         popoverProps={{ withinPortal: false }}
         flex={1}
         leftSection={<IconCalendar size={16} stroke={1.5} />}
@@ -43,7 +42,6 @@ export const DateRangeInput: React.FC<
         placeholder="Pick date range"
         clearable={!freeze}
         disabled={freeze}
-        readOnly={freeze}
         popoverProps={{ withinPortal: false }}
         flex={1}
         leftSection={<IconCalendar size={16} stroke={1.5} />}
@@ -70,7 +68,6 @@ export const DateTimeRangeInput: React.FC<
         placeholder="Pick date range"
         clearable={!freeze}
         disabled={freeze}
-        readOnly={freeze}
         popoverProps={{ withinPortal: false }}
         flex={1}
         withSeconds={false}
@@ -90,7 +87,6 @@ export const DateTimeRangeInput: React.FC<
         placeholder="Pick date range"
         clearable={!freeze}
         disabled={freeze}
-        readOnly={freeze}
         popoverProps={{ withinPortal: false }}
         flex={1}
         withSeconds={false}
