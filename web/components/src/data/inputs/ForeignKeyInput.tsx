@@ -65,6 +65,7 @@ export const MultiForeignKeyInput = observer(
     property,
     value: recordIds,
     onChange,
+    freeze = false,
   }: InputInterface<ID[]>) => {
     const { table, data, query, setQuery } = useSearch(
       db,
@@ -85,6 +86,7 @@ export const MultiForeignKeyInput = observer(
           }}
           renderOption={renderOption}
           isIdInteger={property.datatype === "integer"}
+          freeze={freeze}
         />
         <CardList
           items={recordIds.map((id) => table.get(id))}
@@ -92,6 +94,7 @@ export const MultiForeignKeyInput = observer(
             onChange(recordIds.filter((item) => item !== delRecord.id));
           }}
           render={renderRecord}
+          freeze={freeze}
         />
       </Stack>
     );
@@ -106,6 +109,7 @@ export const SearchInput = <ID extends string | number, R extends Record<ID>>({
   isIdInteger,
   query,
   setQuery,
+  freeze = false,
 }: {
   name?: string;
   query: string;
@@ -114,6 +118,7 @@ export const SearchInput = <ID extends string | number, R extends Record<ID>>({
   data: R[];
   renderOption: (record: R) => React.ReactNode;
   isIdInteger?: boolean;
+  freeze?: boolean;
 }) => {
   // define the combobox store
   const combobox = useCombobox({
@@ -134,25 +139,30 @@ export const SearchInput = <ID extends string | number, R extends Record<ID>>({
     <Combobox
       store={combobox}
       onOptionSubmit={(recordId: string) => {
+        if (freeze) return;
         onSelect((isIdInteger ? parseInt(recordId) : recordId) as ID);
         setQuery("");
         combobox.closeDropdown();
       }}
       offset={0}
       shadow="sm"
+      disabled={freeze}
     >
       <Combobox.Target>
         <Input
           id={name}
-          pointer={true}
+          pointer={!freeze}
           rightSection={<IconSearch size={16} stroke={1.5} />}
           rightSectionPointerEvents="none"
-          onClick={() => combobox.toggleDropdown()}
+          onClick={() => !freeze && combobox.toggleDropdown()}
           placeholder="Type to search..."
           value={query}
           onChange={(e) => {
-            setQuery(e.currentTarget.value);
+            if (!freeze) {
+              setQuery(e.currentTarget.value);
+            }
           }}
+          disabled={freeze}
         />
       </Combobox.Target>
       <Combobox.Dropdown>
@@ -173,10 +183,12 @@ export const CardList = <R,>({
   items,
   onDelete,
   render,
+  freeze = false,
 }: {
   items: R[];
   onDelete: (value: R) => void;
   render: (value: R) => React.ReactNode;
+  freeze?: boolean;
 }) => {
   const els = useMemo(() => {
     const out = [];
@@ -185,7 +197,9 @@ export const CardList = <R,>({
       out.push(
         <Group key={i} justify="space-between" p="sm">
           {render(item)}
-          <CloseButton size="sm" onClick={() => onDelete(item)} />
+          {!freeze && (
+            <CloseButton size="sm" onClick={() => onDelete(item)} />
+          )}
         </Group>
       );
       if (i < items.length - 1) {
@@ -194,7 +208,7 @@ export const CardList = <R,>({
     }
 
     return out;
-  }, [items]);
+  }, [items, freeze]);
 
   if (els.length === 0) {
     return undefined;

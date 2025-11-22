@@ -28,6 +28,7 @@ export interface NavigateFunction {
   }>, options?: any): void | Promise<void>;
   (delta: number): void | Promise<void>;
 }
+// ToDo: improve it should accept dynamic Route Types
 export interface NoArgsRoute {
   path(): {
     open: (navigate: NavigateFunction) => void;
